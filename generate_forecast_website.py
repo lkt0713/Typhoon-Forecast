@@ -43,14 +43,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                            genesis_map_paths: list | None = None):
     """生成預報網站，可展示多顆颱風。
 
-    同一顆颱風若同時有 FNV3-NEW / FNV3-OLD / GENC 多種模式的預報，會合併成單一颱風卡片：
+    同一顆颱風若同時有 WNC-R2 / WNC-R1 / GENC 多種模式的預報，會合併成單一颱風卡片：
     颱風字卡與 JTWC 官方預報圖僅顯示一次，Ensemble 路徑圖與動畫則透過分頁
-    （FNV3-NEW / FNV3-OLD / GENC）切換，避免同一顆颱風重複出現多張幾乎相同的卡片。
+    （WNC-R2 / WNC-R1 / GENC）切換，避免同一顆颱風重複出現多張幾乎相同的卡片。
     """
 
     update_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 依 track_id 分組（保留原始出現順序），同一顆颱風的 FNV3/GENC 併入同一組
+    # 依 track_id 分組（保留原始出現順序），同一顆颱風的 WNC/GENC 併入同一組
     groups: dict[str, list[dict]] = {}
     order: list[str] = []
     for storm in storms:
@@ -120,7 +120,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if curr_cat in ('TD',):
             cat_text_color = "#333"
 
-        model_names = [m.get('model', 'FNV3-NEW') for m in models if isinstance(m, dict)]
+        model_names = [m.get('model', 'WNC-R2') for m in models if isinstance(m, dict)]
         multi_model = len(models) > 1
 
         # ── 颱風摘要字卡（每顆颱風僅一張，不再依模式重複）─────────────
@@ -166,7 +166,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>
         """)
 
-        # ── 模式分頁按鈕（僅同時有 FNV3 與 GENC 時顯示）───────────────
+        # ── 模式分頁按鈕（僅同時有 WNC 與 GENC 時顯示）───────────────
         if multi_model:
             tab_buttons = "".join(
                 f'<button class="model-tab-btn{" active" if i == 0 else ""}" '
@@ -178,7 +178,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 動畫（依模式分頁切換；僅在該模式有幀資料時輸出）───────────
         for i, m in enumerate(models):
-            model_name = m.get('model', 'FNV3-NEW')
+            model_name = m.get('model', 'WNC-R2')
             storm_frames_dir = m.get('frames_dir', '')
             if not (storm_frames_dir and os.path.exists(storm_frames_dir)):
                 continue
@@ -232,7 +232,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         # ── Ensemble 路徑圖（依模式分頁切換）+ JTWC 官方預報（每顆颱風僅一份）──
         map_panels = []
         for i, m in enumerate(models):
-            model_name = m.get('model', 'FNV3-NEW')
+            model_name = m.get('model', 'WNC-R2')
             forecast_map_path = m.get('forecast_map_path', '') if isinstance(m, dict) else ''
             map_src = os.path.basename(forecast_map_path) if forecast_map_path else ''
             hide_attr = '' if i == 0 else ' style="display:none;"'
@@ -278,7 +278,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     cards_section = "\n".join(cards_html)
     title_track_ids = " / ".join(track_ids) if track_ids else "Forecast"
 
-    # 西太平洋潛勢預報面板 — 與颱風卡片相同的模式：FNV3/GENC 合併為單一面板，
+    # 西太平洋潛勢預報面板 — 與颱風卡片相同的模式：WNC/GENC 合併為單一面板，
     # 用分頁切換，而非各自佔一整塊面板。
     _all_genesis = list(genesis_map_paths or [])
 
@@ -290,10 +290,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         _gimg_upper = _gimg.upper()
         if "GENC" in _gimg_upper:
             _model_label = "GENC"
-        elif "FNV3P1" in _gimg_upper:
-            _model_label = "FNV3-OLD"
+        elif "WNC-R1" in _gimg_upper:
+            _model_label = "WNC-R1"
         else:
-            _model_label = "FNV3-NEW"
+            _model_label = "WNC-R2"
         _genesis_entries.append((_model_label, _gimg))
 
     genesis_section = ""
@@ -539,7 +539,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             display: flex; align-items: center; gap: 6px;
             letter-spacing: .4px;
         }}
-        /* ── Model Tabs (switch FNV3 / GENC for the same storm) ─── */
+        /* ── Model Tabs (switch WNC / GENC for the same storm) ─── */
         .model-tabs {{
             display: flex; gap: 8px; flex-wrap: wrap;
         }}
@@ -854,7 +854,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon">🌀</div>
             <div class="brand-text">
                 <h1>Pillar's Tropical Cyclone Forecast</h1>
-                <small>Real-time FNV3-NEW / FNV3-OLD / GENC Ensemble Forecast System · Western Pacific</small>
+                <small>Real-time WNC-R2 / WNC-R1 / GENC Ensemble Forecast System · Western Pacific</small>
             </div>
         </div>
         <div class="header-actions">
@@ -877,7 +877,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="footer-brand">
                     <h3>Pillar's Tropical Cyclone Forecast System</h3>
                     <p>
-                        Ensemble track forecasts powered by DeepMind FNV3-NEW, FNV3-OLD &amp; GENC models.<br>
+                        Ensemble track forecasts powered by DeepMind WNC-R2, WNC-R1 &amp; GENC models.<br>
                         Official intensity guidance from JTWC. Data refreshed automatically.
                     </p>
                 </div>
@@ -909,7 +909,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         applyTheme(current === 'dark' ? 'light' : 'dark');
     }}
 
-    // ── Model tab switching (FNV3 / GENC for the same storm) ────────────────────
+    // ── Model tab switching (WNC / GENC for the same storm) ────────────────────
     function switchModelTab(trackId, model) {{
         document.querySelectorAll(`.model-panel[data-track="${{trackId}}"]`).forEach(el => {{
             const isActive = el.dataset.model === model;

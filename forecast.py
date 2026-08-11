@@ -34,7 +34,7 @@ except ImportError:
     HAS_SHAPELY = False
 
 # Target timestamp — auto-derived from current UTC time.
-# FNV3 data is available ~6h45m after cycle time, so we subtract that
+# WNC data is available ~6h45m after cycle time, so we subtract that
 # and round down to the nearest 6-hour boundary (00/06/12/18Z).
 def _latest_cycle() -> datetime:
     adjusted = datetime.now(timezone.utc) - timedelta(hours=6, minutes=45)
@@ -57,19 +57,19 @@ os.makedirs(GENC_ENSEMBLE_DIR, exist_ok=True)
 os.makedirs(GENC_MEAN_DIR, exist_ok=True)
 os.makedirs(GENC_CYCLOGENESIS_DIR, exist_ok=True)
 
-# FNV3P1 是 FNV3 的舊版模型（現行版 FNV3P2 的命名說明見下方 MODEL_CONFIGS）
-FNV3P1_ENSEMBLE_DIR = "deepmind_weather_fnv3p1_downloads_2026"
-FNV3P1_MEAN_DIR = "deepmind_weather_fnv3p1_ensemble_mean_downloads_2026"
-FNV3P1_CYCLOGENESIS_DIR = "deepmind_weather_fnv3p1_cyclogenesis_2026"
-os.makedirs(FNV3P1_ENSEMBLE_DIR, exist_ok=True)
-os.makedirs(FNV3P1_MEAN_DIR, exist_ok=True)
-os.makedirs(FNV3P1_CYCLOGENESIS_DIR, exist_ok=True)
+# WNC-R1 是舊版模型（現行版 WNC-R2 的命名說明見下方 MODEL_CONFIGS）
+WNC_R1_ENSEMBLE_DIR = "deepmind_weather_wnc_r1_downloads_2026"
+WNC_R1_MEAN_DIR = "deepmind_weather_wnc_r1_ensemble_mean_downloads_2026"
+WNC_R1_CYCLOGENESIS_DIR = "deepmind_weather_wnc_r1_cyclogenesis_2026"
+os.makedirs(WNC_R1_ENSEMBLE_DIR, exist_ok=True)
+os.makedirs(WNC_R1_MEAN_DIR, exist_ok=True)
+os.makedirs(WNC_R1_CYCLOGENESIS_DIR, exist_ok=True)
 
 # Weather Lab 下載端點。
-# 注意：Google DeepMind Weather Lab 現行作業版 FNV3 模型在 URL 上的代號是
-# "FNV3P2"（與 "OPER" 別名指向同一份檔案，但 FNV3P2 與舊版 "FNV3P1" 命名一致）。
-# 本地檔名沿用 "FNV3_" 前綴以相容既有資料；對外顯示為 "FNV3-NEW"（FNV3P2）
-# 與 "FNV3-OLD"（FNV3P1）。
+# 注意：模型改名為 WNC 後，Weather Lab URL 上的代號仍是舊的 "FNV3P2"（現行版，
+# 與 "OPER" 別名指向同一份檔案）與 "FNV3P1"（舊版）。那是對方網址的路徑片段，
+# 不是我們的命名，改掉就抓不到資料，因此 MODEL_CONFIGS 的 "remote" 維持原樣；
+# 我們自己的檔名與顯示名稱一律用 WNC-R2（現行版）與 WNC-R1（舊版）。
 BASE_URL = "https://deepmind.google.com/science/weatherlab/download/cyclones"
 
 
@@ -90,9 +90,9 @@ def _cycle_stamp(cycle: datetime) -> str:
 # 三種模式共用同一條處理管線（_process_model）；模式間的差異集中在這張設定表。
 MODEL_CONFIGS = [
     {
-        "remote": "FNV3P2",       # Weather Lab URL 上的模型代號
-        "local_prefix": "FNV3",   # 本地 CSV 檔名前綴（沿用舊命名以相容既有資料）
-        "display": "FNV3-NEW",
+        "remote": "FNV3P2",       # Weather Lab URL 上的模型代號（對方未改，見上方註解）
+        "local_prefix": "WNC-R2", # 本地 CSV 檔名前綴
+        "display": "WNC-R2",
         "ensemble_dir": ENSEMBLE_DIR,
         "mean_dir": MEAN_DIR,
         "cyc_dir": CYCLOGENESIS_DIR,
@@ -102,13 +102,13 @@ MODEL_CONFIGS = [
     },
     {
         "remote": "FNV3P1",
-        "local_prefix": "FNV3P1",
-        "display": "FNV3-OLD",
-        "ensemble_dir": FNV3P1_ENSEMBLE_DIR,
-        "mean_dir": FNV3P1_MEAN_DIR,
-        "cyc_dir": FNV3P1_CYCLOGENESIS_DIR,
-        "genesis_png": "WP_Genesis_Potential_FNV3P1.png",
-        "output_prefix": "FNV3P1_",
+        "local_prefix": "WNC-R1",
+        "display": "WNC-R1",
+        "ensemble_dir": WNC_R1_ENSEMBLE_DIR,
+        "mean_dir": WNC_R1_MEAN_DIR,
+        "cyc_dir": WNC_R1_CYCLOGENESIS_DIR,
+        "genesis_png": "WP_Genesis_Potential_WNC-R1.png",
+        "output_prefix": "WNC-R1_",
         "required": False,
     },
     {
@@ -135,7 +135,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 open(os.path.join(OUTPUT_DIR, ".nojekyll"), "w").close()
 
 
-def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "FNV3") -> list[str]:
+def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC-R2") -> list[str]:
     """從 MEAN_DIR 內最新的 CSV 自動偵測有效颱風 TRACK_ID。
     若提供 preferred_path 且檔案存在，優先使用該檔案（當前 cycle）。
     只保留 WP[0-8]X20XX，排除 WP9X（擾動）。
@@ -581,7 +581,7 @@ def extract_current_info(df: pd.DataFrame) -> dict:
         'r34_nw': r34_nw,
     }
 
-def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "FNV3") -> list:
+def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC-R2") -> list:
     """生成預報軌跡演變的幀序列，用於網頁動畫生成。與靜態地圖保持一致的風格。
     
     Returns:
@@ -993,7 +993,7 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
             color='#CC3300', lw=1.6, alpha=1.0, zorder=0.50, **kw)
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "FNV3"):
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC-R2"):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。"""
     # 計算範圍（處理國際換日線）
     all_lons = list(df['lon']) + list(mean_df['lon'])
@@ -1140,7 +1140,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     print(f"[INFO] 已儲存地圖：{save_path}")
 
 
-def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "FNV3"):
+def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC-R2"):
     """繪製西太平洋 Ensemble 潛勢預報總覽圖（以 MSLP 著色）。"""
     if not os.path.exists(csv_path):
         print(f"[GENESIS] 找不到潛勢 CSV：{csv_path}")
@@ -1366,8 +1366,8 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     舊的路徑圖、動畫 GIF 與幀目錄會永遠留在 OUTPUT_DIR，既佔空間也會被
     commit 進 repo，且 index.html 不會再引用它們。
 
-    前綴以 ^ 錨定，確保無前綴的 FNV3P2（output_prefix=""）不會誤刪
-    FNV3P1_ / GENC_ 開頭的檔案。
+    前綴以 ^ 錨定，確保無前綴的 WNC-R2（output_prefix=""）不會誤刪
+    WNC-R1_ / GENC_ 開頭的檔案。
     """
     if not os.path.isdir(OUTPUT_DIR):
         return
@@ -1523,7 +1523,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
 
 
 def main():
-    # 同一顆颱風的 FNV3/GENC track_id 相同時，JTWC 官方資料（web.txt、預報圖）
+    # 同一顆颱風的 WNC/GENC track_id 相同時，JTWC 官方資料（web.txt、預報圖）
     # 只跟真實颱風有關、與模式無關，故在本次執行內快取，避免重複下載。
     jtwc_text_cache: dict = {}
     jtwc_image_downloaded: set = set()
