@@ -12,6 +12,9 @@ deepmind_weather_genc_cyclogenesis_2026/
 deepmind_weather_wnc_r1_downloads_2026/
 deepmind_weather_wnc_r1_ensemble_mean_downloads_2026/
 deepmind_weather_wnc_r1_cyclogenesis_2026/
+deepmind_weather_wnc3_downloads_2026/
+deepmind_weather_wnc3_ensemble_mean_downloads_2026/
+deepmind_weather_wnc3_cyclogenesis_2026/
 
 # 排除日誌與暫存
 forecast_log.txt
