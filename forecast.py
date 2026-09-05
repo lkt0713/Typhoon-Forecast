@@ -10,6 +10,7 @@ matplotlib.use("Agg")  # 排程環境無顯示器，避免載入 GUI 後端
 import matplotlib.pyplot as plt # type: ignore
 import matplotlib.lines as mlines # type: ignore
 import matplotlib.patheffects as mpe # type: ignore
+from matplotlib.legend_handler import HandlerTuple # type: ignore
 import matplotlib.ticker as mticker # type: ignore
 import re
 
@@ -392,6 +393,96 @@ def _intensity_legend_handles(ms: float = 7.0) -> list:
     return handles
 
 
+def _cyclone_marker_path(turns: float = 0.62, r_core: float = 0.30,
+                         r_end: float = 1.0, w_start: float = 0.30,
+                         w_end: float = 0.035, n: int = 56):
+    """颱風符號（中心圓 + 兩條旋臂）的 marker Path。
+
+    matplotlib 沒有現成的颱風符號，Unicode 的 🌀 只存在於 emoji 字型 —— 排程是在
+    沒有 emoji 字型的環境跑的，直接用字元會變成豆腐框，所以這裡自己描出形狀：
+    每條旋臂沿一條「半徑漸增、寬度漸縮」的螺旋中心線取外緣與內緣後閉合，
+    北半球颱風逆時針旋轉，旋臂就順著逆時針畫。
+
+    三個子路徑（中心圓 + 兩臂）都是逆時針，Agg 用 nonzero 填色規則，重疊處
+    會併成一體而不是挖洞；也因此不要對它描邊，否則子路徑的交界會露出接縫。
+    """
+    from matplotlib.path import Path as _MplPath
+
+    verts: list = []
+    codes: list = []
+
+    def _add_polygon(pts):
+        verts.extend(pts.tolist() + [pts[0].tolist()])
+        codes.extend([_MplPath.MOVETO] + [_MplPath.LINETO] * (len(pts) - 1)
+                     + [_MplPath.CLOSEPOLY])
+
+    ang = np.linspace(0.0, 2 * np.pi, 40, endpoint=False)
+    _add_polygon(np.column_stack([r_core * np.cos(ang), r_core * np.sin(ang)]))
+
+    u = np.linspace(0.0, 1.0, n)
+    rad = r_core * 0.5 + (r_end - r_core * 0.5) * u
+    half_w = w_start * (1.0 - u) ** 1.2 + w_end * u
+    for k in range(2):
+        th = np.pi * k + 2 * np.pi * turns * u
+        outer = np.column_stack([(rad + half_w) * np.cos(th), (rad + half_w) * np.sin(th)])
+        inner = np.column_stack([(rad - half_w) * np.cos(th), (rad - half_w) * np.sin(th)])
+        _add_polygon(np.vstack([outer, inner[::-1]]))
+
+    return _MplPath(np.asarray(verts, dtype=float), np.asarray(codes, dtype=np.uint8))
+
+
+CYCLONE_MARKER = _cyclone_marker_path()
+
+
+def _draw_init_marker(ax, lon, lat, kw, scale: float = 1.0):
+    """初始位置：颱風符號。
+
+    白色圓底先把它從底下密集的成員點裡挖出來，再疊深琥珀（外框）與琥珀（本體）
+    兩層符號 —— 用兩層疊而不是描邊，是因為描邊會把旋臂與中心圓的接縫畫出來。
+    """
+    ax.scatter([lon], [lat], s=250 * scale, marker='o', color='white',
+               edgecolors='none', alpha=0.85, zorder=7, **kw)
+    ax.scatter([lon], [lat], s=235 * scale, marker=CYCLONE_MARKER, color=INIT_EDGE,
+               edgecolors='none', zorder=7.1, **kw)
+    ax.scatter([lon], [lat], s=165 * scale, marker=CYCLONE_MARKER, color=INIT_FACE,
+               edgecolors='none', zorder=7.2, **kw)
+
+
+def _init_legend_handle(ms: float = 11.0):
+    """圖例裡的初始位置標記：兩個 Line2D 疊出跟地圖上一樣的雙層颱風符號。
+
+    回傳 tuple，legend 需搭配 handler_map={tuple: HandlerTuple(ndivide=1)}
+    —— ndivide=1 才是「全部疊在同一格」，None 會把格子平分成並排的兩個；
+    因為 tuple 沒有 get_label()，呼叫端必須另外傳 labels。
+    """
+    return (
+        mlines.Line2D([], [], marker=CYCLONE_MARKER, ms=ms, ls='',
+                      color=INIT_EDGE, markeredgecolor='none'),
+        mlines.Line2D([], [], marker=CYCLONE_MARKER, ms=ms * 0.84, ls='',
+                      color=INIT_FACE, markeredgecolor='none'),
+    )
+
+
+def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 11.0):
+    """左上角的 Track Source 圖例（靜態圖與動畫幀共用同一份定義）。"""
+    handles = [
+        mlines.Line2D([], [], color=TRACK_LINE, lw=1.4),
+        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=2.4,
+                      markerfacecolor='white', markeredgecolor=MEAN_COLOR,
+                      markeredgewidth=1.4),
+        mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.5),
+        _init_legend_handle(ms),
+    ]
+    labels = ['Ensemble Members', f'{model_name} Mean', 'Uncertainty Cone', 'Init Position']
+    leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
+                    fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
+                    handlelength=1.4, handletextpad=0.7,
+                    handler_map={tuple: HandlerTuple(ndivide=1, pad=0)}, **LEGEND_KW)
+    _style_legend(leg)
+    ax.add_artist(leg)
+    return leg
+
+
 def _style_legend(leg) -> None:
     """圖例標題置中並統一字色。"""
     title = leg.get_title()
@@ -461,9 +552,11 @@ def _set_map_titles(ax, main: str, right: str = '', main_size: int = 14, right_s
         ax.set_title(right, loc='right', fontsize=right_size, color=TEXT_MUTED, pad=10)
 
 
-def _watermark(ax) -> None:
-    ax.text(0.995, 0.008, 'By Pillar', transform=ax.transAxes,
-            ha='right', va='bottom', fontsize=7, style='italic',
+def _watermark(ax, side: str = 'right') -> None:
+    """署名。side 決定貼左下或右下 —— 路徑圖右下角被強度圖例佔著，只能放左下。"""
+    x, ha = (0.995, 'right') if side == 'right' else (0.005, 'left')
+    ax.text(x, 0.008, 'By Pillar', transform=ax.transAxes,
+            ha=ha, va='bottom', fontsize=7, style='italic',
             color=TEXT_MUTED, zorder=10)
 
 FIG_AR = 1.40
@@ -829,8 +922,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
         _draw_uncertainty_cone(ax, df, mean_df, init_time, use_360, kw, max_fh=fh_now)
 
         # ── 起始位置星形標記 ──────────────────────────────────────────────────
-        ax.scatter([init_lon_star], [init_lat_star], marker='*', color=INIT_FACE, s=210,
-                   ec=INIT_EDGE, zorder=7, linewidth=0.9, **kw)
+        _draw_init_marker(ax, init_lon_star, init_lat_star, kw, scale=0.9)
 
         # ── 集合成員軌跡 ──────────────────────────────────────────────────────
         for sid, g in df.groupby("sample"):
@@ -895,20 +987,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                             bbox=_label_box(0.94), zorder=6)
 
         # ── 圖例 ──────────────────────────────────────────────────────────────
-        handles = [
-            mlines.Line2D([], [], color=TRACK_LINE, label='Ensemble Members', lw=1.4),
-            mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=5.5, lw=2.2,
-                          markerfacecolor='white', markeredgecolor=MEAN_COLOR,
-                          markeredgewidth=1.3, label=f'{model_name} Mean'),
-            mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.45, label='Uncertainty Cone'),
-            mlines.Line2D([], [], color=INIT_FACE, marker='*', ms=10, ls='',
-                          markeredgecolor=INIT_EDGE, label='Init Position'),
-        ]
-        l1 = ax.legend(handles=handles, loc='upper left', title='Track Source', fontsize=8,
-                       borderpad=0.7, labelspacing=0.4, handlelength=1.4, handletextpad=0.7,
-                       **LEGEND_KW)
-        _style_legend(l1)
-        ax.add_artist(l1)
+        _track_source_legend(ax, model_name, fontsize=8, ms=10)
 
         int_leg = ax.legend(handles=_intensity_legend_handles(ms=6), loc='lower right',
                             bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
@@ -995,10 +1074,15 @@ def _compute_cone_stop_fh(df: pd.DataFrame, init_time: pd.Timestamp, max_fh: flo
     if np.isclose(rem12, 0.0, atol=1e-6) and (not np.isclose(rem24, 0.0, atol=1e-6)):
         cone_end_fh = max(0.0, cone_end_fh - 12.0)
 
+    # 門檻取「總成員數的一半」而非固定值：WNC2 是 50 條、WNC3 是 64 條，
+    # 寫死 25 會讓兩個模式的鬆緊不一致（50% vs 39%）。
+    n_members = int(work['sample'].nunique()) if 'sample' in work.columns else 0
+    min_members = max(5, int(np.ceil(n_members * 0.5))) if n_members else 25
+
     last_ok_t = None
     for t in np.arange(0, cone_end_fh + 1, 12):
         sub = work[abs(work['fh'] - t) < 3.5]
-        if len(sub) < 25:   # 集合成員數不足，視為圓錐終點
+        if len(sub) < min_members:   # 存活成員數不足，視為圓錐終點
             break
         last_ok_t = float(t)
 
@@ -1072,18 +1156,28 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
         # only new circles at the trailing end are added as max_fh increases.
         STEP_H = 1.0   # hours — fixed step guarantees stability of the early cone
 
-        # Adaptive minimum radius: ensures consecutive circles always overlap even
-        # for fast-moving typhoons (needs 2*MIN_R > max_track_speed * STEP_H).
-        if len(t_arr) >= 2:
-            spd = np.hypot(np.diff(cx_arr), np.diff(cy_arr)) / np.diff(t_arr)
-            MAX_SPD = float(np.max(spd))
-        else:
-            MAX_SPD = 0.0
-        MIN_R = max(0.10, MAX_SPD * STEP_H * 0.6)
-
         t_dense  = np.arange(t_arr[0], t_arr[-1] + STEP_H * 0.5, STEP_H)
-        cx_dense = np.interp(t_dense, t_arr, cx_arr)
-        cy_dense = np.interp(t_dense, t_arr, cy_arr)
+
+        # 圓心沿「實際的平均路徑」取樣，而不是在 12h 節點之間拉直線。
+        # 平均路徑是 6 小時一筆、而且前期常常大幅轉向；用 12h 節點連線當中心線的話，
+        # 中心線會直接切過轉彎的弦，偏離真正的平均路徑，而前 12 小時圓錐半徑又還
+        # 接近 0 —— 平均線就整條跑到圓錐外面去。以平均路徑本身內插即可對齊，
+        # 圓心就是圖上畫出來的那條線。
+        mean_fh = mean_s['fh'].to_numpy(dtype=float)
+        mean_x  = mean_s['lon_n'].to_numpy(dtype=float)
+        mean_y  = mean_s['lat'].to_numpy(dtype=float)
+        # 平均路徑比圓錐短時（末端超出範圍），該段退回節點內插
+        use_mean = (t_dense >= mean_fh[0]) & (t_dense <= mean_fh[-1])
+        cx_dense = np.where(use_mean, np.interp(t_dense, mean_fh, mean_x),
+                            np.interp(t_dense, t_arr, cx_arr))
+        cy_dense = np.where(use_mean, np.interp(t_dense, mean_fh, mean_y),
+                            np.interp(t_dense, t_arr, cy_arr))
+
+        # 最小半徑：相鄰兩個圓必須重疊，否則 union 會斷成一串珠子。
+        # 直接用實際的圓心間距算（2*MIN_R > 間距），比用節點平均速度推更保險。
+        step_d = (np.hypot(np.diff(cx_dense), np.diff(cy_dense))
+                  if len(cx_dense) > 1 else np.array([0.0]))
+        MIN_R = max(0.10, float(step_d.max()) * 0.6)
         r_dense  = np.maximum(np.interp(t_dense, t_arr, r_arr), MIN_R)
 
         geo_circles = [
@@ -1232,8 +1326,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     if not mean_df.empty:
         init_pt = mean_df.sort_values('valid_time').iloc[0]
         init_lon_star = _normalize_lon_values([init_pt['lon']], use_360=use_360)[0]
-        ax.scatter([init_lon_star], [init_pt['lat']], marker='*', color=INIT_FACE, s=230,
-                   ec=INIT_EDGE, zorder=7, linewidth=0.9, **kw)
+        _draw_init_marker(ax, init_lon_star, init_pt['lat'], kw, scale=1.0)
 
     # 平均路徑（紅線）與 24h 標記（紅色方塊）及標註
     mean_lons = _normalize_lon_values(mean_plot_df["lon"].to_numpy(), use_360=use_360)
@@ -1277,20 +1370,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                     bbox=_label_box(0.94), zorder=6)
 
     # 圖例
-    handles = [
-        mlines.Line2D([], [], color=TRACK_LINE, label='Ensemble Members', lw=1.4),
-        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=6, lw=2.4,
-                      markerfacecolor='white', markeredgecolor=MEAN_COLOR,
-                      markeredgewidth=1.4, label=f'{model_name} Mean'),
-        mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.45, label='Uncertainty Cone'),
-        mlines.Line2D([], [], color=INIT_FACE, marker='*', ms=11, ls='',
-                      markeredgecolor=INIT_EDGE, label='Init Position'),
-    ]
-    l1 = ax.legend(handles=handles, loc='upper left', title='Track Source', fontsize=9,
-                   borderpad=0.7, labelspacing=0.42, handlelength=1.4, handletextpad=0.7,
-                   **LEGEND_KW)
-    _style_legend(l1)
-    ax.add_artist(l1)
+    _track_source_legend(ax, model_name, fontsize=9, ms=11)
 
     int_leg = ax.legend(handles=_intensity_legend_handles(ms=7), loc='lower right',
                         bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
@@ -1306,7 +1386,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                     f"{model_name}  ·  {track_id}  Ensemble Track Forecast",
                     f"Init {init_str}" + (f"  ·  {n_members} members" if n_members else ""),
                     main_size=15, right_size=9)
-    _watermark(ax)
+    _watermark(ax, side='left')
     plt.tight_layout(pad=0.6)
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
@@ -1756,7 +1836,7 @@ def main():
             jtwc_image_downloaded.add(track_id)
 
     storms: list[dict] = []
-    genesis_maps: list[str] = []
+    genesis_maps: list[tuple[str, str]] = []
     for cfg in MODEL_CONFIGS:
         try:
             genesis_map_path, model_storms = _process_model(
@@ -1768,7 +1848,8 @@ def main():
             print(f"[{cfg['display']}-ERROR] 模式處理失敗，略過: {e}")
             continue
         if genesis_map_path:
-            genesis_maps.append(genesis_map_path)
+            # 帶上 display 名稱：網頁端要用它當分頁標籤，從檔名反猜既脆弱又容易撞名
+            genesis_maps.append((cfg["display"], genesis_map_path))
         storms.extend(model_storms)
 
     # JTWC 預報圖跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失

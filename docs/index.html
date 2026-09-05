@@ -6,41 +6,51 @@
     <title>Pillar's Tropical Cyclone Forecast | WP222026 / WP232026</title>
     <style>
         /* ── Design Tokens ─────────────────────────────────────── */
+        /* 色票與地圖同源：海軍藍 #16324F = 平均路徑、海洋藍 #2E86C8 = TS、
+           青綠 #1FA97E = Cat1，網頁與圖面因此看起來是同一套系統。 */
         :root {
-            --bg:        #eef2f7;
+            --bg:        #e9eff5;
             --surface:   #ffffff;
-            --surface-2: #f4f7fb;
-            --surface-3: #eaeff7;
-            --accent:    #1558d6;
-            --accent-2:  #0891b2;
-            --accent-lo: rgba(21,88,214,.1);
-            --text:      #0c1a2e;
-            --text-2:    #4a5a72;
-            --text-3:    #8898aa;
-            --border:    #d4dce8;
-            --shadow:    0 2px 12px rgba(12,26,46,.07);
-            --shadow-md: 0 8px 32px rgba(12,26,46,.10);
-            --shadow-lg: 0 20px 60px rgba(12,26,46,.13);
-            --btn-bg:    linear-gradient(135deg,#1558d6,#0891b2);
+            --surface-2: #f2f7fb;
+            --surface-3: #e5edf5;
+            --accent:    #1b5c94;
+            --accent-2:  #0f9b8e;
+            --accent-lo: rgba(27,92,148,.10);
+            --accent-rgb: 27,92,148;
+            --text:      #16324f;
+            --text-2:    #4a6076;
+            --text-3:    #8194a8;
+            --border:    #d2dde9;
+            --danger:    #dc3a4e;
+            --ok:        #1fa97e;
+            --warn:      #ee7a22;
+            --shadow:    0 2px 12px rgba(22,50,79,.07);
+            --shadow-md: 0 8px 32px rgba(22,50,79,.10);
+            --shadow-lg: 0 20px 60px rgba(22,50,79,.14);
+            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
             --header-h:  64px;
             --radius:    14px;
         }
         [data-theme="dark"] {
-            --bg:        #020c18;
-            --surface:   #091524;
-            --surface-2: #0e1f33;
-            --surface-3: #132840;
-            --accent:    #38bdf8;
-            --accent-2:  #2dd4bf;
-            --accent-lo: rgba(56,189,248,.10);
-            --text:      #dde8f4;
-            --text-2:    #8ba0ba;
-            --text-3:    #516078;
-            --border:    rgba(56,189,248,.14);
-            --shadow:    0 2px 12px rgba(0,0,0,.30);
-            --shadow-md: 0 8px 32px rgba(0,0,0,.40);
+            --bg:        #071320;
+            --surface:   #0d1e2e;
+            --surface-2: #12283b;
+            --surface-3: #1a3550;
+            --accent:    #58b0e8;
+            --accent-2:  #3fcbb4;
+            --accent-lo: rgba(88,176,232,.12);
+            --accent-rgb: 88,176,232;
+            --text:      #dfe9f2;
+            --text-2:    #91a6ba;
+            --text-3:    #5c7386;
+            --border:    rgba(88,176,232,.16);
+            --danger:    #f26173;
+            --ok:        #35c496;
+            --warn:      #f79445;
+            --shadow:    0 2px 12px rgba(0,0,0,.32);
+            --shadow-md: 0 8px 32px rgba(0,0,0,.42);
             --shadow-lg: 0 20px 60px rgba(0,0,0,.55);
-            --btn-bg:    linear-gradient(135deg,#1558d6,#0891b2);
+            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
         }
 
         /* ── Reset ─────────────────────────────────────────────── */
@@ -82,7 +92,7 @@
             background: var(--btn-bg);
             display: flex; align-items: center; justify-content: center;
             font-size: 1.2em; flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(21,88,214,.35);
+            box-shadow: 0 4px 12px rgba(var(--accent-rgb),.35);
         }
         .brand-text h1 {
             font-size: 1.05em; font-weight: 800; letter-spacing: -.3px;
@@ -107,13 +117,13 @@
         }
         .update-dot {
             width: 7px; height: 7px; border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 0 2px rgba(34,197,94,.25);
+            background: var(--ok);
+            box-shadow: 0 0 0 2px rgba(31,169,126,.25);
             animation: pulse-green 2s ease-in-out infinite;
         }
         @keyframes pulse-green {
-            0%,100% { box-shadow: 0 0 0 2px rgba(34,197,94,.25); }
-            50%      { box-shadow: 0 0 0 5px rgba(34,197,94,.08); }
+            0%,100% { box-shadow: 0 0 0 2px rgba(31,169,126,.25); }
+            50%      { box-shadow: 0 0 0 5px rgba(31,169,126,.08); }
         }
         .theme-btn {
             background: var(--surface-2);
@@ -187,15 +197,15 @@
             font-family: 'Courier New', monospace;
         }
         .badge-live {
-            background: rgba(239,68,68,.1);
-            border: 1px solid rgba(239,68,68,.3);
-            color: #ef4444;
+            background: rgba(220,58,78,.10);
+            border: 1px solid rgba(220,58,78,.32);
+            color: var(--danger);
             padding: 6px 13px; border-radius: 8px;
             font-size: .8em; font-weight: 700;
             display: flex; align-items: center; gap: 6px;
             letter-spacing: .4px;
         }
-        /* ── Model Tabs (switch WNC / GENC for the same storm) ─── */
+        /* ── Model Tabs (switch WNC3 / WNC2 / GENC for the same storm) ─── */
         .model-tabs {
             display: flex; gap: 8px; flex-wrap: wrap;
         }
@@ -211,12 +221,12 @@
         .model-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
         .model-tab-btn.active {
             background: var(--btn-bg); color: #fff; border-color: transparent;
-            box-shadow: 0 4px 14px rgba(21,88,214,.3);
+            box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3);
         }
         .genesis-tabs { margin-bottom: 16px; }
         .live-dot {
             width: 7px; height: 7px; border-radius: 50%;
-            background: #ef4444;
+            background: var(--danger);
             animation: pulse-red 1.4s ease-in-out infinite;
         }
         @keyframes pulse-red {
@@ -270,10 +280,17 @@
             display: flex; align-items: center; gap: 10px;
             font-size: 1.05em; font-weight: 700; color: var(--text);
             margin-bottom: 16px; padding-bottom: 13px;
-            border-bottom: 2px solid var(--accent);
+            border-bottom: 1px solid var(--border);
+            position: relative;
         }
         .panel-icon {
             font-size: 1.15em;
+        }
+        /* 標題底線只在文字下方畫一小段漸層，比整條粗線輕，也讓視線落在標題上 */
+        .panel-header::after {
+            content: ''; position: absolute; left: 0; bottom: -1px;
+            width: 62px; height: 2px; border-radius: 2px;
+            background: var(--btn-bg);
         }
 
         /* ── Maps Grid ──────────────────────────────────────────── */
@@ -357,7 +374,7 @@
             background: var(--btn-bg); color: #fff; border: none;
             padding: 8px 16px; border-radius: 8px;
             font-size: .84em; font-weight: 600; cursor: pointer;
-            transition: all .2s; box-shadow: 0 3px 10px rgba(21,88,214,.3);
+            transition: all .2s; box-shadow: 0 3px 10px rgba(var(--accent-rgb),.3);
             white-space: nowrap;
         }
         .control-btn.secondary {
@@ -436,7 +453,7 @@
 
         /* ── Genesis Potential Panel ───────────────────────────────── */
         .genesis-panel {
-            border-left: 4px solid #FF6600;
+            border-left: 4px solid var(--warn);
         }
         .genesis-body {
             display: flex;
@@ -510,13 +527,13 @@
             <div class="brand-icon">🌀</div>
             <div class="brand-text">
                 <h1>Pillar's Tropical Cyclone Forecast</h1>
-                <small>Real-time WNC-R2 / WNC-R1 / GENC Ensemble Forecast System · Western Pacific</small>
+                <small>Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC Ensemble Forecast System · Western Pacific</small>
             </div>
         </div>
         <div class="header-actions">
             <div class="update-badge">
                 <span class="update-dot"></span>
-                Updated: 2026-09-05 15:34:06
+                Updated: 2026-09-05 16:33:02
             </div>
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
         </div>
@@ -530,14 +547,14 @@
                     <span class="panel-icon">🌏</span>
                     <span>Western Pacific Genesis Potential — Ensemble Overview</span>
                 </div>
-                <div class="model-tabs genesis-tabs"><button class="model-tab-btn active" data-track="genesis" data-model="WNC-R2" onclick="switchModelTab('genesis', 'WNC-R2')">WNC-R2</button><button class="model-tab-btn" data-track="genesis" data-model="WNC-R2" onclick="switchModelTab('genesis', 'WNC-R2')">WNC-R2</button><button class="model-tab-btn" data-track="genesis" data-model="WNC-R2" onclick="switchModelTab('genesis', 'WNC-R2')">WNC-R2</button><button class="model-tab-btn" data-track="genesis" data-model="GENC" onclick="switchModelTab('genesis', 'GENC')">GENC</button></div>
+                <div class="model-tabs genesis-tabs"><button class="model-tab-btn active" data-track="genesis" data-model="WNC3" onclick="switchModelTab('genesis', 'WNC3')">WNC3</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r2" onclick="switchModelTab('genesis', 'WNC2-r2')">WNC2-r2</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r1" onclick="switchModelTab('genesis', 'WNC2-r1')">WNC2-r1</button><button class="model-tab-btn" data-track="genesis" data-model="GENC" onclick="switchModelTab('genesis', 'GENC')">GENC</button></div>
                 
-                <div class="model-panel" data-track="genesis" data-model="WNC-R2">
+                <div class="model-panel" data-track="genesis" data-model="WNC3">
                     <div class="genesis-body">
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_WNC3.png"
-                                 alt="Western Pacific Genesis Potential (WNC-R2)"
+                                 alt="Western Pacific Genesis Potential (WNC3)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -545,19 +562,20 @@
                         </div>
                         <div class="genesis-legend">
                             <p class="map-note" style="margin-top:0;">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure.
+                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                                pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC-R2.
+                                Data sourced from Google DeepMind WNC3.
                             </p>
                         </div>
                     </div>
                 </div>
-                <div class="model-panel" data-track="genesis" data-model="WNC-R2" style="display:none;">
+                <div class="model-panel" data-track="genesis" data-model="WNC2-r2" style="display:none;">
                     <div class="genesis-body">
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential.png"
-                                 alt="Western Pacific Genesis Potential (WNC-R2)"
+                                 alt="Western Pacific Genesis Potential (WNC2-r2)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -565,19 +583,20 @@
                         </div>
                         <div class="genesis-legend">
                             <p class="map-note" style="margin-top:0;">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure.
+                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                                pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC-R2.
+                                Data sourced from Google DeepMind WNC2-r2.
                             </p>
                         </div>
                     </div>
                 </div>
-                <div class="model-panel" data-track="genesis" data-model="WNC-R2" style="display:none;">
+                <div class="model-panel" data-track="genesis" data-model="WNC2-r1" style="display:none;">
                     <div class="genesis-body">
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_WNC2-r1.png"
-                                 alt="Western Pacific Genesis Potential (WNC-R2)"
+                                 alt="Western Pacific Genesis Potential (WNC2-r1)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -585,9 +604,10 @@
                         </div>
                         <div class="genesis-legend">
                             <p class="map-note" style="margin-top:0;">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure.
+                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                                pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC-R2.
+                                Data sourced from Google DeepMind WNC2-r1.
                             </p>
                         </div>
                     </div>
@@ -605,7 +625,8 @@
                         </div>
                         <div class="genesis-legend">
                             <p class="map-note" style="margin-top:0;">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure.
+                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                                pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
                                 Data sourced from Google DeepMind GENC.
                             </p>
@@ -615,7 +636,7 @@
             </div>
 
             <div class="storm-card" id="card-WP222026">
-                <div class="intensity-stripe" style="background:#00FFFF;"></div>
+                <div class="intensity-stripe" style="background:#2E86C8;"></div>
                 <div class="storm-card-inner">
                     <div class="storm-header">
                         <div>
@@ -623,7 +644,7 @@
                             <div class="storm-subtitle">Western Pacific Tropical Cyclone</div>
                         </div>
                         <div class="storm-badges">
-                            <span class="badge-cat" style="background:#00FFFF;color:#000;">TS</span>
+                            <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF;">TS</span>
                             <span class="badge-id">WP222026</span>
                             <span class="badge-live"><span class="live-dot"></span>LIVE</span>
                         </div>
@@ -632,21 +653,21 @@
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">⏱ Obs Time</div>
-                            <div class="info-value">050000 Z</div>
+                            <div class="info-value">050600 Z</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">📍 Position</div>
-                            <div class="info-value">27.8°N, 126.7°E</div>
+                            <div class="info-value">26.2°N, 127.5°E</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">💨 Max Wind</div>
-                            <div class="info-value">40 kt</div>
+                            <div class="info-value">35 kt</div>
                         </div>
                         <div class="info-item">
 
                             <div class="info-label">🔥 Intensity</div>
                             <div class="info-value intensity-value">
-                                <span class="intensity-dot" style="background:#00FFFF;"></span>
+                                <span class="intensity-dot" style="background:#2E86C8;"></span>
                                 <span>TS</span>
                             </div>
                         </div>
@@ -826,8 +847,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC3 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC3 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 <div class="model-panel" data-track="WP222026" data-model="WNC2-r2" style="display:none;">
@@ -837,8 +859,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC2-r2 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC2-r2 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 <div class="model-panel" data-track="WP222026" data-model="WNC2-r1" style="display:none;">
@@ -848,8 +871,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC2-r1 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC2-r1 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 <div class="model-panel" data-track="WP222026" data-model="GENC" style="display:none;">
@@ -859,8 +883,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        GENC &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        GENC &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 </div>
@@ -881,7 +906,7 @@
         
 
             <div class="storm-card" id="card-WP232026">
-                <div class="intensity-stripe" style="background:#CCCCCC;"></div>
+                <div class="intensity-stripe" style="background:#8A97A6;"></div>
                 <div class="storm-card-inner">
                     <div class="storm-header">
                         <div>
@@ -889,7 +914,7 @@
                             <div class="storm-subtitle">Western Pacific Tropical Cyclone</div>
                         </div>
                         <div class="storm-badges">
-                            <span class="badge-cat" style="background:#CCCCCC;color:#333;">TD</span>
+                            <span class="badge-cat" style="background:#8A97A6;color:#0D2033;">TD</span>
                             <span class="badge-id">WP232026</span>
                             <span class="badge-live"><span class="live-dot"></span>LIVE</span>
                         </div>
@@ -912,7 +937,7 @@
 
                             <div class="info-label">🔥 Intensity</div>
                             <div class="info-value intensity-value">
-                                <span class="intensity-dot" style="background:#CCCCCC;"></span>
+                                <span class="intensity-dot" style="background:#8A97A6;"></span>
                                 <span>TD</span>
                             </div>
                         </div>
@@ -1053,8 +1078,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC3 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC3 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 <div class="model-panel" data-track="WP232026" data-model="WNC2-r2" style="display:none;">
@@ -1064,8 +1090,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC2-r2 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC2-r2 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 <div class="model-panel" data-track="WP232026" data-model="WNC2-r1" style="display:none;">
@@ -1075,8 +1102,9 @@
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        WNC2-r1 &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        WNC2-r1 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>
                 </div>
@@ -1102,7 +1130,8 @@
                 <div class="footer-brand">
                     <h3>Pillar's Tropical Cyclone Forecast System</h3>
                     <p>
-                        Ensemble track forecasts powered by DeepMind WNC-R2, WNC-R1 &amp; GENC models.<br>
+                        Ensemble track forecasts powered by DeepMind WeatherNext models —
+                        WNC3 (64 members), WNC2-r2, WNC2-r1 &amp; GENC.<br>
                         Official intensity guidance from JTWC. Data refreshed automatically.
                     </p>
                 </div>
@@ -1134,7 +1163,7 @@
         applyTheme(current === 'dark' ? 'light' : 'dark');
     }
 
-    // ── Model tab switching (WNC / GENC for the same storm) ────────────────────
+    // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
     function switchModelTab(trackId, model) {
         document.querySelectorAll(`.model-panel[data-track="${trackId}"]`).forEach(el => {
             const isActive = el.dataset.model === model;

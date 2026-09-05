@@ -2,15 +2,29 @@ import os
 import pandas as pd  # type: ignore
 from datetime import datetime
 
+# 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
+# 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
 CAT_COLOR_MAP = {
-    'TD': '#CCCCCC',
-    'TS': '#00FFFF',
-    'Cat1': '#00FF00',
-    'Cat2': '#FFFF00',
-    'Cat3': '#FFA500',
-    'Cat4': '#FF0000',
-    'Cat5': '#800080',
-    'Unknown': 'gray',
+    'TD': '#8A97A6',
+    'TS': '#2E86C8',
+    'Cat1': '#1FA97E',
+    'Cat2': '#E0AC2B',
+    'Cat3': '#EE7A22',
+    'Cat4': '#DC3A4E',
+    'Cat5': '#A548C8',
+    'Unknown': '#B7C0CA',
+}
+
+# 徽章上的文字色：淺底配深字、深底配白字（逐色挑過，不用亮度公式硬套）
+CAT_TEXT_MAP = {
+    'TD': '#0D2033',
+    'TS': '#FFFFFF',
+    'Cat1': '#08281E',
+    'Cat2': '#3A2A02',
+    'Cat3': '#3A1B02',
+    'Cat4': '#FFFFFF',
+    'Cat5': '#FFFFFF',
+    'Unknown': '#0D2033',
 }
 
 
@@ -43,9 +57,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                            genesis_map_paths: list | None = None):
     """生成預報網站，可展示多顆颱風。
 
-    同一顆颱風若同時有 WNC-R2 / WNC-R1 / GENC 多種模式的預報，會合併成單一颱風卡片：
-    颱風字卡與 JTWC 官方預報圖僅顯示一次，Ensemble 路徑圖與動畫則透過分頁
-    （WNC-R2 / WNC-R1 / GENC）切換，避免同一顆颱風重複出現多張幾乎相同的卡片。
+    同一顆颱風若同時有 WNC3 / WNC2-r2 / WNC2-r1 / GENC 多種模式的預報，會合併成
+    單一颱風卡片：颱風字卡與 JTWC 官方預報圖僅顯示一次，Ensemble 路徑圖與動畫則
+    透過分頁切換，避免同一顆颱風重複出現多張幾乎相同的卡片。
+
+    genesis_map_paths 收 (模式名稱, 圖檔路徑) 的序列；為相容舊呼叫方式，也接受
+    純路徑字串，此時退回以檔名判斷模式。
     """
 
     update_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -96,7 +113,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         curr_lon = _fmt_coord(current_info.get('lon', float('nan')), 'E', 'W') if isinstance(current_info, dict) else "N/A"
         curr_wind_val = current_info.get('wind', float('nan')) if isinstance(current_info, dict) else float('nan')
         curr_cat = current_info.get('category', 'Unknown') if isinstance(current_info, dict) else 'Unknown'
-        curr_cat_color = CAT_COLOR_MAP.get(curr_cat, 'gray')
+        curr_cat_color = CAT_COLOR_MAP.get(curr_cat, CAT_COLOR_MAP['Unknown'])
 
         jtwc_data = current_info.get('jtwc', {}) if isinstance(current_info, dict) else {}
         storm_name = jtwc_data.get('name', '')
@@ -113,14 +130,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         if 'max_winds_kt' in jtwc_data:
             curr_cat = ss_category(jtwc_data.get('max_winds_kt'))
-            curr_cat_color = CAT_COLOR_MAP.get(curr_cat, 'gray')
+            curr_cat_color = CAT_COLOR_MAP.get(curr_cat, CAT_COLOR_MAP['Unknown'])
 
-        # Intensity label for badge (dark text on bright colors)
-        cat_text_color = "#000" if curr_cat in ('TS', 'Cat1', 'Cat2', 'Cat3') else "#fff"
-        if curr_cat in ('TD',):
-            cat_text_color = "#333"
+        cat_text_color = CAT_TEXT_MAP.get(curr_cat, '#0D2033')
 
-        model_names = [m.get('model', 'WNC-R2') for m in models if isinstance(m, dict)]
+        model_names = [m.get('model', 'WNC2-r2') for m in models if isinstance(m, dict)]
         multi_model = len(models) > 1
 
         # ── 颱風摘要字卡（每顆颱風僅一張，不再依模式重複）─────────────
@@ -178,7 +192,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 動畫（依模式分頁切換；僅在該模式有幀資料時輸出）───────────
         for i, m in enumerate(models):
-            model_name = m.get('model', 'WNC-R2')
+            model_name = m.get('model', 'WNC2-r2')
             storm_frames_dir = m.get('frames_dir', '')
             if not (storm_frames_dir and os.path.exists(storm_frames_dir)):
                 continue
@@ -232,7 +246,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         # ── Ensemble 路徑圖（依模式分頁切換）+ JTWC 官方預報（每顆颱風僅一份）──
         map_panels = []
         for i, m in enumerate(models):
-            model_name = m.get('model', 'WNC-R2')
+            model_name = m.get('model', 'WNC2-r2')
             forecast_map_path = m.get('forecast_map_path', '') if isinstance(m, dict) else ''
             map_src = os.path.basename(forecast_map_path) if forecast_map_path else ''
             hide_attr = '' if i == 0 else ' style="display:none;"'
@@ -244,8 +258,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div class="zoom-hint">🔍 Click to enlarge</div>
                     </div>
                     <p class="map-note">
-                        {model_name} &nbsp;·&nbsp; Gray = ensemble members &nbsp;·&nbsp; Red = mean track &nbsp;·&nbsp;
-                        Cone = uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity &nbsp;·&nbsp; ★ = init
+                        {model_name} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>""")
         map_panels_html = "".join(map_panels)
@@ -283,18 +298,22 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     _all_genesis = list(genesis_map_paths or [])
 
     _genesis_entries = []
-    for _gpath in _all_genesis:
+    for _entry in _all_genesis:
+        if isinstance(_entry, (tuple, list)) and len(_entry) == 2:
+            _model_label, _gpath = _entry
+        else:
+            # 舊呼叫方式：只給路徑，退回用檔名判斷（WP_Genesis_Potential.png 無後綴
+            # 者即現行主力模式 WNC2-r2）
+            _gpath = _entry
+            _stem = os.path.basename(str(_gpath)).upper()
+            _model_label = next(
+                (lbl for key, lbl in (("GENC", "GENC"), ("WNC3", "WNC3"),
+                                      ("WNC2-R1", "WNC2-r1"), ("WNC-R1", "WNC2-r1"))
+                 if key in _stem),
+                "WNC2-r2")
         if not (_gpath and os.path.exists(_gpath)):
             continue
-        _gimg = os.path.basename(_gpath)
-        _gimg_upper = _gimg.upper()
-        if "GENC" in _gimg_upper:
-            _model_label = "GENC"
-        elif "WNC-R1" in _gimg_upper:
-            _model_label = "WNC-R1"
-        else:
-            _model_label = "WNC-R2"
-        _genesis_entries.append((_model_label, _gimg))
+        _genesis_entries.append((_model_label, os.path.basename(_gpath)))
 
     genesis_section = ""
     if _genesis_entries:
@@ -324,7 +343,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         </div>
                         <div class="genesis-legend">
                             <p class="map-note" style="margin-top:0;">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure.
+                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                                pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
                                 Data sourced from Google DeepMind {label}.
                             </p>
@@ -350,41 +370,51 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <title>Pillar's Tropical Cyclone Forecast | {title_track_ids}</title>
     <style>
         /* ── Design Tokens ─────────────────────────────────────── */
+        /* 色票與地圖同源：海軍藍 #16324F = 平均路徑、海洋藍 #2E86C8 = TS、
+           青綠 #1FA97E = Cat1，網頁與圖面因此看起來是同一套系統。 */
         :root {{
-            --bg:        #eef2f7;
+            --bg:        #e9eff5;
             --surface:   #ffffff;
-            --surface-2: #f4f7fb;
-            --surface-3: #eaeff7;
-            --accent:    #1558d6;
-            --accent-2:  #0891b2;
-            --accent-lo: rgba(21,88,214,.1);
-            --text:      #0c1a2e;
-            --text-2:    #4a5a72;
-            --text-3:    #8898aa;
-            --border:    #d4dce8;
-            --shadow:    0 2px 12px rgba(12,26,46,.07);
-            --shadow-md: 0 8px 32px rgba(12,26,46,.10);
-            --shadow-lg: 0 20px 60px rgba(12,26,46,.13);
-            --btn-bg:    linear-gradient(135deg,#1558d6,#0891b2);
+            --surface-2: #f2f7fb;
+            --surface-3: #e5edf5;
+            --accent:    #1b5c94;
+            --accent-2:  #0f9b8e;
+            --accent-lo: rgba(27,92,148,.10);
+            --accent-rgb: 27,92,148;
+            --text:      #16324f;
+            --text-2:    #4a6076;
+            --text-3:    #8194a8;
+            --border:    #d2dde9;
+            --danger:    #dc3a4e;
+            --ok:        #1fa97e;
+            --warn:      #ee7a22;
+            --shadow:    0 2px 12px rgba(22,50,79,.07);
+            --shadow-md: 0 8px 32px rgba(22,50,79,.10);
+            --shadow-lg: 0 20px 60px rgba(22,50,79,.14);
+            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
             --header-h:  64px;
             --radius:    14px;
         }}
         [data-theme="dark"] {{
-            --bg:        #020c18;
-            --surface:   #091524;
-            --surface-2: #0e1f33;
-            --surface-3: #132840;
-            --accent:    #38bdf8;
-            --accent-2:  #2dd4bf;
-            --accent-lo: rgba(56,189,248,.10);
-            --text:      #dde8f4;
-            --text-2:    #8ba0ba;
-            --text-3:    #516078;
-            --border:    rgba(56,189,248,.14);
-            --shadow:    0 2px 12px rgba(0,0,0,.30);
-            --shadow-md: 0 8px 32px rgba(0,0,0,.40);
+            --bg:        #071320;
+            --surface:   #0d1e2e;
+            --surface-2: #12283b;
+            --surface-3: #1a3550;
+            --accent:    #58b0e8;
+            --accent-2:  #3fcbb4;
+            --accent-lo: rgba(88,176,232,.12);
+            --accent-rgb: 88,176,232;
+            --text:      #dfe9f2;
+            --text-2:    #91a6ba;
+            --text-3:    #5c7386;
+            --border:    rgba(88,176,232,.16);
+            --danger:    #f26173;
+            --ok:        #35c496;
+            --warn:      #f79445;
+            --shadow:    0 2px 12px rgba(0,0,0,.32);
+            --shadow-md: 0 8px 32px rgba(0,0,0,.42);
             --shadow-lg: 0 20px 60px rgba(0,0,0,.55);
-            --btn-bg:    linear-gradient(135deg,#1558d6,#0891b2);
+            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
         }}
 
         /* ── Reset ─────────────────────────────────────────────── */
@@ -426,7 +456,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             background: var(--btn-bg);
             display: flex; align-items: center; justify-content: center;
             font-size: 1.2em; flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(21,88,214,.35);
+            box-shadow: 0 4px 12px rgba(var(--accent-rgb),.35);
         }}
         .brand-text h1 {{
             font-size: 1.05em; font-weight: 800; letter-spacing: -.3px;
@@ -451,13 +481,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         }}
         .update-dot {{
             width: 7px; height: 7px; border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 0 2px rgba(34,197,94,.25);
+            background: var(--ok);
+            box-shadow: 0 0 0 2px rgba(31,169,126,.25);
             animation: pulse-green 2s ease-in-out infinite;
         }}
         @keyframes pulse-green {{
-            0%,100% {{ box-shadow: 0 0 0 2px rgba(34,197,94,.25); }}
-            50%      {{ box-shadow: 0 0 0 5px rgba(34,197,94,.08); }}
+            0%,100% {{ box-shadow: 0 0 0 2px rgba(31,169,126,.25); }}
+            50%      {{ box-shadow: 0 0 0 5px rgba(31,169,126,.08); }}
         }}
         .theme-btn {{
             background: var(--surface-2);
@@ -531,15 +561,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             font-family: 'Courier New', monospace;
         }}
         .badge-live {{
-            background: rgba(239,68,68,.1);
-            border: 1px solid rgba(239,68,68,.3);
-            color: #ef4444;
+            background: rgba(220,58,78,.10);
+            border: 1px solid rgba(220,58,78,.32);
+            color: var(--danger);
             padding: 6px 13px; border-radius: 8px;
             font-size: .8em; font-weight: 700;
             display: flex; align-items: center; gap: 6px;
             letter-spacing: .4px;
         }}
-        /* ── Model Tabs (switch WNC / GENC for the same storm) ─── */
+        /* ── Model Tabs (switch WNC3 / WNC2 / GENC for the same storm) ─── */
         .model-tabs {{
             display: flex; gap: 8px; flex-wrap: wrap;
         }}
@@ -555,12 +585,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         .model-tab-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
         .model-tab-btn.active {{
             background: var(--btn-bg); color: #fff; border-color: transparent;
-            box-shadow: 0 4px 14px rgba(21,88,214,.3);
+            box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3);
         }}
         .genesis-tabs {{ margin-bottom: 16px; }}
         .live-dot {{
             width: 7px; height: 7px; border-radius: 50%;
-            background: #ef4444;
+            background: var(--danger);
             animation: pulse-red 1.4s ease-in-out infinite;
         }}
         @keyframes pulse-red {{
@@ -614,10 +644,17 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             display: flex; align-items: center; gap: 10px;
             font-size: 1.05em; font-weight: 700; color: var(--text);
             margin-bottom: 16px; padding-bottom: 13px;
-            border-bottom: 2px solid var(--accent);
+            border-bottom: 1px solid var(--border);
+            position: relative;
         }}
         .panel-icon {{
             font-size: 1.15em;
+        }}
+        /* 標題底線只在文字下方畫一小段漸層，比整條粗線輕，也讓視線落在標題上 */
+        .panel-header::after {{
+            content: ''; position: absolute; left: 0; bottom: -1px;
+            width: 62px; height: 2px; border-radius: 2px;
+            background: var(--btn-bg);
         }}
 
         /* ── Maps Grid ──────────────────────────────────────────── */
@@ -701,7 +738,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             background: var(--btn-bg); color: #fff; border: none;
             padding: 8px 16px; border-radius: 8px;
             font-size: .84em; font-weight: 600; cursor: pointer;
-            transition: all .2s; box-shadow: 0 3px 10px rgba(21,88,214,.3);
+            transition: all .2s; box-shadow: 0 3px 10px rgba(var(--accent-rgb),.3);
             white-space: nowrap;
         }}
         .control-btn.secondary {{
@@ -780,7 +817,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         /* ── Genesis Potential Panel ───────────────────────────────── */
         .genesis-panel {{
-            border-left: 4px solid #FF6600;
+            border-left: 4px solid var(--warn);
         }}
         .genesis-body {{
             display: flex;
@@ -854,7 +891,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon">🌀</div>
             <div class="brand-text">
                 <h1>Pillar's Tropical Cyclone Forecast</h1>
-                <small>Real-time WNC-R2 / WNC-R1 / GENC Ensemble Forecast System · Western Pacific</small>
+                <small>Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC Ensemble Forecast System · Western Pacific</small>
             </div>
         </div>
         <div class="header-actions">
@@ -877,7 +914,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="footer-brand">
                     <h3>Pillar's Tropical Cyclone Forecast System</h3>
                     <p>
-                        Ensemble track forecasts powered by DeepMind WNC-R2, WNC-R1 &amp; GENC models.<br>
+                        Ensemble track forecasts powered by DeepMind WeatherNext models —
+                        WNC3 (64 members), WNC2-r2, WNC2-r1 &amp; GENC.<br>
                         Official intensity guidance from JTWC. Data refreshed automatically.
                     </p>
                 </div>
@@ -909,7 +947,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         applyTheme(current === 'dark' ? 'light' : 'dark');
     }}
 
-    // ── Model tab switching (WNC / GENC for the same storm) ────────────────────
+    // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
     function switchModelTab(trackId, model) {{
         document.querySelectorAll(`.model-panel[data-track="${{trackId}}"]`).forEach(el => {{
             const isActive = el.dataset.model === model;
