@@ -400,11 +400,13 @@ def _cyclone_marker_path(turns: float = 0.62, r_core: float = 0.30,
 
     matplotlib 沒有現成的颱風符號，Unicode 的 🌀 只存在於 emoji 字型 —— 排程是在
     沒有 emoji 字型的環境跑的，直接用字元會變成豆腐框，所以這裡自己描出形狀：
-    每條旋臂沿一條「半徑漸增、寬度漸縮」的螺旋中心線取外緣與內緣後閉合，
-    北半球颱風逆時針旋轉，旋臂就順著逆時針畫。
+    每條旋臂沿一條「半徑漸增、寬度漸縮」的螺旋中心線取外緣與內緣後閉合。
 
-    三個子路徑（中心圓 + 兩臂）都是逆時針，Agg 用 nonzero 填色規則，重疊處
-    會併成一體而不是挖洞；也因此不要對它描邊，否則子路徑的交界會露出接縫。
+    北半球颱風逆時針旋轉，旋臂要往逆時針方向甩出去；螺旋是先以 +θ 描出來的，
+    最後整條路徑沿 x 軸鏡射一次來翻轉旋向 —— 鏡射比改角度符號安全，因為它把
+    三個子路徑（中心圓 + 兩臂）的環繞方向一起翻，繞向仍然一致。Agg 用 nonzero
+    填色規則，繞向一致時重疊處會併成一體而不是挖洞；也因此不要對它描邊，否則
+    子路徑的交界會露出接縫。
     """
     from matplotlib.path import Path as _MplPath
 
@@ -428,7 +430,9 @@ def _cyclone_marker_path(turns: float = 0.62, r_core: float = 0.30,
         inner = np.column_stack([(rad - half_w) * np.cos(th), (rad - half_w) * np.sin(th)])
         _add_polygon(np.vstack([outer, inner[::-1]]))
 
-    return _MplPath(np.asarray(verts, dtype=float), np.asarray(codes, dtype=np.uint8))
+    xy = np.asarray(verts, dtype=float)
+    xy[:, 1] = -xy[:, 1]          # 沿 x 軸鏡射：旋臂由順時針翻成逆時針
+    return _MplPath(xy, np.asarray(codes, dtype=np.uint8))
 
 
 CYCLONE_MARKER = _cyclone_marker_path()
@@ -491,6 +495,11 @@ def _style_legend(leg) -> None:
     title.set_color(TEXT_DARK)
     for text in leg.get_texts():
         text.set_color(TEXT_DARK)
+
+
+# 領先點標註（+Nh／強度）離標記中心的經緯度偏移。+0h 時這個標註就落在颱風
+# 符號旁邊，偏移太小會被符號的旋臂壓到，所以留得比 24h 小標籤寬一些。
+LABEL_OFFSET = 0.95
 
 
 def _label_box(alpha: float = 0.92) -> dict:
@@ -960,7 +969,8 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
             ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR,
                        s=52, ec='white', zorder=5, linewidth=1.4, **kw)
-            ax.text(last_mean_lon + 0.4, last_mean_pt['lat'] + 0.4, f'+{last_fh}h\n{last_intensity}',
+            ax.text(last_mean_lon + LABEL_OFFSET,
+                    last_mean_pt['lat'] + LABEL_OFFSET, f'+{last_fh}h\n{last_intensity}',
                     fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
                     bbox=_label_box(), clip_on=True, **kw)
 
@@ -1343,7 +1353,8 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
     ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR, s=54,
                ec='white', zorder=5, linewidth=1.4, **kw)
-    ax.text(last_mean_lon + 0.4, last_mean_pt['lat'] + 0.4, f'+{last_fh}h\n{last_intensity}',
+    ax.text(last_mean_lon + LABEL_OFFSET,
+            last_mean_pt['lat'] + LABEL_OFFSET, f'+{last_fh}h\n{last_intensity}',
             fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
             bbox=_label_box(), clip_on=True, **kw)
     pts_24h_mean = get_24h_markers(mean_plot_df, init_time)

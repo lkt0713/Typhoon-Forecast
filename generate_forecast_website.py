@@ -645,18 +645,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             font-size: 1.05em; font-weight: 700; color: var(--text);
             margin-bottom: 16px; padding-bottom: 13px;
             border-bottom: 1px solid var(--border);
-            position: relative;
         }}
         .panel-icon {{
             font-size: 1.15em;
         }}
-        /* 標題底線只在文字下方畫一小段漸層，比整條粗線輕，也讓視線落在標題上 */
-        .panel-header::after {{
-            content: ''; position: absolute; left: 0; bottom: -1px;
-            width: 62px; height: 2px; border-radius: 2px;
-            background: var(--btn-bg);
-        }}
-
         /* ── Maps Grid ──────────────────────────────────────────── */
         .maps-grid {{
             display: grid;
@@ -1113,12 +1105,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         }});
     }});
 
-    // 每小時 HH:35 自動重新整理（排程任務於 HH:30 更新資料並推送，留 5 分鐘緩衝）
+    // 每半小時（HH:05 與 HH:35）自動重新整理
+    // ——排程任務於 HH:00 與 HH:30 更新資料並推送，各留 5 分鐘緩衝
     (function scheduleRefresh() {{
         const now = new Date();
         const next = new Date(now);
-        next.setMinutes(35, 0, 0);
-        if (now.getMinutes() >= 35) next.setHours(next.getHours() + 1);
+        const m = now.getMinutes();
+        if (m < 5)        next.setMinutes(5, 0, 0);
+        else if (m < 35)  next.setMinutes(35, 0, 0);
+        else {{ next.setHours(next.getHours() + 1); next.setMinutes(5, 0, 0); }}
         setTimeout(() => location.reload(), next - now);
     }})();
     </script>
