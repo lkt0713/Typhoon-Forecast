@@ -9,6 +9,7 @@ import matplotlib # type: ignore
 matplotlib.use("Agg")  # 排程環境無顯示器，避免載入 GUI 後端
 import matplotlib.pyplot as plt # type: ignore
 import matplotlib.lines as mlines # type: ignore
+import matplotlib.patheffects as mpe # type: ignore
 import matplotlib.ticker as mticker # type: ignore
 import re
 
@@ -57,7 +58,7 @@ os.makedirs(GENC_ENSEMBLE_DIR, exist_ok=True)
 os.makedirs(GENC_MEAN_DIR, exist_ok=True)
 os.makedirs(GENC_CYCLOGENESIS_DIR, exist_ok=True)
 
-# WNC-R1 是舊版模型（現行版 WNC-R2 的命名說明見下方 MODEL_CONFIGS）
+# WNC2-r1 是 WeatherNext 2 的舊版本（現行 WNC2-r2 與新版 WNC3 的命名說明見 MODEL_CONFIGS）
 WNC_R1_ENSEMBLE_DIR = "deepmind_weather_wnc_r1_downloads_2026"
 WNC_R1_MEAN_DIR = "deepmind_weather_wnc_r1_ensemble_mean_downloads_2026"
 WNC_R1_CYCLOGENESIS_DIR = "deepmind_weather_wnc_r1_cyclogenesis_2026"
@@ -65,11 +66,20 @@ os.makedirs(WNC_R1_ENSEMBLE_DIR, exist_ok=True)
 os.makedirs(WNC_R1_MEAN_DIR, exist_ok=True)
 os.makedirs(WNC_R1_CYCLOGENESIS_DIR, exist_ok=True)
 
+# WNC3 = WeatherNext 3（2026-09 推出的新世代模式，集合成員 64 條，前代為 50 條）
+WNC3_ENSEMBLE_DIR = "deepmind_weather_wnc3_downloads_2026"
+WNC3_MEAN_DIR = "deepmind_weather_wnc3_ensemble_mean_downloads_2026"
+WNC3_CYCLOGENESIS_DIR = "deepmind_weather_wnc3_cyclogenesis_2026"
+os.makedirs(WNC3_ENSEMBLE_DIR, exist_ok=True)
+os.makedirs(WNC3_MEAN_DIR, exist_ok=True)
+os.makedirs(WNC3_CYCLOGENESIS_DIR, exist_ok=True)
+
 # Weather Lab 下載端點。
-# 注意：模型改名為 WNC 後，Weather Lab URL 上的代號仍是舊的 "FNV3P2"（現行版，
-# 與 "OPER" 別名指向同一份檔案）與 "FNV3P1"（舊版）。那是對方網址的路徑片段，
-# 不是我們的命名，改掉就抓不到資料，因此 MODEL_CONFIGS 的 "remote" 維持原樣；
-# 我們自己的檔名與顯示名稱一律用 WNC-R2（現行版）與 WNC-R1（舊版）。
+# 注意：URL 上的模型代號與我們的顯示名稱不同步。WeatherNext 2 的兩個版本在對方
+# 網址上仍是舊代號 "FNV3P2"（r2，與 "OPER" 別名指向同一份檔案）與 "FNV3P1"（r1）；
+# WeatherNext 3 則是 "WNV3"。那是對方網址的路徑片段，不是我們的命名，改掉就抓不到
+# 資料，因此 MODEL_CONFIGS 的 "remote" 一律照抄對方；我們自己的檔名與顯示名稱則用
+# WNC3（新版）、WNC2-r2、WNC2-r1。
 BASE_URL = "https://deepmind.google.com/science/weatherlab/download/cyclones"
 
 
@@ -87,28 +97,43 @@ def _cycle_stamp(cycle: datetime) -> str:
     return cycle.strftime("%Y_%m_%dT%H_00")
 
 
-# 三種模式共用同一條處理管線（_process_model）；模式間的差異集中在這張設定表。
+# 四種模式共用同一條處理管線（_process_model）；模式間的差異集中在這張設定表。
+# 順序即網頁分頁順序，第一個是預設分頁 —— WNC3 排最前面。
 MODEL_CONFIGS = [
     {
-        "remote": "FNV3P2",       # Weather Lab URL 上的模型代號（對方未改，見上方註解）
-        "local_prefix": "WNC-R2", # 本地 CSV 檔名前綴
-        "display": "WNC-R2",
+        "remote": "WNV3",         # Weather Lab URL 上的模型代號
+        "local_prefix": "WNC3",   # 本地 CSV 檔名前綴
+        "display": "WNC3",
+        "ensemble_dir": WNC3_ENSEMBLE_DIR,
+        "mean_dir": WNC3_MEAN_DIR,
+        "cyc_dir": WNC3_CYCLOGENESIS_DIR,
+        "genesis_png": "WP_Genesis_Potential_WNC3.png",
+        "output_prefix": "WNC3_", # 輸出圖檔／動畫檔名前綴
+        # 刻意不設 required=True：WNC3 剛上線、發布時程還沒穩定，取不到時應略過
+        # 而不是讓整個流程失敗；把關的仍是行之有年的 WNC2-r2。
+        "required": False,
+    },
+    {
+        "remote": "FNV3P2",       # 對方未改的舊代號，見上方註解
+        "local_prefix": "WNC2-r2",
+        "display": "WNC2-r2",
         "ensemble_dir": ENSEMBLE_DIR,
         "mean_dir": MEAN_DIR,
         "cyc_dir": CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential.png",
-        "output_prefix": "",      # 輸出圖檔／動畫檔名前綴
+        # 沿用無前綴的輸出檔名（歷史因素）；改前綴等於把 docs/ 既有檔案全部換名
+        "output_prefix": "",
         "required": True,         # True：取不到資料時中止整個流程
     },
     {
         "remote": "FNV3P1",
-        "local_prefix": "WNC-R1",
-        "display": "WNC-R1",
+        "local_prefix": "WNC2-r1",
+        "display": "WNC2-r1",
         "ensemble_dir": WNC_R1_ENSEMBLE_DIR,
         "mean_dir": WNC_R1_MEAN_DIR,
         "cyc_dir": WNC_R1_CYCLOGENESIS_DIR,
-        "genesis_png": "WP_Genesis_Potential_WNC-R1.png",
-        "output_prefix": "WNC-R1_",
+        "genesis_png": "WP_Genesis_Potential_WNC2-r1.png",
+        "output_prefix": "WNC2-r1_",
         "required": False,
     },
     {
@@ -124,6 +149,11 @@ MODEL_CONFIGS = [
     },
 ]
 
+# 舊命名 → 新命名。WNC-R2／WNC-R1 時期產出的下載檔與圖檔仍躺在磁碟上，且不會被
+# _cleanup_old_downloads／_cleanup_stale_outputs 掃到（那些正則都綁定現行 prefix），
+# 故由 _cleanup_legacy_names() 一次性清除。確認線上已無舊檔後可整段移除。
+LEGACY_PREFIXES = ["WNC-R2", "WNC-R1"]
+
 # 每個下載目錄保留的 cycle 數（4 cycle/日，12 期約三天）。
 KEEP_CYCLES = 12
 
@@ -135,7 +165,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 open(os.path.join(OUTPUT_DIR, ".nojekyll"), "w").close()
 
 
-def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC-R2") -> list[str]:
+def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC2-r2") -> list[str]:
     """從 MEAN_DIR 內最新的 CSV 自動偵測有效颱風 TRACK_ID。
     若提供 preferred_path 且檔案存在，優先使用該檔案（當前 cycle）。
     只保留 WP[0-8]X20XX，排除 WP9X（擾動）。
@@ -254,30 +284,187 @@ def _fit_extent_to_aspect(extent, target_ar: float, use_360: bool):
 
     return (min_lon, max_lon, min_lat, max_lat)
 
-# 一致的顏色與尺寸設定
-COLOR_MAP = {
-    'TD': '#CCCCCC', 'TS': '#00FFFF', 'Cat1': '#00FF00', 'Cat2': '#FFFF00',
-    'Cat3': '#FFA500', 'Cat4': '#FF0000', 'Cat5': '#800080', 'Unknown': 'gray'
+# ── 配色系統 ────────────────────────────────────────────────────────────────
+# 設計原則（排版與符號參考 Weather Lab 的系集路徑圖）：底圖壓成中性灰藍、只當
+# 背景，顏色全部留給資料層。強度色階是單調的色相漸變（灰→藍→綠→琥珀→橘→紅→
+# 紫），亮度同時遞減，轉成灰階或色盲視角仍保有順序感；MSLP 色階共用同一組色票
+# （壓力越低＝強度越高），兩張圖看起來才像同一套系統。
+BASEMAP = {
+    'ocean':  '#F2F7FB',   # 極淡藍：海面
+    'land':   '#E6E7E3',   # 中性淺灰：陸地
+    'coast':  '#5A6672',   # 海岸線
+    'border': '#A9B3BE',   # 國界
+    'grid':   '#BCC7D3',   # 經緯線
 }
 
-# MSLP 色彩分級（對應西太平洋潛勢預報）
+# Saffir-Simpson 強度色階
+COLOR_MAP = {
+    'TD':   '#8A97A6',   # 熱帶低壓：板岩灰
+    'TS':   '#2E86C8',   # 熱帶風暴：海洋藍
+    'Cat1': '#1FA97E',   # 一級：青綠
+    'Cat2': '#E0AC2B',   # 二級：琥珀
+    'Cat3': '#EE7A22',   # 三級：橘
+    'Cat4': '#DC3A4E',   # 四級：緋紅
+    'Cat5': '#A548C8',   # 五級：紫
+    'Unknown': '#B7C0CA',
+}
+
+# 資料層的其他角色色
+TRACK_LINE  = '#9AA6B2'   # 集合成員連線
+MEAN_COLOR  = '#16324F'   # 集合平均路徑：深海軍藍（在彩色點群中仍能一眼看出）
+CONE_FILL   = '#8FA8C6'   # 不確定性圓錐填色
+CONE_EDGE   = '#3D5A80'   # 圓錐邊界
+INIT_FACE   = '#FFC24A'   # 初始位置星形
+INIT_EDGE   = '#A9670C'
+TEXT_DARK   = '#16324F'   # 主要文字
+TEXT_MUTED  = '#6B7785'   # 次要文字
+BOX_EDGE    = '#C9D3DE'   # 標註方框外框
+LEGEND_KW   = dict(frameon=True, framealpha=0.94, facecolor='white', edgecolor=BOX_EDGE)
+
+# MSLP 色彩分級（西太平洋潛勢預報用；與強度色階同色票、方向相反）
 MSLP_COLOR_BINS = [
-    (935,         '#CC0000', '≤935 hPa'),
-    (955,         '#FF6600', '936–955 hPa'),
-    (978,         '#FFB800', '956–978 hPa'),
-    (988,         '#FFD966', '979–988 hPa'),
-    (1000,        '#4488FF', '989–1000 hPa'),
-    (float('inf'),'#AACCFF', '>1000 hPa'),
+    (935,          '#A548C8', '≤935 hPa'),
+    (955,          '#DC3A4E', '936–955 hPa'),
+    (978,          '#EE7A22', '956–978 hPa'),
+    (988,          '#E0AC2B', '979–988 hPa'),
+    (1000,         '#2E86C8', '989–1000 hPa'),
+    (float('inf'), '#8A97A6', '>1000 hPa'),
 ]
+MSLP_WEAKEST_COLOR = MSLP_COLOR_BINS[-1][1]
+
+GALE_KT = 34.0   # 暴風強度門檻
+
 
 def _mslp_to_color(mslp: float) -> str:
     """依 MSLP_COLOR_BINS 返回對應顏色；NaN 視為最弱一級。"""
     if pd.isna(mslp):
-        return '#AACCFF'
+        return MSLP_WEAKEST_COLOR
     for threshold, color, _ in MSLP_COLOR_BINS:
         if mslp <= threshold:
             return color
-    return '#AACCFF'
+    return MSLP_WEAKEST_COLOR
+
+
+def _is_gale(wind) -> bool:
+    """是否達暴風強度（>=34 kt）。未達者畫空心圈，達到者畫實心點。"""
+    try:
+        return float(wind) >= GALE_KT
+    except (TypeError, ValueError):
+        return False
+
+
+def _scatter_by_strength(ax, lons, lats, winds, colors, kw, size=11.0,
+                         alpha=0.9, zorder=1.15, lw=0.7):
+    """畫集合成員的強度點：>=34 kt 實心、<34 kt 空心。
+
+    空心／實心的區分讓密集的成員點群不再糊成一片色塊 —— 未成形的部分退成細圈，
+    成形之後才是實心，強度的空間分布一眼可讀。
+    """
+    lons = np.asarray(lons, dtype=float)
+    lats = np.asarray(lats, dtype=float)
+    colors = list(colors)
+    strong = np.array([_is_gale(w) for w in winds], dtype=bool)
+    if strong.size == 0:
+        return
+    if strong.any():
+        ax.scatter(lons[strong], lats[strong], s=size,
+                   c=[c for c, k in zip(colors, strong) if k], marker='o',
+                   edgecolors='none', alpha=alpha, zorder=zorder, **kw)
+    weak = ~strong
+    if weak.any():
+        ax.scatter(lons[weak], lats[weak], s=size, facecolors='none',
+                   edgecolors=[c for c, k in zip(colors, weak) if k], marker='o',
+                   linewidths=lw, alpha=min(1.0, alpha + 0.05), zorder=zorder - 0.05, **kw)
+
+
+def _intensity_legend_handles(ms: float = 7.0) -> list:
+    """強度圖例：與地圖一致，TD 用空心圈、其餘實心。"""
+    handles = []
+    for cat in ['TD', 'TS', 'Cat1', 'Cat2', 'Cat3', 'Cat4', 'Cat5']:
+        color = COLOR_MAP[cat]
+        if cat == 'TD':
+            handles.append(mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
+                                         markerfacecolor='none', markeredgecolor=color,
+                                         markeredgewidth=1.1, color=color))
+        else:
+            handles.append(mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
+                                         color=color, markeredgecolor='none'))
+    return handles
+
+
+def _style_legend(leg) -> None:
+    """圖例標題置中並統一字色。"""
+    title = leg.get_title()
+    title.set_multialignment('center')
+    title.set_ha('center')
+    title.set_color(TEXT_DARK)
+    for text in leg.get_texts():
+        text.set_color(TEXT_DARK)
+
+
+def _label_box(alpha: float = 0.92) -> dict:
+    """路徑標註用的白底圓角框。"""
+    return dict(boxstyle='round,pad=0.28', facecolor='white',
+                edgecolor=BOX_EDGE, alpha=alpha, linewidth=0.8)
+
+
+def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int = 8):
+    """Cartopy 底圖統一樣式。
+
+    海面先加、陸地後加：兩者的預設 zorder 同為 -1，後加入者疊在上面；反過來
+    （原本的順序）會讓半透明海面蓋住陸地，整張圖發灰。
+    """
+    ax.set_extent(extent, crs=ccrs.PlateCarree())
+    ax.add_feature(cfeature.OCEAN, facecolor=BASEMAP['ocean'])
+    ax.add_feature(cfeature.LAND, facecolor=BASEMAP['land'])
+    ax.coastlines(resolution='50m', linewidth=0.7, color=BASEMAP['coast'], zorder=0.6)
+    ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor=BASEMAP['border'], zorder=0.6)
+    gl = ax.gridlines(draw_labels=True, linewidth=0.5, color=BASEMAP['grid'],
+                      alpha=0.8, linestyle=(0, (2, 3)))
+    gl.right_labels = False
+    gl.top_labels = False
+    if grid_step is not None:
+        gl.xlocator = mticker.MultipleLocator(grid_step)
+        gl.ylocator = mticker.MultipleLocator(grid_step)
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.yformatter = LATITUDE_FORMATTER
+        gl.xlabel_style = {'size': label_size, 'color': TEXT_MUTED}
+        gl.ylabel_style = {'size': label_size, 'color': TEXT_MUTED}
+    else:
+        _configure_cartopy_gridlines(gl, extent)
+        gl.xlabel_style = {'size': label_size, 'color': TEXT_MUTED}
+        gl.ylabel_style = {'size': label_size, 'color': TEXT_MUTED}
+    return gl
+
+
+def _setup_plain_axes(ax, extent, label_size: int = 9):
+    """無 Cartopy 時的退化底圖 —— 與 _setup_basemap 共用同一套顏色。"""
+    ax.set_facecolor(BASEMAP['ocean'])
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.grid(True, linewidth=0.5, alpha=0.8, linestyle=(0, (2, 3)), color=BASEMAP['grid'])
+    ax.set_xlabel("Longitude", fontsize=label_size, color=TEXT_MUTED)
+    ax.set_ylabel("Latitude", fontsize=label_size, color=TEXT_MUTED)
+    ax.tick_params(colors=TEXT_MUTED, labelsize=label_size - 1)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(BASEMAP['grid'])
+
+
+def _set_map_titles(ax, main: str, right: str = '', main_size: int = 14, right_size: int = 9):
+    """左標題放主資訊、右標題放初始時間與成員數。
+
+    靠左對齊比置中更接近作業型產品的排版，也讓兩段資訊不必擠成一行。
+    """
+    ax.set_title(main, loc='left', fontsize=main_size, fontweight='bold',
+                 color=TEXT_DARK, pad=10)
+    if right:
+        ax.set_title(right, loc='right', fontsize=right_size, color=TEXT_MUTED, pad=10)
+
+
+def _watermark(ax) -> None:
+    ax.text(0.995, 0.008, 'By Pillar', transform=ax.transAxes,
+            ha='right', va='bottom', fontsize=7, style='italic',
+            color=TEXT_MUTED, zorder=10)
 
 FIG_AR = 1.40
 FIG_H = 8
@@ -581,7 +768,7 @@ def extract_current_info(df: pd.DataFrame) -> dict:
         'r34_nw': r34_nw,
     }
 
-def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC-R2") -> list:
+def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC2-r2") -> list:
     """生成預報軌跡演變的幀序列，用於網頁動畫生成。與靜態地圖保持一致的風格。
     
     Returns:
@@ -621,30 +808,17 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
     for frame_idx, current_time in enumerate(all_times):
         # ── 建立畫布 ──────────────────────────────────────────────────────────
         if HAS_CARTOPY:
-            fig = plt.figure(figsize=(10, 7))
+            fig = plt.figure(figsize=(10, 7), facecolor='white')
             if use_360:
                 ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
             else:
                 ax = plt.axes(projection=ccrs.PlateCarree())
-            ax.set_extent(extent, crs=ccrs.PlateCarree())
-            ax.coastlines(resolution='50m', linewidth=0.8)
-            ax.add_feature(cfeature.BORDERS, linewidth=0.8)
-            ax.add_feature(cfeature.LAND, facecolor='#f0e8d4', alpha=0.9)
-            ax.add_feature(cfeature.OCEAN, facecolor='#cce8f4', alpha=0.9)
-            gl = ax.gridlines(draw_labels=True, linewidth=0.5, color="gray", alpha=0.5, linestyle="--")
-            gl.right_labels = False
-            gl.top_labels = False
-            _configure_cartopy_gridlines(gl, extent)
+            _setup_basemap(ax, extent)
             kw = dict(transform=ccrs.PlateCarree())
         else:
             fig = plt.figure(figsize=(10, 7), dpi=100, facecolor='white')
             ax = fig.add_subplot(111)
-            ax.set_facecolor('#cce8f4')
-            ax.set_xlim(extent[0], extent[1])
-            ax.set_ylim(extent[2], extent[3])
-            ax.grid(True, linewidth=0.5, alpha=0.4, linestyle='--')
-            ax.set_xlabel("Longitude", fontsize=10)
-            ax.set_ylabel("Latitude", fontsize=10)
+            _setup_plain_axes(ax, extent, label_size=10)
             kw = {}
 
         # ── 不確定性圓錐（截至 current_time）──────────────────────────────────
@@ -655,8 +829,8 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
         _draw_uncertainty_cone(ax, df, mean_df, init_time, use_360, kw, max_fh=fh_now)
 
         # ── 起始位置星形標記 ──────────────────────────────────────────────────
-        ax.scatter([init_lon_star], [init_lat_star], marker='*', color='gold', s=200,
-                   ec='darkorange', zorder=7, linewidth=0.8, **kw)
+        ax.scatter([init_lon_star], [init_lat_star], marker='*', color=INIT_FACE, s=210,
+                   ec=INIT_EDGE, zorder=7, linewidth=0.9, **kw)
 
         # ── 集合成員軌跡 ──────────────────────────────────────────────────────
         for sid, g in df.groupby("sample"):
@@ -665,13 +839,15 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
                 lats = g["lat"].to_numpy()
                 for seg_lon, seg_lat in _split_track_segments(lons, lats):
-                    ax.plot(seg_lon, seg_lat, color='gray', linewidth=0.6, alpha=0.6, zorder=0.9, **kw)
+                    ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=0.6, alpha=0.55,
+                            zorder=0.9, solid_capstyle='round', **kw)
                 last_pt = g.iloc[-1]
                 wind = last_pt.get('wind', np.nan)
                 cat = ss_category(wind)
                 last_lon = _normalize_lon_values([last_pt['lon']], use_360=use_360)[0]
-                ax.scatter(last_lon, last_pt['lat'], color=COLOR_MAP.get(cat, 'gray'),
-                           s=15, marker='o', edgecolor='darkgray', alpha=0.8, zorder=1.1, linewidth=0.5, **kw)
+                _scatter_by_strength(ax, [last_lon], [last_pt['lat']], [wind],
+                                     [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
+                                     size=17, alpha=0.9, zorder=1.15, lw=0.8)
 
         # ── 平均軌跡 + 24h 標記 ───────────────────────────────────────────────
         mean_subset = mean_df[mean_df['valid_time'] <= current_time].sort_values('valid_time')
@@ -682,69 +858,73 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             mean_lons = _normalize_lon_values(mean_subset["lon"].to_numpy(), use_360=use_360)
             mean_lats = mean_subset["lat"].to_numpy()
             for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
-                ax.plot(seg_lon, seg_lat, 'r-', lw=2.5, zorder=4, **kw)
+                ax.plot(seg_lon, seg_lat, color='white', lw=4.4, alpha=0.85,
+                        solid_capstyle='round', zorder=3.9, **kw)
+                ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=2.4,
+                        solid_capstyle='round', zorder=4, **kw)
             last_mean_pt = mean_subset.iloc[-1]
             last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
             last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
             last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
-            ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='s', color='red',
-                       s=40, ec='black', zorder=5, linewidth=1, **kw)
+            ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR,
+                       s=52, ec='white', zorder=5, linewidth=1.4, **kw)
             ax.text(last_mean_lon + 0.4, last_mean_pt['lat'] + 0.4, f'+{last_fh}h\n{last_intensity}',
-                    fontsize=6, color='darkred', fontweight='bold', zorder=6,
-                    bbox=dict(boxstyle='round,pad=0.22', facecolor='white', edgecolor='red', alpha=0.90, linewidth=0.6),
-                    clip_on=True, **kw)
+                    fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
+                    bbox=_label_box(), clip_on=True, **kw)
 
             pts_24h_mean = get_24h_markers(mean_subset, init_time)
             if not pts_24h_mean.empty:
                 marker_lons = _normalize_lon_values(pts_24h_mean['lon'].to_numpy(), use_360=use_360)
-                ax.scatter(marker_lons, pts_24h_mean['lat'], marker='s', color='red', s=30, ec='black', zorder=5, **kw)
+                ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=34, facecolors='white',
+                           edgecolors=MEAN_COLOR, linewidths=1.4, zorder=5, **kw)
                 # +Nh 時間標籤
                 for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
                     fh = int((pt['valid_time'] - init_time).total_seconds() / 3600)
                     if fh == 0 or fh == last_fh:
                         continue
                     ax.text(marker_lons[i] + 0.4, pt['lat'] + 0.4, f'+{fh}h',
-                            fontsize=6, color='darkred', fontweight='bold', zorder=6,
+                            fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
+                            path_effects=[mpe.withStroke(linewidth=2.2, foreground='white')],
                             clip_on=True, **kw)
                 summary = build_24h_summary(pts_24h_mean, init_time)
                 if summary:
                     n_lines = len(summary.splitlines())
                     y_anchor = 0.27 + min(n_lines, 8) * 0.015
-                    ax.text(0.985, y_anchor, summary, transform=ax.transAxes, fontsize=6, ha='right', va='bottom',
-                            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='red', alpha=0.85, linewidth=0.6),
-                            zorder=6)
+                    ax.text(0.985, y_anchor, summary, transform=ax.transAxes, fontsize=6.5,
+                            ha='right', va='bottom', color=TEXT_DARK, linespacing=1.35,
+                            bbox=_label_box(0.94), zorder=6)
 
         # ── 圖例 ──────────────────────────────────────────────────────────────
         handles = [
-            mlines.Line2D([], [], color='gray', label='Ensemble Members', lw=1),
-            mlines.Line2D([], [], color='red', marker='s', markeredgecolor='black', label=f'{model_name} Mean', lw=2),
-            mlines.Line2D([], [], color='#88CC78', lw=4, alpha=0.55, label='Uncertainty Cone'),
-            mlines.Line2D([], [], color='gold', marker='*', ms=9, ls='', markeredgecolor='darkorange', label='Init Position'),
+            mlines.Line2D([], [], color=TRACK_LINE, label='Ensemble Members', lw=1.4),
+            mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=5.5, lw=2.2,
+                          markerfacecolor='white', markeredgecolor=MEAN_COLOR,
+                          markeredgewidth=1.3, label=f'{model_name} Mean'),
+            mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.45, label='Uncertainty Cone'),
+            mlines.Line2D([], [], color=INIT_FACE, marker='*', ms=10, ls='',
+                          markeredgecolor=INIT_EDGE, label='Init Position'),
         ]
         l1 = ax.legend(handles=handles, loc='upper left', title='Track Source', fontsize=8,
-                       frameon=True, framealpha=0.92, borderpad=0.6, labelspacing=0.3,
-                       handlelength=0.9, handletextpad=0.7)
-        l1.get_title().set_multialignment('center')
-        l1.get_title().set_ha('center')
+                       borderpad=0.7, labelspacing=0.4, handlelength=1.4, handletextpad=0.7,
+                       **LEGEND_KW)
+        _style_legend(l1)
         ax.add_artist(l1)
 
-        int_handles = []
-        for cat in ['TD', 'Cat2', 'Cat5', 'TS', 'Cat3', 'Cat1', 'Cat4']:
-            int_handles.append(mlines.Line2D([], [], color=COLOR_MAP[cat], marker='o', ms=6, ls='',
-                                             markeredgecolor='black', label=cat))
-        int_leg = ax.legend(handles=int_handles, loc='lower right', bbox_to_anchor=(0.995, 0.005),
-                            title='Intensity', fontsize=7, frameon=True, framealpha=0.92, ncol=3,
-                            borderpad=0.6, labelspacing=0.25, handlelength=0.75, handletextpad=0.35,
-                            markerscale=0.7, borderaxespad=0.5)
-        int_leg.get_title().set_multialignment('center')
-        int_leg.get_title().set_ha('center')
+        int_leg = ax.legend(handles=_intensity_legend_handles(ms=6), loc='lower right',
+                            bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
+                            fontsize=7, ncol=4, borderpad=0.6, labelspacing=0.28,
+                            handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
+                            markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
+        _style_legend(int_leg)
         ax.add_artist(int_leg)
 
         # ── 標題 ──────────────────────────────────────────────────────────────
         time_str = pd.to_datetime(current_time).strftime('%Y-%m-%d %H:%M UTC')
-        ax.set_title(
-            f"{model_name} {track_id} Track Forecast  (Init: {pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')})\n{time_str}",
-            fontsize=12, fontweight='bold', pad=15)
+        init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
+        _set_map_titles(ax,
+                        f"{model_name}  ·  {track_id}  Track Evolution",
+                        f"Valid {time_str}\nInit {init_str}",
+                        main_size=12.5, right_size=8)
         plt.tight_layout(pad=0.6)
         frame_path = os.path.join(output_dir, f"frame_{frame_idx:04d}.png")
         plt.savefig(frame_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
@@ -987,13 +1167,13 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
             poly_lats  = list(cy_f[0] + r0*np.sin(start_a)) + poly_lats
 
     # ── 3. Draw ───────────────────────────────────────────────────────────────
-    ax.fill(poly_lons, poly_lats, color='#88CC78', alpha=0.42, zorder=0.35, **kw)
+    ax.fill(poly_lons, poly_lats, color=CONE_FILL, alpha=0.22, zorder=0.35, **kw)
     ax.plot(np.append(poly_lons, poly_lons[:1]),
             np.append(poly_lats, poly_lats[:1]),
-            color='#CC3300', lw=1.6, alpha=1.0, zorder=0.50, **kw)
+            color=CONE_EDGE, lw=1.3, alpha=0.9, ls=(0, (5, 2.5)), zorder=0.50, **kw)
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC-R2"):
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2"):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。"""
     # 計算範圍（處理國際換日線）
     all_lons = list(df['lon']) + list(mean_df['lon'])
@@ -1016,29 +1196,16 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     # 建立畫布：有 Cartopy 用地圖投影，否則退回簡易經緯度圖；
     # 之後的繪圖程式碼透過 kw（transform）共用同一份。
     if HAS_CARTOPY:
-        fig = plt.figure(figsize=(10, 7))
+        fig = plt.figure(figsize=(10, 7), facecolor='white')
         # 跨越換日線時，使用中心在 180° 的投影
         proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
         ax = plt.axes(projection=proj)
-        ax.set_extent(extent, crs=ccrs.PlateCarree())
-        ax.coastlines(resolution='50m', linewidth=0.8)
-        ax.add_feature(cfeature.BORDERS, linewidth=0.8)
-        ax.add_feature(cfeature.LAND, facecolor='#f0e8d4', alpha=0.9)
-        ax.add_feature(cfeature.OCEAN, facecolor='#cce8f4', alpha=0.9)
-        gl = ax.gridlines(draw_labels=True, linewidth=0.5, color="gray", alpha=0.5, linestyle="--")
-        gl.right_labels = False
-        gl.top_labels = False
-        _configure_cartopy_gridlines(gl, extent)
+        _setup_basemap(ax, extent)
         kw = dict(transform=ccrs.PlateCarree())
     else:
-        fig = plt.figure(figsize=(FIG_W, FIG_H), dpi=FIG_DPI)
+        fig = plt.figure(figsize=(FIG_W, FIG_H), dpi=FIG_DPI, facecolor='white')
         ax = fig.add_subplot(111)
-        ax.set_facecolor('#cce8f4')
-        ax.set_xlim(extent[0], extent[1])
-        ax.set_ylim(extent[2], extent[3])
-        ax.grid(True, linestyle='--', alpha=0.4)
-        ax.set_xlabel("Longitude")
-        ax.set_ylabel("Latitude")
+        _setup_plain_axes(ax, extent)
         kw = {}
 
     # 不確定性圓錐（ensemble spread）
@@ -1050,97 +1217,103 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
         lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
         lats = g["lat"].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            ax.plot(seg_lon, seg_lat, color='gray', linewidth=0.4, alpha=0.5, zorder=0.9, **kw)
+            ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=0.45, alpha=0.5,
+                    zorder=0.9, solid_capstyle='round', **kw)
         pts_6h = get_6h_markers(g, init_time)
         if not pts_6h.empty:
             marker_lons = _normalize_lon_values(pts_6h['lon'].to_numpy(), use_360=use_360)
-            winds = pts_6h['wind'] if 'wind' in pts_6h.columns else pd.Series(np.nan, index=pts_6h.index)
-            colors = [COLOR_MAP.get(ss_category(w), 'gray') for w in winds]
-            ax.scatter(marker_lons, pts_6h['lat'], c=colors, s=8, marker='o',
-                       edgecolor='none', alpha=0.8, zorder=1.1, **kw)
+            winds = (pts_6h['wind'] if 'wind' in pts_6h.columns
+                     else pd.Series(np.nan, index=pts_6h.index)).to_numpy()
+            colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds]
+            _scatter_by_strength(ax, marker_lons, pts_6h['lat'].to_numpy(), winds, colors, kw,
+                                 size=10, alpha=0.85, zorder=1.15, lw=0.55)
 
     # 起始位置星形標記
     if not mean_df.empty:
         init_pt = mean_df.sort_values('valid_time').iloc[0]
         init_lon_star = _normalize_lon_values([init_pt['lon']], use_360=use_360)[0]
-        ax.scatter([init_lon_star], [init_pt['lat']], marker='*', color='gold', s=220,
-                   ec='darkorange', zorder=7, linewidth=0.8, **kw)
+        ax.scatter([init_lon_star], [init_pt['lat']], marker='*', color=INIT_FACE, s=230,
+                   ec=INIT_EDGE, zorder=7, linewidth=0.9, **kw)
 
     # 平均路徑（紅線）與 24h 標記（紅色方塊）及標註
     mean_lons = _normalize_lon_values(mean_plot_df["lon"].to_numpy(), use_360=use_360)
     mean_lats = mean_plot_df["lat"].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
-        ax.plot(seg_lon, seg_lat, 'r-', lw=2.5, zorder=4, **kw)
+        # 先鋪一層白色描邊：平均路徑穿過密集的成員點時才不會被淹沒
+        ax.plot(seg_lon, seg_lat, color='white', lw=4.4, alpha=0.85,
+                solid_capstyle='round', zorder=3.9, **kw)
+        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=2.4,
+                solid_capstyle='round', zorder=4, **kw)
     last_mean_pt = mean_plot_df.sort_values('valid_time').iloc[-1]
     last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
     last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
     last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
-    ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='s', color='red', s=40,
-               ec='black', zorder=5, linewidth=1, **kw)
+    ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR, s=54,
+               ec='white', zorder=5, linewidth=1.4, **kw)
     ax.text(last_mean_lon + 0.4, last_mean_pt['lat'] + 0.4, f'+{last_fh}h\n{last_intensity}',
-            fontsize=6, color='darkred', fontweight='bold', zorder=6,
-            bbox=dict(boxstyle='round,pad=0.22', facecolor='white', edgecolor='red', alpha=0.90, linewidth=0.6),
-            clip_on=True, **kw)
+            fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
+            bbox=_label_box(), clip_on=True, **kw)
     pts_24h_mean = get_24h_markers(mean_plot_df, init_time)
     if not pts_24h_mean.empty:
         marker_lons = _normalize_lon_values(pts_24h_mean['lon'].to_numpy(), use_360=use_360)
-        ax.scatter(marker_lons, pts_24h_mean['lat'], marker='s', color='red', s=30, ec='black', zorder=5, **kw)
-        # +24h、+48h… 文字標籤
+        ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=34, facecolors='white',
+                   edgecolors=MEAN_COLOR, linewidths=1.4, zorder=5, **kw)
+        # +24h、+48h… 文字標籤（白色描邊，壓在成員點上仍讀得到）
         for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
             fh = int((pt['valid_time'] - init_time).total_seconds() / 3600)
             if fh == 0 or fh == last_fh:
                 continue
             ax.text(marker_lons[i] + 0.4, pt['lat'] + 0.4, f'+{fh}h',
-                    fontsize=6, color='darkred', fontweight='bold', zorder=6,
+                    fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
+                    path_effects=[mpe.withStroke(linewidth=2.2, foreground='white')],
                     clip_on=True, **kw)
         # 右下角摘要框
         summary = build_24h_summary(pts_24h_mean, init_time)
         if summary:
             n_lines = len(summary.splitlines())
             y_anchor = 0.27 + min(n_lines, 8) * 0.015
-            ax.text(0.985, y_anchor, summary, transform=ax.transAxes, fontsize=7, ha='right', va='bottom',
-                    bbox=dict(boxstyle='round,pad=0.35', facecolor='white', edgecolor='red', alpha=0.85, linewidth=0.6),
-                    zorder=6)
+            ax.text(0.985, y_anchor, summary, transform=ax.transAxes, fontsize=7,
+                    ha='right', va='bottom', color=TEXT_DARK, linespacing=1.35,
+                    bbox=_label_box(0.94), zorder=6)
 
     # 圖例
     handles = [
-        mlines.Line2D([], [], color='gray', label='Ensemble Members', lw=1),
-        mlines.Line2D([], [], color='red', marker='s', markeredgecolor='black', label=f'{model_name} Mean', lw=2),
-        mlines.Line2D([], [], color='#88CC78', lw=4, alpha=0.55, label='Uncertainty Cone'),
-        mlines.Line2D([], [], color='gold', marker='*', ms=10, ls='', markeredgecolor='darkorange', label='Init Position'),
+        mlines.Line2D([], [], color=TRACK_LINE, label='Ensemble Members', lw=1.4),
+        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=6, lw=2.4,
+                      markerfacecolor='white', markeredgecolor=MEAN_COLOR,
+                      markeredgewidth=1.4, label=f'{model_name} Mean'),
+        mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.45, label='Uncertainty Cone'),
+        mlines.Line2D([], [], color=INIT_FACE, marker='*', ms=11, ls='',
+                      markeredgecolor=INIT_EDGE, label='Init Position'),
     ]
     l1 = ax.legend(handles=handles, loc='upper left', title='Track Source', fontsize=9,
-                   frameon=True, framealpha=0.92, borderpad=0.6, labelspacing=0.3,
-                   handlelength=0.9, handletextpad=0.7)
-    l1.get_title().set_multialignment('center')
-    l1.get_title().set_ha('center')
+                   borderpad=0.7, labelspacing=0.42, handlelength=1.4, handletextpad=0.7,
+                   **LEGEND_KW)
+    _style_legend(l1)
     ax.add_artist(l1)
 
-    int_handles = [
-        mlines.Line2D([], [], color=COLOR_MAP[cat], marker='o', ms=7, ls='',
-                      markeredgecolor='black', label=cat)
-        for cat in ['TD', 'Cat2', 'Cat5', 'TS', 'Cat3', 'Cat1', 'Cat4']
-    ]
-    int_leg = ax.legend(handles=int_handles, loc='lower right', bbox_to_anchor=(0.995, 0.005),
-                        title='Intensity', fontsize=8, frameon=True, framealpha=0.92, ncol=3,
-                        borderpad=0.6, labelspacing=0.25, handlelength=0.75, handletextpad=0.35,
-                        markerscale=0.75, borderaxespad=0.5)
-    int_leg.get_title().set_multialignment('center')
-    int_leg.get_title().set_ha('center')
+    int_leg = ax.legend(handles=_intensity_legend_handles(ms=7), loc='lower right',
+                        bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
+                        fontsize=8, ncol=4, borderpad=0.6, labelspacing=0.3,
+                        handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
+                        markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
+    _style_legend(int_leg)
     ax.add_artist(int_leg)
 
-    ax.set_title(f"{model_name} {track_id} Track Forecast (Init: {pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')})",
-                 fontsize=16, fontweight='bold', pad=15)
-    ax.text(0.995, 0.992, 'By Pillar', transform=ax.transAxes,
-            ha='right', va='top', fontsize=7, style='italic',
-            color='black', fontweight='bold', zorder=10)
+    n_members = int(df['sample'].nunique()) if 'sample' in df.columns else 0
+    init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
+    _set_map_titles(ax,
+                    f"{model_name}  ·  {track_id}  Ensemble Track Forecast",
+                    f"Init {init_str}" + (f"  ·  {n_members} members" if n_members else ""),
+                    main_size=15, right_size=9)
+    _watermark(ax)
     plt.tight_layout(pad=0.6)
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     print(f"[INFO] 已儲存地圖：{save_path}")
 
 
-def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC-R2"):
+def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2"):
     """繪製西太平洋 Ensemble 潛勢預報總覽圖（以 MSLP 著色）。"""
     if not os.path.exists(csv_path):
         print(f"[GENESIS] 找不到潛勢 CSV：{csv_path}")
@@ -1183,32 +1356,14 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
     global_min_mslp = float(df_wp['minimum_sea_level_pressure_hpa'].min())
 
     if HAS_CARTOPY:
-        fig = plt.figure(figsize=(13, 8))
+        fig = plt.figure(figsize=(13, 8), facecolor='white')
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.set_extent(EXTENT, crs=ccrs.PlateCarree())
-        ax.coastlines(resolution='50m', linewidth=0.8, color='#555555')
-        ax.add_feature(cfeature.BORDERS, linewidth=0.6, edgecolor='#777777')
-        ax.add_feature(cfeature.LAND, facecolor='#f0e8d4', alpha=0.95)
-        ax.add_feature(cfeature.OCEAN, facecolor='#cce8f4', alpha=0.95)
-        gl = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5, linestyle='--')
-        gl.right_labels = False
-        gl.top_labels = False
-        gl.xlocator = mticker.MultipleLocator(10)
-        gl.ylocator = mticker.MultipleLocator(10)
-        gl.xformatter = LONGITUDE_FORMATTER
-        gl.yformatter = LATITUDE_FORMATTER
-        gl.xlabel_style = {'size': 8}
-        gl.ylabel_style = {'size': 8}
+        _setup_basemap(ax, EXTENT, grid_step=10)
         kw = dict(transform=ccrs.PlateCarree())
     else:
         fig = plt.figure(figsize=(13, 8), dpi=150, facecolor='white')
         ax = fig.add_subplot(111)
-        ax.set_facecolor('#cce8f4')
-        ax.set_xlim(EXTENT[0], EXTENT[1])
-        ax.set_ylim(EXTENT[2], EXTENT[3])
-        ax.grid(True, linewidth=0.5, alpha=0.4, linestyle='--')
-        ax.set_xlabel('Longitude', fontsize=9)
-        ax.set_ylabel('Latitude', fontsize=9)
+        _setup_plain_axes(ax, EXTENT)
         kw = {}
 
     # 繪製各 track_id + sample 的 ensemble 軌跡
@@ -1217,45 +1372,43 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         lons = g['lon'].to_numpy()
         lats = g['lat'].to_numpy()
         mslps = g['minimum_sea_level_pressure_hpa'].to_numpy()
+        winds = g['wind'].to_numpy() if 'wind' in g.columns else np.full(len(g), np.nan)
 
         # 軌跡連線（淡灰）
-        ax.plot(lons, lats, color='#888888', linewidth=0.4, alpha=0.35, zorder=1, **kw)
+        ax.plot(lons, lats, color=TRACK_LINE, linewidth=0.45, alpha=0.35,
+                zorder=1, solid_capstyle='round', **kw)
 
-        # MSLP 著色圓點（整條軌跡一次 scatter，避免逐點繪製拖慢速度）
+        # MSLP 著色圓點：達暴風強度者實心、未達者空心（整條軌跡一次 scatter，
+        # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
-        ax.scatter(lons, lats, c=colors, s=10, marker='o',
-                   edgecolor='none', alpha=0.85, zorder=2, **kw)
+        _scatter_by_strength(ax, lons, lats, winds, colors, kw,
+                             size=11, alpha=0.85, zorder=2, lw=0.6)
 
     # 圖例（MSLP 色階）
     legend_handles = []
     for _, color, label in MSLP_COLOR_BINS:
-        h = mlines.Line2D([], [], marker='o', ms=7, ls='',
+        h = mlines.Line2D([], [], marker='o', ms=7.5, ls='',
                           color=color, markeredgecolor='none', label=label)
         legend_handles.append(h)
 
     leg = ax.legend(handles=legend_handles, loc='upper left',
-                    title='min. MSLP\n' + '─' * 13, title_fontsize=8,
-                    fontsize=8, frameon=True, framealpha=0.92,
-                    borderpad=0.6, labelspacing=0.3, handletextpad=0.5)
-    leg.get_title().set_multialignment('center')
-    leg.get_title().set_ha('center')
+                    title='min. sea level pressure\nfilled ≥ 34 kt', title_fontsize=8,
+                    fontsize=8, borderpad=0.7, labelspacing=0.34, handletextpad=0.6,
+                    **LEGEND_KW)
+    _style_legend(leg)
 
     # 右上角顯示全域最低 MSLP
-    ax.text(0.99, 0.99, f'min. MSLP: {global_min_mslp:.1f} hPa',
-            transform=ax.transAxes, fontsize=8, ha='right', va='top',
-            color='#CC0000', fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                      edgecolor='#CC0000', alpha=0.85, linewidth=0.8))
+    ax.text(0.99, 0.99, f'min. MSLP  {global_min_mslp:.1f} hPa',
+            transform=ax.transAxes, fontsize=8.5, ha='right', va='top',
+            color=MSLP_COLOR_BINS[1][1], fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.34', facecolor='white',
+                      edgecolor=BOX_EDGE, alpha=0.94, linewidth=0.8))
 
-    ax.set_title(
-        f'{model_name} Ensemble Forecast for Tropical Cyclone (0–360 hours)  '
-        f'Data sourced from Google DeepMind\n'
-        f'Initial time: {init_time_str}',
-        fontsize=11, fontweight='bold', pad=12
-    )
-    ax.text(0.995, 0.008, 'By Pillar', transform=ax.transAxes,
-            ha='right', va='bottom', fontsize=7, style='italic',
-            color='black', fontweight='bold', zorder=10)
+    _set_map_titles(ax,
+                    f'{model_name}  ·  Western Pacific Genesis Potential  ·  0–360 h',
+                    f'Init {init_time_str}\nGoogle DeepMind Weather Lab',
+                    main_size=13, right_size=8.5)
+    _watermark(ax)
     plt.tight_layout(pad=0.6)
     plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
@@ -1366,8 +1519,8 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     舊的路徑圖、動畫 GIF 與幀目錄會永遠留在 OUTPUT_DIR，既佔空間也會被
     commit 進 repo，且 index.html 不會再引用它們。
 
-    前綴以 ^ 錨定，確保無前綴的 WNC-R2（output_prefix=""）不會誤刪
-    WNC-R1_ / GENC_ 開頭的檔案。
+    前綴以 ^ 錨定，確保無前綴的 WNC2-r2（output_prefix=""）不會誤刪
+    WNC3_ / WNC2-r1_ / GENC_ 開頭的檔案。
     """
     if not os.path.isdir(OUTPUT_DIR):
         return
@@ -1419,6 +1572,59 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
             print(f"[CLEANUP] 已移除殘留 JTWC 預報圖: {name}")
         except OSError as e:
             print(f"[CLEANUP] 警告: 移除 {name} 失敗: {e}")
+
+
+def _cleanup_legacy_names() -> None:
+    """清除改名前（WNC-R2／WNC-R1）留在磁碟上的下載檔與輸出產物。
+
+    現行的清理函式都以 MODEL_CONFIGS 目前的 prefix 建正則，掃不到舊檔名，
+    舊檔會就這樣一直留著（下載檔約 20 MB/日，圖檔還會被 commit 進 repo）。
+    這裡按舊 prefix 精確比對後刪除；比對用 ^ 錨定並要求完整的時間戳／檔名格式，
+    不做寬鬆的 startswith，以免誤刪其他東西。
+    """
+    if not LEGACY_PREFIXES:
+        return
+
+    # 下載目錄：{legacy}_YYYY_MM_DDTHH_00_*.csv
+    dirs = {d for cfg in MODEL_CONFIGS for d in (cfg["ensemble_dir"], cfg["mean_dir"], cfg["cyc_dir"])}
+    csv_re = re.compile(
+        r"^(?:%s)_\d{4}_\d{2}_\d{2}T\d{2}_00_\w+\.csv$"
+        % "|".join(re.escape(x) for x in LEGACY_PREFIXES))
+    for d in sorted(dirs):
+        try:
+            names = [n for n in os.listdir(d) if csv_re.match(n)]
+        except OSError as e:
+            print(f"[LEGACY-CLEANUP] 警告: 無法列出 {d}: {e}")
+            continue
+        for name in names:
+            try:
+                os.remove(os.path.join(d, name))
+                print(f"[LEGACY-CLEANUP] 已移除舊命名下載檔: {d}/{name}")
+            except OSError as e:
+                print(f"[LEGACY-CLEANUP] 警告: 移除 {name} 失敗: {e}")
+
+    # 輸出目錄：舊 prefix 的路徑圖／動畫／幀目錄／潛勢圖
+    if not os.path.isdir(OUTPUT_DIR):
+        return
+    p_alt = "|".join(re.escape(x) for x in LEGACY_PREFIXES)
+    out_re = re.compile(rf"^(?:{p_alt})_WP\d{{6}}_Forecast_(?:Map\.png|Animation\.gif)$"
+                        rf"|^WP_Genesis_Potential_(?:{p_alt})\.png$")
+    dir_re = re.compile(rf"^animation_frames_(?:{p_alt})_WP\d{{6}}$")
+    try:
+        names = sorted(os.listdir(OUTPUT_DIR))
+    except OSError as e:
+        print(f"[LEGACY-CLEANUP] 警告: 無法列出 {OUTPUT_DIR}: {e}")
+        return
+    for name in names:
+        path = os.path.join(OUTPUT_DIR, name)
+        is_dir = os.path.isdir(path)
+        if not (dir_re.match(name) if is_dir else out_re.match(name)):
+            continue
+        try:
+            shutil.rmtree(path) if is_dir else os.remove(path)
+            print(f"[LEGACY-CLEANUP] 已移除舊命名產物: {name}")
+        except OSError as e:
+            print(f"[LEGACY-CLEANUP] 警告: 移除 {name} 失敗: {e}")
 
 
 def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | None, list[dict]]:
@@ -1523,7 +1729,10 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
 
 
 def main():
-    # 同一顆颱風的 WNC/GENC track_id 相同時，JTWC 官方資料（web.txt、預報圖）
+    # 先清掉改名前殘留的舊檔，避免與本次產出的新命名檔案並存
+    _cleanup_legacy_names()
+
+    # 同一顆颱風的各模式 track_id 相同時，JTWC 官方資料（web.txt、預報圖）
     # 只跟真實颱風有關、與模式無關，故在本次執行內快取，避免重複下載。
     jtwc_text_cache: dict = {}
     jtwc_image_downloaded: set = set()
