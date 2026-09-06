@@ -1680,8 +1680,13 @@ def _data_source(model_name: str) -> str:
             else 'Google DeepMind Weather Lab')
 
 
-def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2"):
-    """繪製西太平洋 Ensemble 潛勢預報總覽圖（以 MSLP 著色）。"""
+def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2",
+                               range_hours: int = 360):
+    """繪製西太平洋 Ensemble 潛勢預報總覽圖（以 MSLP 著色）。
+
+    range_hours 是該次預報的名目時距，只用在標題。不能寫死 360：
+    ECMWF 的 06Z／18Z 只跑到 144h（AIFS 與 WNC 系列則四個 cycle 都是 360h）。
+    """
     if not os.path.exists(csv_path):
         print(f"[GENESIS] 找不到潛勢 CSV：{csv_path}")
         return None
@@ -1772,7 +1777,7 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
                       edgecolor=BOX_EDGE, alpha=0.94, linewidth=0.8))
 
     _set_map_titles(ax,
-                    f'{model_name}  ·  Western Pacific Genesis Potential  ·  0–360 h',
+                    f'{model_name}  ·  Western Pacific Genesis Potential  ·  0–{int(range_hours)} h',
                     f'Init {init_time_str}\n{_data_source(model_name)}',
                     main_size=13, right_size=8.5)
     _watermark(ax)
@@ -2043,6 +2048,18 @@ def _cleanup_legacy_names() -> None:
             print(f"[LEGACY-CLEANUP] 警告: 移除 {name} 失敗: {e}")
 
 
+def _genesis_range_hours(cfg: dict, cycle: datetime) -> int:
+    """該模式此次 cycle 的名目預報時距（潛勢圖標題用）。
+
+    Weather Lab 的四個模式一律 360h；ECMWF 的 IFS 在 06Z／18Z 只跑 144h，
+    標題寫死 360 會與圖上實際內容不符。
+    """
+    if cfg.get("fetcher") != "ecmwf":
+        return 360
+    import ecmwf_bufr
+    return ecmwf_bufr.forecast_range_hours(cfg["ecmwf_model"], cycle)
+
+
 def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | None, list[dict]]:
     """執行單一模式的完整流程：解析 cycle、下載 CSV、繪製潛勢圖與各颱風產品。
 
@@ -2085,7 +2102,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
     if cfg.get("genesis_png") and cyc_csv_path and os.path.exists(cyc_csv_path):
         print(f"[{display}-GENESIS] 正在繪製西太平洋潛勢預報圖...")
         genesis_map_path = plot_genesis_potential_map(
-            cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=display)
+            cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=display,
+            range_hours=_genesis_range_hours(cfg, cycle))
 
     # 逐颱風產出：路徑圖、JTWC 官方圖、動畫幀序列與 GIF
     storms = []

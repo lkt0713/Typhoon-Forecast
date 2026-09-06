@@ -21,7 +21,7 @@ if exist ".git\rebase-apply" (
 )
 
 git add docs/
-git add forecast.py generate_forecast_website.py
+git add forecast.py generate_forecast_website.py ecmwf_bufr.py
 
 git diff --cached --quiet
 if !errorlevel! == 0 (
