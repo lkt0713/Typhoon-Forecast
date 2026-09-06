@@ -364,11 +364,10 @@ COLOR_MAP = {
 # 資料層的其他角色色
 TRACK_LINE  = '#9AA6B2'   # 集合成員連線
 MEAN_COLOR  = '#16324F'   # 集合平均路徑：深海軍藍（在彩色點群中仍能一眼看出）
-# 決定報路徑（ECMWF HRES／AIFS-single）：深琥珀＋虛線。強度色階裡的橘（Cat3
-# #EE7A22）只以小圓點出現，這裡是帶白色描邊的粗線，加上虛線後不會與平均路徑
-# 或強度點混淆。
+# 決定報路徑（ECMWF HRES／AIFS-single）：深琥珀實線，線型與 24h 圓點標記比照
+# 平均路徑，只用顏色區分。強度色階裡的橘（Cat3 #EE7A22）只以小圓點出現，這裡
+# 是帶白色描邊的粗線，不會與強度點混淆。
 DET_COLOR   = '#B45309'
-DET_DASH    = (0, (5.5, 2.6))
 CONE_FILL   = '#8FA8C6'   # 不確定性圓錐填色
 # 不確定性圓錐只畫到 +72h：再往後成員發散太大，圓錐會漲成幾乎覆蓋整張圖的巨圓，
 # 既遮住路徑也不再有參考價值。平均路徑與成員線不受此限，仍畫到各自的終點。
@@ -541,7 +540,9 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
     ]
     labels = ['Ensemble Members', f'{model_name} Mean']
     if det_label:
-        handles.append(mlines.Line2D([], [], color=DET_COLOR, lw=2.2, linestyle=DET_DASH))
+        handles.append(mlines.Line2D([], [], color=DET_COLOR, marker='o', ms=ms * 0.55,
+                                     lw=2.2, markerfacecolor='white',
+                                     markeredgecolor=DET_COLOR, markeredgewidth=1.4))
         labels.append(det_label)
     handles += [
         mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.5),
@@ -1364,11 +1365,12 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
 
 def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: bool, kw: dict,
                     upto: pd.Timestamp | None = None, label_end: bool = True) -> None:
-    """畫決定報路徑（虛線）—— 靜態圖與動畫幀共用。
+    """畫決定報路徑（實線）—— 靜態圖與動畫幀共用。
 
-    刻意不套用平均路徑那套「半數成員」截斷：決定報只有一條，跑到哪就畫到哪，
-    截斷反而會讓人以為模式提早結束預報。zorder 介於平均路徑（4）與其標記
-    （5）之間，讓平均路徑仍是視覺主角。
+    線型與 24 小時圓點標記比照平均路徑，只用顏色區分；刻意不套用平均路徑那套
+    「半數成員」截斷：決定報只有一條，跑到哪就畫到哪，截斷反而會讓人以為模式
+    提早結束預報。zorder 介於平均路徑（4）與其標記（5）之間，讓平均路徑仍是
+    視覺主角。
     """
     if det_df is None or det_df.empty:
         return
@@ -1383,8 +1385,17 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
     for seg_lon, seg_lat in _split_track_segments(lons, lats):
         ax.plot(seg_lon, seg_lat, color='white', lw=4.0, alpha=0.85,
                 solid_capstyle='round', zorder=4.1, **kw)
-        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=2.2, linestyle=DET_DASH,
+        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=2.2,
                 solid_capstyle='round', zorder=4.2, **kw)
+
+    # 每 24 小時的空心圓點（與平均路徑同款，僅顏色不同）
+    if init_time is not None:
+        pts_24h_det = get_24h_markers(d, init_time)
+        if not pts_24h_det.empty:
+            det_marker_lons = _normalize_lon_values(pts_24h_det['lon'].to_numpy(), use_360=use_360)
+            ax.scatter(det_marker_lons, pts_24h_det['lat'].to_numpy(), marker='o', s=34,
+                       facecolors='white', edgecolors=DET_COLOR, linewidths=1.4,
+                       zorder=4.5, **kw)
 
     last = d.iloc[-1]
     last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
