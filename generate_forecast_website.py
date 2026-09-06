@@ -180,6 +180,29 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>
         """)
 
+        # ── 模式比較圖（每顆颱風一張，排在所有分模式內容之前）───────────
+        # 這張圖與模式無關，故不掛 data-model，不參與分頁切換。
+        _cmp = next((m.get('comparison_map_path') for m in models
+                     if isinstance(m, dict) and m.get('comparison_map_path')), '')
+        if _cmp and os.path.exists(_cmp):
+            cards_html.append(f"""
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-icon">📊</span>
+                    <span>Multi-Model Comparison</span>
+                </div>
+                <div class="map-image-wrapper" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="{os.path.basename(_cmp)}" alt="{track_id} Multi-Model Comparison"
+                         class="map-image" onerror="this.closest('.panel').style.display='none'">
+                    <div class="zoom-hint">🔍 Click to enlarge</div>
+                </div>
+                <p class="map-note">
+                    各模式的系集平均路徑與決定報畫在同一張圖 &nbsp;·&nbsp;
+                    空心圓 = 24 小時間隔 &nbsp;·&nbsp; 圖例括號內為各模式的初始時間（日/時 Z）
+                </p>
+            </div>
+            """)
+
         # ── 模式分頁按鈕（僅同時有 WNC 與 GENC 時顯示）───────────────
         if multi_model:
             tab_buttons = "".join(

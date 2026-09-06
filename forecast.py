@@ -75,6 +75,24 @@ os.makedirs(WNC3_ENSEMBLE_DIR, exist_ok=True)
 os.makedirs(WNC3_MEAN_DIR, exist_ok=True)
 os.makedirs(WNC3_CYCLOGENESIS_DIR, exist_ok=True)
 
+# ECMWF 兩個模式走 ECMWF Open Data 的 BUFR，不是 Weather Lab 的 CSV：
+# IFS  = 傳統物理模式（系集 51 條 + HRES 決定報）
+# AIFS = ECMWF 自家的 AI 模式（系集 52 條 + AIFS-single 決定報）
+# 兩者都沒有潛勢（cyclogenesis）產品，故不設 cyc_dir；決定報另存 det_dir。
+IFS_ENSEMBLE_DIR = "ecmwf_ifs_downloads_2026"
+IFS_MEAN_DIR = "ecmwf_ifs_ensemble_mean_downloads_2026"
+IFS_DET_DIR = "ecmwf_ifs_deterministic_2026"
+AIFS_ENSEMBLE_DIR = "ecmwf_aifs_downloads_2026"
+AIFS_MEAN_DIR = "ecmwf_aifs_ensemble_mean_downloads_2026"
+AIFS_DET_DIR = "ecmwf_aifs_deterministic_2026"
+for _d in (IFS_ENSEMBLE_DIR, IFS_MEAN_DIR, IFS_DET_DIR,
+           AIFS_ENSEMBLE_DIR, AIFS_MEAN_DIR, AIFS_DET_DIR):
+    os.makedirs(_d, exist_ok=True)
+
+# BUFR 原始檔只是轉檔的中間產物（每 cycle 約 2.6 MB），轉完即刪，
+# 不進 KEEP_CYCLES 的保留機制。
+ECMWF_SCRATCH_DIR = os.path.join("__pycache__", "ecmwf_bufr_raw")
+
 # Weather Lab 下載端點。
 # 注意：URL 上的模型代號與我們的顯示名稱不同步。WeatherNext 2 的兩個版本在對方
 # 網址上仍是舊代號 "FNV3P2"（r2，與 "OPER" 別名指向同一份檔案）與 "FNV3P1"（r1）；
@@ -146,6 +164,36 @@ MODEL_CONFIGS = [
         "cyc_dir": GENC_CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential_GENC.png",
         "output_prefix": "GENC_",
+        "required": False,
+    },
+    {
+        # fetcher="ecmwf"：不走 Weather Lab，改由 ecmwf_bufr 下載 BUFR 轉成
+        # 同樣格式的 paired CSV，之後的流程完全共用。
+        "fetcher": "ecmwf",
+        "ecmwf_model": "IFS",
+        "local_prefix": "ECMWF",
+        "display": "ECMWF",
+        "ensemble_dir": IFS_ENSEMBLE_DIR,
+        "mean_dir": IFS_MEAN_DIR,
+        "det_dir": IFS_DET_DIR,
+        "det_label": "HRES (deterministic)",
+        "cyc_dir": None,          # ECMWF Open Data 無潛勢產品
+        "genesis_png": None,
+        "output_prefix": "ECMWF_",
+        "required": False,
+    },
+    {
+        "fetcher": "ecmwf",
+        "ecmwf_model": "AIFS",
+        "local_prefix": "AIFS",
+        "display": "AIFS",
+        "ensemble_dir": AIFS_ENSEMBLE_DIR,
+        "mean_dir": AIFS_MEAN_DIR,
+        "det_dir": AIFS_DET_DIR,
+        "det_label": "AIFS-single (deterministic)",
+        "cyc_dir": None,
+        "genesis_png": None,
+        "output_prefix": "AIFS_",
         "required": False,
     },
 ]
@@ -313,7 +361,15 @@ COLOR_MAP = {
 # 資料層的其他角色色
 TRACK_LINE  = '#9AA6B2'   # 集合成員連線
 MEAN_COLOR  = '#16324F'   # 集合平均路徑：深海軍藍（在彩色點群中仍能一眼看出）
+# 決定報路徑（ECMWF HRES／AIFS-single）：深琥珀＋虛線。強度色階裡的橘（Cat3
+# #EE7A22）只以小圓點出現，這裡是帶白色描邊的粗線，加上虛線後不會與平均路徑
+# 或強度點混淆。
+DET_COLOR   = '#B45309'
+DET_DASH    = (0, (5.5, 2.6))
 CONE_FILL   = '#8FA8C6'   # 不確定性圓錐填色
+# 不確定性圓錐只畫到 +72h：再往後成員發散太大，圓錐會漲成幾乎覆蓋整張圖的巨圓，
+# 既遮住路徑也不再有參考價值。平均路徑與成員線不受此限，仍畫到各自的終點。
+CONE_MAX_FH = 72.0
 CONE_EDGE   = '#3D5A80'   # 圓錐邊界
 INIT_FACE   = '#FFC24A'   # 初始位置星形
 INIT_EDGE   = '#A9670C'
@@ -467,17 +523,28 @@ def _init_legend_handle(ms: float = 11.0):
     )
 
 
-def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 11.0):
-    """左上角的 Track Source 圖例（靜態圖與動畫幀共用同一份定義）。"""
+def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 11.0,
+                         det_label: str | None = None):
+    """左上角的 Track Source 圖例（靜態圖與動畫幀共用同一份定義）。
+
+    det_label 有值時多一列決定報（ECMWF HRES／AIFS-single）；WNC 系列沒有
+    對應產品，維持原本的四列。
+    """
     handles = [
         mlines.Line2D([], [], color=TRACK_LINE, lw=1.4),
         mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=2.4,
                       markerfacecolor='white', markeredgecolor=MEAN_COLOR,
                       markeredgewidth=1.4),
+    ]
+    labels = ['Ensemble Members', f'{model_name} Mean']
+    if det_label:
+        handles.append(mlines.Line2D([], [], color=DET_COLOR, lw=2.2, linestyle=DET_DASH))
+        labels.append(det_label)
+    handles += [
         mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.5),
         _init_legend_handle(ms),
     ]
-    labels = ['Ensemble Members', f'{model_name} Mean', 'Uncertainty Cone', 'Init Position']
+    labels += ['Uncertainty Cone', 'Init Position']
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
                     fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.4, handletextpad=0.7,
@@ -870,23 +937,29 @@ def extract_current_info(df: pd.DataFrame) -> dict:
         'r34_nw': r34_nw,
     }
 
-def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC2-r2") -> list:
+def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None) -> list:
     """生成預報軌跡演變的幀序列，用於網頁動畫生成。與靜態地圖保持一致的風格。
-    
+
+    det_df／det_label 的意義與 plot_forecast_map 相同。
+
     Returns:
         包含所有生成幀的文件路徑列表
     """
+    has_det = det_df is not None and not det_df.empty
     # 計算時間步
     all_times = sorted(pd.concat([df, mean_df])['valid_time'].unique())
     if len(all_times) > max_frames:
         step = len(all_times) // max_frames
         all_times = all_times[::step]
-    
+
     print(f"[FRAME] 正在生成 {len(all_times)} 幀序列...")
 
     # 計算地圖範圍（處理國際換日線），並套用與靜態圖一致的比例
     all_lons = list(df['lon']) + list(mean_df['lon'])
     all_lats = list(df['lat']) + list(mean_df['lat'])
+    if has_det:
+        all_lons += list(det_df['lon'])
+        all_lats += list(det_df['lat'])
     extent, use_360 = _auto_extent(all_lats, all_lons, pad_deg=3)
     min_lon, max_lon, min_lat, max_lat = extent
     if min_lat == max_lat:
@@ -996,8 +1069,14 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                             ha='right', va='bottom', color=TEXT_DARK, linespacing=1.35,
                             bbox=_label_box(0.94), zorder=6)
 
+        # ── 決定報軌跡（截至 current_time）────────────────────────────────────
+        if has_det:
+            _draw_det_track(ax, det_df, init_time, use_360, kw,
+                            upto=pd.to_datetime(current_time), label_end=False)
+
         # ── 圖例 ──────────────────────────────────────────────────────────────
-        _track_source_legend(ax, model_name, fontsize=8, ms=10)
+        _track_source_legend(ax, model_name, fontsize=8, ms=10,
+                             det_label=det_label if has_det else None)
 
         int_leg = ax.legend(handles=_intensity_legend_handles(ms=6), loc='lower right',
                             bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
@@ -1120,6 +1199,9 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
     cone_stop_fh = _compute_cone_stop_fh(df, init_time, max_fh=max_fh)
     if cone_stop_fh is None:
         return
+    # 圓錐最多畫到 CONE_MAX_FH。刻意只夾在這裡、不動 _compute_cone_stop_fh：
+    # 那個回傳值同時決定平均路徑要畫到幾小時，一起夾就會把平均路徑也砍到 72h。
+    cone_stop_fh = min(cone_stop_fh, CONE_MAX_FH)
 
     work = df.copy()
     work['fh'] = (work['valid_time'] - init_time).dt.total_seconds() / 3600.0
@@ -1277,11 +1359,53 @@ def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
             color=CONE_EDGE, lw=1.3, alpha=0.9, ls=(0, (5, 2.5)), zorder=0.50, **kw)
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2"):
-    """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。"""
-    # 計算範圍（處理國際換日線）
+def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: bool, kw: dict,
+                    upto: pd.Timestamp | None = None, label_end: bool = True) -> None:
+    """畫決定報路徑（虛線）—— 靜態圖與動畫幀共用。
+
+    刻意不套用平均路徑那套「半數成員」截斷：決定報只有一條，跑到哪就畫到哪，
+    截斷反而會讓人以為模式提早結束預報。zorder 介於平均路徑（4）與其標記
+    （5）之間，讓平均路徑仍是視覺主角。
+    """
+    if det_df is None or det_df.empty:
+        return
+    d = det_df.sort_values('valid_time')
+    if upto is not None:
+        d = d[d['valid_time'] <= upto]
+    if d.empty:
+        return
+
+    lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
+    lats = d['lat'].to_numpy()
+    for seg_lon, seg_lat in _split_track_segments(lons, lats):
+        ax.plot(seg_lon, seg_lat, color='white', lw=4.0, alpha=0.85,
+                solid_capstyle='round', zorder=4.1, **kw)
+        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=2.2, linestyle=DET_DASH,
+                solid_capstyle='round', zorder=4.2, **kw)
+
+    last = d.iloc[-1]
+    last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
+    ax.scatter([last_lon], [last['lat']], marker='D', color=DET_COLOR, s=34,
+               ec='white', zorder=4.6, linewidth=1.2, **kw)
+    if label_end and init_time is not None:
+        fh = int(round((last['valid_time'] - init_time).total_seconds() / 3600.0))
+        ax.text(last_lon + LABEL_OFFSET, last['lat'] - LABEL_OFFSET,
+                f'DET +{fh}h', fontsize=6.5, color=DET_COLOR, fontweight='bold',
+                zorder=6, bbox=_label_box(), clip_on=True, **kw)
+
+
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
+    """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。
+
+    det_df 有值時（ECMWF／AIFS）再疊一條決定報路徑；det_label 是圖例文字。
+    """
+    has_det = det_df is not None and not det_df.empty
+    # 計算範圍（處理國際換日線）；決定報可能比系集跑得更遠，一併納入
     all_lons = list(df['lon']) + list(mean_df['lon'])
     all_lats = list(df['lat']) + list(mean_df['lat'])
+    if has_det:
+        all_lons += list(det_df['lon'])
+        all_lats += list(det_df['lat'])
     extent, use_360 = _auto_extent(all_lats, all_lons, pad_deg=3)
     min_lon, max_lon, min_lat, max_lat = extent
     if min_lat == max_lat:
@@ -1380,8 +1504,13 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                     ha='right', va='bottom', color=TEXT_DARK, linespacing=1.35,
                     bbox=_label_box(0.94), zorder=6)
 
+    # 決定報路徑（畫在平均路徑之後，才不會被平均路徑的白色描邊蓋掉）
+    if has_det:
+        _draw_det_track(ax, det_df, init_time, use_360, kw)
+
     # 圖例
-    _track_source_legend(ax, model_name, fontsize=9, ms=11)
+    _track_source_legend(ax, model_name, fontsize=9, ms=11,
+                         det_label=det_label if has_det else None)
 
     int_leg = ax.legend(handles=_intensity_legend_handles(ms=7), loc='lower right',
                         bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
@@ -1402,6 +1531,128 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     print(f"[INFO] 已儲存地圖：{save_path}")
+
+
+# 模式比較圖的線條配色。同一家族用相近色系、決定報用虛線，
+# 讓「哪些線來自同一個模式」一眼可辨：
+#   WNC 系列與 GENC → 冷色（藍綠）  ECMWF → 暖色（紅橘）  AIFS → 紫紅
+COMPARE_STYLES = {
+    'WNC3':     ('#1B4F9C', '-'),
+    'WNC2-r2':  ('#16324F', '-'),
+    'WNC2-r1':  ('#5B8DC8', '-'),
+    'GENC':     ('#1FA97E', '-'),
+    'ECMWF':    ('#B3123F', '-'),
+    'ECMWF-DET': ('#B45309', DET_DASH),
+    'AIFS':     ('#7A3FA8', '-'),
+    'AIFS-DET': ('#C2569B', DET_DASH),
+}
+# 比較圖的線條順序：先四個 WNC／GENC 平均，再 ECMWF 一組、AIFS 一組。
+# 後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在較後面。
+COMPARE_ORDER = ['WNC3', 'WNC2-r1', 'GENC', 'WNC2-r2',
+                 'ECMWF', 'ECMWF-DET', 'AIFS', 'AIFS-DET']
+COMPARE_LABELS = {
+    'WNC3': 'WNC3 Mean',
+    'WNC2-r2': 'WNC2-r2 Mean',
+    'WNC2-r1': 'WNC2-r1 Mean',
+    'GENC': 'GENC Mean',
+    'ECMWF': 'ECMWF ENS Mean',
+    'ECMWF-DET': 'ECMWF HRES',
+    'AIFS': 'AIFS-ENS Mean',
+    'AIFS-DET': 'AIFS-single',
+}
+
+
+def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
+                              init_times: dict | None = None):
+    """把各模式的平均路徑（與 ECMWF／AIFS 的決定報）畫在同一張圖上。
+
+    entries: {圖例鍵: DataFrame}，鍵取自 COMPARE_STYLES。各模式的 cycle 不一定
+    相同（ECMWF 比 WNC 晚上架），所以圖例會逐條標出各自的初始時間，不在標題上
+    寫一個會誤導人的共同 init。
+
+    刻意不畫成員線、不畫圓錐、不標強度點：這張圖的用途是「各模式指向哪裡」，
+    細節留給各模式自己的分頁。
+    """
+    usable = {k: v for k, v in entries.items()
+              if isinstance(v, pd.DataFrame) and not v.empty and k in COMPARE_STYLES}
+    if len(usable) < 2:
+        print(f"[COMPARE] {track_id} 可比較的模式不足兩個，略過")
+        return None
+
+    all_lons = [x for v in usable.values() for x in v['lon']]
+    all_lats = [x for v in usable.values() for x in v['lat']]
+    extent, use_360 = _auto_extent(all_lats, all_lons, pad_deg=3)
+    min_lon, max_lon, min_lat, max_lat = extent
+    if min_lat == max_lat:
+        min_lat -= 2; max_lat += 2
+    if min_lon == max_lon:
+        min_lon -= 2; max_lon += 2
+    extent = _fit_extent_to_aspect((min_lon, max_lon, min_lat, max_lat), FIG_AR, use_360)
+
+    if HAS_CARTOPY:
+        fig = plt.figure(figsize=(10, 7), facecolor='white')
+        proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
+        ax = plt.axes(projection=proj)
+        _setup_basemap(ax, extent)
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        fig = plt.figure(figsize=(FIG_W, FIG_H), dpi=FIG_DPI, facecolor='white')
+        ax = fig.add_subplot(111)
+        _setup_plain_axes(ax, extent)
+        kw = {}
+
+    init_times = init_times or {}
+    handles, labels = [], []
+    for key in COMPARE_ORDER:
+        d = usable.get(key)
+        if d is None:
+            continue
+        color, dash = COMPARE_STYLES[key]
+        d = d.sort_values('valid_time')
+        lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
+        lats = d['lat'].to_numpy()
+        for seg_lon, seg_lat in _split_track_segments(lons, lats):
+            ax.plot(seg_lon, seg_lat, color='white', lw=4.0, alpha=0.8,
+                    solid_capstyle='round', zorder=3.5, **kw)
+            ax.plot(seg_lon, seg_lat, color=color, lw=2.2, linestyle=dash,
+                    solid_capstyle='round', zorder=4, **kw)
+
+        # 24h 標記：各模式在同一時間點的位置差距，是這張圖最想讓人看到的東西
+        init_time = init_times.get(key)
+        if init_time is not None:
+            pts = get_24h_markers(d, init_time)
+            if not pts.empty:
+                mlons = _normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360)
+                ax.scatter(mlons, pts['lat'], marker='o', s=22, facecolors='white',
+                           edgecolors=color, linewidths=1.3, zorder=5, **kw)
+
+        last = d.iloc[-1]
+        last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
+        ax.scatter([last_lon], [last['lat']], marker='o', s=30, color=color,
+                   ec='white', linewidth=1.1, zorder=5.2, **kw)
+
+        suffix = ''
+        if init_time is not None:
+            suffix = f"  ({pd.to_datetime(init_time).strftime('%d/%HZ')})"
+        handles.append(mlines.Line2D([], [], color=color, lw=2.2, linestyle=dash))
+        labels.append(COMPARE_LABELS.get(key, key) + suffix)
+
+    leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Model Mean Tracks',
+                    fontsize=8, borderpad=0.7, labelspacing=0.42,
+                    handlelength=1.8, handletextpad=0.7, **LEGEND_KW)
+    _style_legend(leg)
+    ax.add_artist(leg)
+
+    _set_map_titles(ax,
+                    f"Multi-Model Comparison  ·  {track_id}",
+                    "Mean tracks + deterministic runs  ·  hollow dots = 24 h steps",
+                    main_size=15, right_size=9)
+    _watermark(ax, side='left')
+    plt.tight_layout(pad=0.6)
+    plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    print(f"[COMPARE] 已儲存模式比較圖：{save_path}")
+    return save_path
 
 
 def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2"):
@@ -1540,6 +1791,9 @@ def _download_file(url: str, out_path: str, label: str, allow_404: bool = False)
 
 def _resolve_cycle(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
     """從最新 cycle 起往回逐 6 小時嘗試（最多 5 個），回傳 (cycle, ensemble CSV 路徑)。"""
+    if cfg.get("fetcher") == "ecmwf":
+        return _resolve_cycle_ecmwf(cfg)
+
     latest = _latest_cycle()
     for i in range(5):
         cycle = latest - timedelta(hours=6 * i)
@@ -1553,8 +1807,40 @@ def _resolve_cycle(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
     return None, None
 
 
+def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
+    """ECMWF 版的 cycle 解析：下載 BUFR 並就地轉成 paired CSV。
+
+    ECMWF Open Data 的上架時間與時距都跟 Weather Lab 不同（見 ecmwf_bufr），
+    所以起點用 ecmwf_bufr.latest_cycle() 而不是 _latest_cycle()。
+
+    暴風編號的對應要靠 WNC2-r2 的平均路徑當基準（ECMWF 與 JTWC 各自編號，
+    對不上），因此 ECMWF 兩個模式必須排在 MODEL_CONFIGS 的 WNC2-r2 之後。
+    """
+    import ecmwf_bufr
+
+    latest = ecmwf_bufr.latest_cycle()
+    for i in range(5):
+        cycle = latest - timedelta(hours=6 * i)
+        stamp = _cycle_stamp(cycle)
+        path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
+        if os.path.exists(path):
+            return cycle, path
+        try:
+            ok = ecmwf_bufr.fetch_cycle(cfg["ecmwf_model"], cycle, cfg,
+                                        ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
+                                        scratch_dir=ECMWF_SCRATCH_DIR)
+        except Exception as e:
+            print(f"[{cfg['display']}-DL] cycle {stamp} 取用失敗: {e}")
+            continue
+        if ok:
+            return cycle, path
+    return None, None
+
+
 def _get_cyclogenesis_csv(cfg: dict, stamp: str) -> str | None:
     """取得潛勢 CSV：優先用當期檔，否則下載；下載失敗才退而用目錄中最新檔。"""
+    if not cfg.get("cyc_dir"):
+        return None          # ECMWF Open Data 沒有潛勢產品
     display = cfg["display"]
     path = os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")
     if os.path.exists(path):
@@ -1589,7 +1875,10 @@ def _cleanup_old_downloads(cfg: dict) -> None:
         rf"^{re.escape(cfg['local_prefix'])}_\d{{4}}_\d{{2}}_\d{{2}}T\d{{2}}_00_\w+\.csv$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
-    for d in (cfg["ensemble_dir"], cfg["mean_dir"], cfg["cyc_dir"]):
+    # cyc_dir／det_dir 不是每個模式都有（ECMWF 無潛勢、WNC 無決定報），略過 None
+    for d in (cfg["ensemble_dir"], cfg["mean_dir"], cfg.get("cyc_dir"), cfg.get("det_dir")):
+        if not d:
+            continue
         try:
             names = sorted(n for n in os.listdir(d) if name_re.match(n))
         except OSError as e:
@@ -1641,14 +1930,15 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
 
 
 def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
-    """移除已無任何模式追蹤的颱風其 JTWC 官方預報圖。
+    """移除已無任何模式追蹤的颱風其「每顆一份」的產物。
 
-    jtwc_{TID}.gif 與模式無關（同一顆真實颱風各模式共用），因此只能在
-    所有模式都跑完、以 track_id 聯集判斷才安全，不能放進 _process_model。
+    jtwc_{TID}.gif 與 {TID}_Model_Comparison.png 都與模式無關（同一顆真實
+    颱風各模式共用），因此只能在所有模式都跑完、以 track_id 聯集判斷才安全，
+    不能放進 _process_model。
     """
     if not os.path.isdir(OUTPUT_DIR):
         return
-    jtwc_re = re.compile(r"^jtwc_(WP\d{6})\.gif$")
+    jtwc_re = re.compile(r"^jtwc_(WP\d{6})\.gif$|^(WP\d{6})_Model_Comparison\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
@@ -1656,11 +1946,12 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     for name in names:
         m = jtwc_re.match(name)
-        if not m or m.group(1) in keep_ids:
+        # 兩個分支各佔一個群組，命中的那個才有值
+        if not m or (m.group(1) or m.group(2)) in keep_ids:
             continue
         try:
             os.remove(os.path.join(OUTPUT_DIR, name))
-            print(f"[CLEANUP] 已移除殘留 JTWC 預報圖: {name}")
+            print(f"[CLEANUP] 已移除殘留的每顆颱風共用圖: {name}")
         except OSError as e:
             print(f"[CLEANUP] 警告: 移除 {name} 失敗: {e}")
 
@@ -1677,7 +1968,9 @@ def _cleanup_legacy_names() -> None:
         return
 
     # 下載目錄：{legacy}_YYYY_MM_DDTHH_00_*.csv
-    dirs = {d for cfg in MODEL_CONFIGS for d in (cfg["ensemble_dir"], cfg["mean_dir"], cfg["cyc_dir"])}
+    dirs = {d for cfg in MODEL_CONFIGS
+            for d in (cfg["ensemble_dir"], cfg["mean_dir"], cfg.get("cyc_dir"), cfg.get("det_dir"))
+            if d}
     csv_re = re.compile(
         r"^(?:%s)_\d{4}_\d{2}_\d{2}T\d{2}_00_\w+\.csv$"
         % "|".join(re.escape(x) for x in LEGACY_PREFIXES))
@@ -1749,10 +2042,15 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
     # 先清掉本模式已不再追蹤的颱風產物，再產生本次結果
     _cleanup_stale_outputs(cfg["output_prefix"], track_ids, display)
 
+    # 決定報（僅 ECMWF／AIFS 有）：整份讀進來，逐颱風再過濾
+    det_csv_path = (os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
+                    if cfg.get("det_dir") else None)
+    det_label = cfg.get("det_label")
+
     # 西太平洋潛勢預報圖
     genesis_map_path = None
     cyc_csv_path = _get_cyclogenesis_csv(cfg, stamp)
-    if cyc_csv_path and os.path.exists(cyc_csv_path):
+    if cfg.get("genesis_png") and cyc_csv_path and os.path.exists(cyc_csv_path):
         print(f"[{display}-GENESIS] 正在繪製西太平洋潛勢預報圖...")
         genesis_map_path = plot_genesis_potential_map(
             cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=display)
@@ -1766,6 +2064,15 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             df, init_time = load_forecast_dataframe(csv_path, tid)
             mean_df, _ = load_forecast_dataframe(mean_csv_path, tid)
             current_info = extract_current_info(mean_df)
+
+            # 決定報是加分項：這顆颱風在決定報裡追不到（或整份檔沒下載到）時
+            # 就少畫一條線，不影響系集本身的產出
+            det_df = None
+            if det_csv_path and os.path.exists(det_csv_path):
+                try:
+                    det_df, _ = load_forecast_dataframe(det_csv_path, tid)
+                except Exception as e:
+                    print(f"[{display}-DET] {tid} 無決定報路徑: {e}")
 
             if tid in jtwc_text_urls:
                 print(f"[JTWC] 嘗試從 JTWC web.txt 抓取 {tid} 資料...")
@@ -1783,7 +2090,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                             print("[JTWC] 警告: max_winds_kt 格式異常，保留原始強度")
 
             save_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Map.png")
-            plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display)
+            plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display,
+                              det_df=det_df, det_label=det_label)
 
             download_jtwc_img(tid, OUTPUT_DIR, jtwc_forecast_urls)
 
@@ -1795,7 +2103,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                     if _old.startswith("frame_") and _old.endswith(".png"):
                         os.remove(os.path.join(frames_dir, _old))
             frame_paths = generate_frame_sequence(df, mean_df, init_time, tid, frames_dir,
-                                                  max_frames=72, model_name=display)
+                                                  max_frames=72, model_name=display,
+                                                  det_df=det_df, det_label=det_label)
 
             gif_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Animation.gif")
             gif_output = create_gif_from_frames(frame_paths, gif_path, duration_ms=180, loop=0)
@@ -1807,6 +2116,10 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'current_info': current_info,
                 'frames_dir': frames_dir,
                 'forecast_gif_path': gif_output,
+                # 供 main() 組模式比較圖用；不會進到網頁 HTML
+                'mean_df': mean_df,
+                'det_df': det_df,
+                'init_time': init_time,
             })
             print(f"[{display}-DONE] 完成颱風 {tid} 的處理")
         except Exception as e:
@@ -1863,7 +2176,28 @@ def main():
             genesis_maps.append((cfg["display"], genesis_map_path))
         storms.extend(model_storms)
 
-    # JTWC 預報圖跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失
+    # 模式比較圖：所有模式跑完才有完整素材，故放在迴圈之後統一產生。
+    # 一顆颱風一張，掛在該颱風第一個模式的 storm dict 上，網頁端就能當成
+    # 這顆颱風的共用圖（與 JTWC 官方圖同樣是「每顆一份」而非「每模式一份」）。
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        group = [s for s in storms if s['track_id'] == tid]
+        entries, init_times = {}, {}
+        for s in group:
+            model = s['model']
+            if s.get('mean_df') is not None:
+                entries[model] = s['mean_df']
+                init_times[model] = s.get('init_time')
+            if s.get('det_df') is not None and not s['det_df'].empty:
+                entries[f'{model}-DET'] = s['det_df']
+                init_times[f'{model}-DET'] = s.get('init_time')
+        path = plot_model_comparison_map(
+            tid, entries, os.path.join(OUTPUT_DIR, f"{tid}_Model_Comparison.png"),
+            init_times=init_times)
+        if path:
+            group[0]['comparison_map_path'] = path
+
+    # 只留下本次仍在追蹤的颱風產物（JTWC 官方圖與模式比較圖都是每顆颱風一份，
+    # 跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失）
     _cleanup_stale_jtwc({s['track_id'] for s in storms})
 
     # 生成預報網站 HTML（支援多顆颱風；storms 順序決定卡片與分頁排序）
