@@ -78,15 +78,18 @@ os.makedirs(WNC3_CYCLOGENESIS_DIR, exist_ok=True)
 # ECMWF 兩個模式走 ECMWF Open Data 的 BUFR，不是 Weather Lab 的 CSV：
 # IFS  = 傳統物理模式（系集 51 條 + HRES 決定報）
 # AIFS = ECMWF 自家的 AI 模式（系集 52 條 + AIFS-single 決定報）
-# 兩者都沒有潛勢（cyclogenesis）產品，故不設 cyc_dir；決定報另存 det_dir。
+# 對方沒有獨立的 cyclogenesis 產品，但 tf.bufr 本來就把未命名的擾動與現行
+# 颱風放在同一份檔案，等價的潛勢 CSV 由 ecmwf_bufr 就地產出（見該模組）。
 IFS_ENSEMBLE_DIR = "ecmwf_ifs_downloads_2026"
 IFS_MEAN_DIR = "ecmwf_ifs_ensemble_mean_downloads_2026"
 IFS_DET_DIR = "ecmwf_ifs_deterministic_2026"
+IFS_CYCLOGENESIS_DIR = "ecmwf_ifs_cyclogenesis_2026"
 AIFS_ENSEMBLE_DIR = "ecmwf_aifs_downloads_2026"
 AIFS_MEAN_DIR = "ecmwf_aifs_ensemble_mean_downloads_2026"
 AIFS_DET_DIR = "ecmwf_aifs_deterministic_2026"
-for _d in (IFS_ENSEMBLE_DIR, IFS_MEAN_DIR, IFS_DET_DIR,
-           AIFS_ENSEMBLE_DIR, AIFS_MEAN_DIR, AIFS_DET_DIR):
+AIFS_CYCLOGENESIS_DIR = "ecmwf_aifs_cyclogenesis_2026"
+for _d in (IFS_ENSEMBLE_DIR, IFS_MEAN_DIR, IFS_DET_DIR, IFS_CYCLOGENESIS_DIR,
+           AIFS_ENSEMBLE_DIR, AIFS_MEAN_DIR, AIFS_DET_DIR, AIFS_CYCLOGENESIS_DIR):
     os.makedirs(_d, exist_ok=True)
 
 # BUFR 原始檔只是轉檔的中間產物（每 cycle 約 2.6 MB），轉完即刪，
@@ -116,7 +119,7 @@ def _cycle_stamp(cycle: datetime) -> str:
     return cycle.strftime("%Y_%m_%dT%H_00")
 
 
-# 四種模式共用同一條處理管線（_process_model）；模式間的差異集中在這張設定表。
+# 六種模式共用同一條處理管線（_process_model）；模式間的差異集中在這張設定表。
 # 順序即網頁分頁順序，第一個是預設分頁 —— WNC3 排最前面。
 MODEL_CONFIGS = [
     {
@@ -170,20 +173,6 @@ MODEL_CONFIGS = [
         # fetcher="ecmwf"：不走 Weather Lab，改由 ecmwf_bufr 下載 BUFR 轉成
         # 同樣格式的 paired CSV，之後的流程完全共用。
         "fetcher": "ecmwf",
-        "ecmwf_model": "IFS",
-        "local_prefix": "ECMWF",
-        "display": "ECMWF",
-        "ensemble_dir": IFS_ENSEMBLE_DIR,
-        "mean_dir": IFS_MEAN_DIR,
-        "det_dir": IFS_DET_DIR,
-        "det_label": "HRES (deterministic)",
-        "cyc_dir": None,          # ECMWF Open Data 無潛勢產品
-        "genesis_png": None,
-        "output_prefix": "ECMWF_",
-        "required": False,
-    },
-    {
-        "fetcher": "ecmwf",
         "ecmwf_model": "AIFS",
         "local_prefix": "AIFS",
         "display": "AIFS",
@@ -191,9 +180,23 @@ MODEL_CONFIGS = [
         "mean_dir": AIFS_MEAN_DIR,
         "det_dir": AIFS_DET_DIR,
         "det_label": "AIFS-single (deterministic)",
-        "cyc_dir": None,
-        "genesis_png": None,
+        "cyc_dir": AIFS_CYCLOGENESIS_DIR,
+        "genesis_png": "WP_Genesis_Potential_AIFS.png",
         "output_prefix": "AIFS_",
+        "required": False,
+    },
+    {
+        "fetcher": "ecmwf",
+        "ecmwf_model": "IFS",
+        "local_prefix": "ECMWF",
+        "display": "ECMWF",
+        "ensemble_dir": IFS_ENSEMBLE_DIR,
+        "mean_dir": IFS_MEAN_DIR,
+        "det_dir": IFS_DET_DIR,
+        "det_label": "HRES (deterministic)",
+        "cyc_dir": IFS_CYCLOGENESIS_DIR,
+        "genesis_png": "WP_Genesis_Potential_ECMWF.png",
+        "output_prefix": "ECMWF_",
         "required": False,
     },
 ]
@@ -544,7 +547,7 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
         mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.5),
         _init_legend_handle(ms),
     ]
-    labels += ['Uncertainty Cone', 'Init Position']
+    labels += [f'Uncertainty Cone (≤ {int(CONE_MAX_FH)} h)', 'Init Position']
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
                     fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.4, handletextpad=0.7,
@@ -1536,29 +1539,34 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 # 模式比較圖的線條配色。同一家族用相近色系、決定報用虛線，
 # 讓「哪些線來自同一個模式」一眼可辨：
 #   WNC 系列與 GENC → 冷色（藍綠）  ECMWF → 暖色（紅橘）  AIFS → 紫紅
+# 比較圖一律實線（含決定報）：八條線本來就靠顏色分辨，虛線只會讓
+# 短的那幾條看起來斷斷續續。各模式自己的分頁圖上，決定報仍是虛線。
 COMPARE_STYLES = {
-    'WNC3':     ('#1B4F9C', '-'),
-    'WNC2-r2':  ('#16324F', '-'),
-    'WNC2-r1':  ('#5B8DC8', '-'),
-    'GENC':     ('#1FA97E', '-'),
-    'ECMWF':    ('#B3123F', '-'),
-    'ECMWF-DET': ('#B45309', DET_DASH),
-    'AIFS':     ('#7A3FA8', '-'),
-    'AIFS-DET': ('#C2569B', DET_DASH),
+    'WNC3':      '#16324F',
+    'WNC2-r2':   '#1B4F9C',
+    'WNC2-r1':   '#5B8DC8',
+    'GENC':      '#1FA97E',
+    'AIFS':      '#7A3FA8',
+    'AIFS-DET':  '#C2569B',
+    'ECMWF':     '#B3123F',
+    'ECMWF-DET': '#B45309',
 }
-# 比較圖的線條順序：先四個 WNC／GENC 平均，再 ECMWF 一組、AIFS 一組。
-# 後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在較後面。
+# 畫線順序：後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在四條 WNC／GENC 的最後。
 COMPARE_ORDER = ['WNC3', 'WNC2-r1', 'GENC', 'WNC2-r2',
-                 'ECMWF', 'ECMWF-DET', 'AIFS', 'AIFS-DET']
+                 'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
+# 圖例順序與畫線順序刻意分開：圖例照模式輩分排（WNC3 → WNC2-r2 → WNC2-r1 →
+# GENC → ECMWF → AIFS），疊圖先後則由 COMPARE_ORDER 決定。
+COMPARE_LEGEND_ORDER = ['WNC3', 'WNC2-r2', 'WNC2-r1', 'GENC',
+                        'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 COMPARE_LABELS = {
     'WNC3': 'WNC3 Mean',
     'WNC2-r2': 'WNC2-r2 Mean',
     'WNC2-r1': 'WNC2-r1 Mean',
     'GENC': 'GENC Mean',
-    'ECMWF': 'ECMWF ENS Mean',
-    'ECMWF-DET': 'ECMWF HRES',
     'AIFS': 'AIFS-ENS Mean',
     'AIFS-DET': 'AIFS-single',
+    'ECMWF': 'ECMWF ENS Mean',
+    'ECMWF-DET': 'ECMWF HRES',
 }
 
 
@@ -1602,19 +1610,19 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         kw = {}
 
     init_times = init_times or {}
-    handles, labels = [], []
+    drawn: dict[str, str] = {}          # key → 圖例文字，畫成功的才進圖例
     for key in COMPARE_ORDER:
         d = usable.get(key)
         if d is None:
             continue
-        color, dash = COMPARE_STYLES[key]
+        color = COMPARE_STYLES[key]
         d = d.sort_values('valid_time')
         lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
         lats = d['lat'].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
             ax.plot(seg_lon, seg_lat, color='white', lw=4.0, alpha=0.8,
                     solid_capstyle='round', zorder=3.5, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=2.2, linestyle=dash,
+            ax.plot(seg_lon, seg_lat, color=color, lw=2.2,
                     solid_capstyle='round', zorder=4, **kw)
 
         # 24h 標記：各模式在同一時間點的位置差距，是這張圖最想讓人看到的東西
@@ -1634,8 +1642,15 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         suffix = ''
         if init_time is not None:
             suffix = f"  ({pd.to_datetime(init_time).strftime('%d/%HZ')})"
-        handles.append(mlines.Line2D([], [], color=color, lw=2.2, linestyle=dash))
-        labels.append(COMPARE_LABELS.get(key, key) + suffix)
+        drawn[key] = COMPARE_LABELS.get(key, key) + suffix
+
+    handles, labels = [], []
+    for key in COMPARE_LEGEND_ORDER:
+        if key not in drawn:
+            continue
+        handles.append(mlines.Line2D([], [], color=COMPARE_STYLES[key],
+                                     lw=2.4, solid_capstyle='butt'))
+        labels.append(drawn[key])
 
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Model Mean Tracks',
                     fontsize=8, borderpad=0.7, labelspacing=0.42,
@@ -1653,6 +1668,16 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
     plt.close(fig)
     print(f"[COMPARE] 已儲存模式比較圖：{save_path}")
     return save_path
+
+
+# 資料來源標註：WNC 系列與 GENC 來自 Weather Lab，ECMWF／AIFS 來自 ECMWF Open Data
+# （授權不同，見 ecmwf_bufr 模組說明），圖上不能一律掛 DeepMind。
+ECMWF_MODELS = {'ECMWF', 'AIFS'}
+
+
+def _data_source(model_name: str) -> str:
+    return ('ECMWF Open Data' if model_name in ECMWF_MODELS
+            else 'Google DeepMind Weather Lab')
 
 
 def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2"):
@@ -1748,7 +1773,7 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
 
     _set_map_titles(ax,
                     f'{model_name}  ·  Western Pacific Genesis Potential  ·  0–360 h',
-                    f'Init {init_time_str}\nGoogle DeepMind Weather Lab',
+                    f'Init {init_time_str}\n{_data_source(model_name)}',
                     main_size=13, right_size=8.5)
     _watermark(ax)
     plt.tight_layout(pad=0.6)
@@ -1840,8 +1865,15 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
 def _get_cyclogenesis_csv(cfg: dict, stamp: str) -> str | None:
     """取得潛勢 CSV：優先用當期檔，否則下載；下載失敗才退而用目錄中最新檔。"""
     if not cfg.get("cyc_dir"):
-        return None          # ECMWF Open Data 沒有潛勢產品
+        return None
     display = cfg["display"]
+    if cfg.get("fetcher") == "ecmwf":
+        # ECMWF 的潛勢檔是解 BUFR 時一併寫出的，沒有可下載的遠端來源
+        path = os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")
+        if os.path.exists(path):
+            return path
+        print(f"[{display}-GENESIS] 找不到當期潛勢檔: {os.path.basename(path)}")
+        return None
     path = os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")
     if os.path.exists(path):
         print(f"[{display}-GENESIS] 使用當期潛勢檔: {path}")

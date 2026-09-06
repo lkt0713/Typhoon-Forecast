@@ -53,6 +53,17 @@ def ss_category(kt):
     else: return 'Cat5'
 
 
+# ECMWF／AIFS 來自 ECMWF Open Data（CC-BY，授權與 WeatherNext 不同），
+# 其餘模式來自 Weather Lab；圖說的來源字串不能寫死成 DeepMind。
+ECMWF_MODELS = {'ECMWF', 'AIFS'}
+
+
+def _genesis_source(model_label: str) -> str:
+    if model_label in ECMWF_MODELS:
+        return 'ECMWF Open Data'
+    return f'Google DeepMind {model_label}'
+
+
 def generate_forecast_html(storms: list[dict], output_path: str,
                            genesis_map_paths: list | None = None):
     """生成預報網站，可展示多顆颱風。
@@ -197,8 +208,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="zoom-hint">🔍 Click to enlarge</div>
                 </div>
                 <p class="map-note">
-                    各模式的系集平均路徑與決定報畫在同一張圖 &nbsp;·&nbsp;
-                    空心圓 = 24 小時間隔 &nbsp;·&nbsp; 圖例括號內為各模式的初始時間（日/時 Z）
+                    Ensemble mean tracks and deterministic runs from every model on one map
+                    &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp;
+                    Parentheses in the legend give each model's initialization time (day/hour Z)
                 </p>
             </div>
             """)
@@ -369,7 +381,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                                 Circles = ensemble members at each 6-hr step, colored by minimum sea level
                                 pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind {label}.
+                                Data sourced from {_genesis_source(label)}.
                             </p>
                         </div>
                     </div>
@@ -906,7 +918,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon">🌀</div>
             <div class="brand-text">
                 <h1>Pillar's Tropical Cyclone Forecast</h1>
-                <small>Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC Ensemble Forecast System · Western Pacific</small>
+                <small>Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </div>
         <div class="header-actions">
@@ -929,13 +941,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="footer-brand">
                     <h3>Pillar's Tropical Cyclone Forecast System</h3>
                     <p>
-                        Ensemble track forecasts powered by DeepMind WeatherNext models —
-                        WNC3 (64 members), WNC2-r2, WNC2-r1 &amp; GENC.<br>
+                        Ensemble track forecasts from DeepMind WeatherNext —
+                        WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data —
+                        AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
                         Official intensity guidance from JTWC. Data refreshed automatically.
                     </p>
                 </div>
                 <div class="footer-links">
                     <a href="https://deepmind.google.com/science/weatherlab" class="footer-link" target="_blank">🌐 DeepMind Weather</a>
+                    <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank">🇪🇺 ECMWF Open Data</a>
                     <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank">🛰 JTWC</a>
                 </div>
                 <div class="footer-copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
