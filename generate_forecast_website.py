@@ -99,12 +99,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="intensity-stripe" style="background:#64748b;"></div>
                 <div class="storm-card-inner">
                     <div class="storm-header">
-                        <div class="storm-title">No Active Systems</div>
+                        <div class="storm-title" data-i18n="empty.title">No Active Systems</div>
                     </div>
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">Status</div>
-                            <div class="info-value">Awaiting data…</div>
+                            <div class="info-label" data-i18n="empty.status">Status</div>
+                            <div class="info-value" data-i18n="empty.await">Awaiting data…</div>
                         </div>
                     </div>
                 </div>
@@ -156,31 +156,31 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="storm-header">
                         <div>
                             <div class="storm-title">{display_title}</div>
-                            <div class="storm-subtitle">Western Pacific Tropical Cyclone</div>
+                            <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
                         </div>
                         <div class="storm-badges">
                             <span class="badge-cat" style="background:{curr_cat_color};color:{cat_text_color};">{curr_cat}</span>
                             <span class="badge-id">{track_id}</span>
-                            <span class="badge-live"><span class="live-dot"></span>LIVE</span>
+                            <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
                         </div>
                     </div>
 
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">⏱ Obs Time</div>
+                            <div class="info-label" data-i18n="info.time">⏱ Obs Time</div>
                             <div class="info-value">{display_time}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">📍 Position</div>
+                            <div class="info-label" data-i18n="info.pos">📍 Position</div>
                             <div class="info-value">{display_lat}, {display_lon}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">💨 Max Wind</div>
+                            <div class="info-label" data-i18n="info.wind">💨 Max Wind</div>
                             <div class="info-value">{display_wind}</div>
                         </div>
                         <div class="info-item">
 
-                            <div class="info-label">🔥 Intensity</div>
+                            <div class="info-label" data-i18n="info.intensity">🔥 Intensity</div>
                             <div class="info-value intensity-value">
                                 <span class="intensity-dot" style="background:{curr_cat_color};"></span>
                                 <span>{curr_cat}</span>
@@ -200,14 +200,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-icon">📊</span>
-                    <span>Multi-Model Comparison</span>
+                    <span data-i18n="panel.comparison">Multi-Model Comparison</span>
                 </div>
                 <div class="map-image-wrapper" onclick="openLightbox(this.querySelector('img').src)">
                     <img src="{os.path.basename(_cmp)}" alt="{track_id} Multi-Model Comparison"
                          class="map-image" onerror="this.closest('.panel').style.display='none'">
-                    <div class="zoom-hint">🔍 Click to enlarge</div>
+                    <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
                 </div>
-                <p class="map-note">
+                <p class="map-note" data-i18n="note.comparison">
                     Ensemble mean tracks and deterministic runs from every model on one map
                     &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp;
                     Parentheses in the legend give each model's initialization time (day/hour Z)
@@ -242,7 +242,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel model-panel" data-track="{track_id}" data-model="{model_name}"{hide_attr} id="anim-section-{key}">
                 <div class="panel-header">
                     <span class="panel-icon">🎬</span>
-                    <span>{model_name} Track Evolution Animation</span>
+                    <span data-i18n="panel.anim" data-i18n-model="{model_name}">{model_name} Track Evolution Animation</span>
                 </div>
                 <div class="animation-player">
                     <div class="frame-wrapper" onclick="openLightbox(document.getElementById('animation-frame-{key}').src)">
@@ -252,13 +252,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                              class="animation-frame"
                              data-frames-dir="{frames_folder_name}"
                              data-all-frames='{frames_json}'>
-                        <div class="zoom-hint">🔍 Click to enlarge</div>
+                        <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
                     </div>
                     <div class="player-controls">
                         <div class="controls-row">
-                            <button class="control-btn" onclick="playAnimation('{key}')" id="btn-play-{key}">▶ Play</button>
-                            <button class="control-btn secondary" onclick="pauseAnimation('{key}')">⏸ Pause</button>
-                            <button class="control-btn secondary" onclick="resetAnimation('{key}')">⟲ Reset</button>
+                            <button class="control-btn" onclick="playAnimation('{key}')" id="btn-play-{key}" data-i18n="btn.play">▶ Play</button>
+                            <button class="control-btn secondary" onclick="pauseAnimation('{key}')" data-i18n="btn.pause">⏸ Pause</button>
+                            <button class="control-btn secondary" onclick="resetAnimation('{key}')" data-i18n="btn.reset">⟲ Reset</button>
                             <div class="progress-bar-container">
                                 <input type="range" id="progress-{key}" class="progress-slider"
                                        min="0" max="{len(frame_files)-1}" value="0"
@@ -267,12 +267,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                             </div>
                         </div>
                         <div class="controls-row speed-row">
-                            <span class="speed-label">⚡ Speed:</span>
+                            <span class="speed-label" data-i18n="label.speed">⚡ Speed:</span>
                             <input type="range" id="speed-{key}" class="speed-slider"
                                    min="1" max="8" value="2" step="0.5"
                                    oninput="updateSpeed('{key}', this.value)">
                             <span id="speed-val-{key}" class="speed-value">2×</span>
-                            <span class="kbd-hint"><kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek</span>
+                            <span class="kbd-hint" data-i18n="kbd.hint"><kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek</span>
                         </div>
                     </div>
                 </div>
@@ -290,9 +290,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="map-image-wrapper" onclick="openLightbox(this.querySelector('img').src)">
                         <img src="{map_src}" alt="{track_id} {model_name} Forecast Map" class="map-image"
                              onload="this.classList.remove('loading')" onerror="this.classList.add('img-error')">
-                        <div class="zoom-hint">🔍 Click to enlarge</div>
+                        <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
                     </div>
-                    <p class="map-note">
+                    <p class="map-note" data-i18n="note.ensemble" data-i18n-model="{model_name}">
                         {model_name} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
                         Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
                         Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
@@ -305,7 +305,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-icon">🗺</span>
-                        <span>Ensemble Track Forecast</span>
+                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>
                     </div>
                     {map_panels_html}
                 </div>
@@ -313,14 +313,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-icon">🛰</span>
-                        <span>JTWC Official Forecast</span>
+                        <span data-i18n="panel.jtwc">JTWC Official Forecast</span>
                     </div>
                     <div class="map-image-wrapper" onclick="openLightbox(this.querySelector('img').src)">
                         <img src="jtwc_{track_id}.gif" alt="JTWC Forecast" class="map-image"
                              onerror="this.closest('.panel').style.display='none'">
-                        <div class="zoom-hint">🔍 Click to enlarge</div>
+                        <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
                     </div>
-                    <p class="map-note">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
+                    <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
                 </div>
             </div>
         """)
@@ -374,10 +374,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint">🔍 Click to enlarge</div>
+                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
                         </div>
                         <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;">
+                            <p class="map-note" style="margin-top:0;"
+                               data-i18n="note.genesis" data-i18n-source="{_genesis_source(label)}">
                                 Circles = ensemble members at each 6-hr step, colored by minimum sea level
                                 pressure; filled once the member reaches gale force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
@@ -391,7 +392,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel genesis-panel">
                 <div class="panel-header">
                     <span class="panel-icon">🌏</span>
-                    <span>Western Pacific Genesis Potential — Ensemble Overview</span>
+                    <span data-i18n="panel.genesis">Western Pacific Genesis Potential — Ensemble Overview</span>
                 </div>
                 {genesis_tabs_html}
                 {genesis_panels_html}
@@ -456,7 +457,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         *, *::before, *::after {{ margin:0; padding:0; box-sizing:border-box; }}
         html {{ scroll-behavior:smooth; }}
         body {{
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system,
+                         'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
             background: var(--bg);
             min-height: 100vh;
             color: var(--text);
@@ -578,6 +580,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             font-size: .8em; color: var(--text-3);
             font-weight: 500; margin-top: 4px;
             text-transform: uppercase; letter-spacing: .6px;
+        }}
+        /* 中文字沒有大小寫，字母間距也會讓字距散掉 */
+        html[lang^="zh"] .storm-subtitle {{
+            text-transform: none; letter-spacing: 0;
         }}
         .storm-badges {{
             display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -909,7 +915,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 <body>
     <!-- Lightbox -->
     <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-        <button class="lb-close" onclick="closeLightbox()" title="Close">✕</button>
+        <button class="lb-close" onclick="closeLightbox()" title="Close"
+                data-i18n="lb.close" data-i18n-attr="title">✕</button>
         <img id="lightbox-img" src="" alt="Full-size view">
     </div>
 
@@ -917,16 +924,18 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <div class="header-brand">
             <div class="brand-icon">🌀</div>
             <div class="brand-text">
-                <h1>Pillar's Tropical Cyclone Forecast</h1>
-                <small>Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
+                <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
+                <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </div>
         <div class="header-actions">
             <div class="update-badge">
                 <span class="update-dot"></span>
-                Updated: {update_time}
+                <span data-i18n="header.updated">Updated</span>: {update_time}
             </div>
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
+            <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
+                    title="Switch language / 切換語言">🌐 中文</button>
         </div>
     </header>
 
@@ -939,8 +948,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <footer>
             <div class="footer-inner">
                 <div class="footer-brand">
-                    <h3>Pillar's Tropical Cyclone Forecast System</h3>
-                    <p>
+                    <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
+                    <p data-i18n="footer.desc">
                         Ensemble track forecasts from DeepMind WeatherNext —
                         WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data —
                         AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
@@ -948,16 +957,150 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     </p>
                 </div>
                 <div class="footer-links">
-                    <a href="https://deepmind.google.com/science/weatherlab" class="footer-link" target="_blank">🌐 DeepMind Weather</a>
-                    <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank">🇪🇺 ECMWF Open Data</a>
+                    <a href="https://deepmind.google.com/science/weatherlab" class="footer-link" target="_blank"
+                       data-i18n="footer.link1">🌐 DeepMind Weather</a>
+                    <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank"
+                       data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
                     <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank">🛰 JTWC</a>
                 </div>
-                <div class="footer-copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
+                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
             </div>
         </footer>
     </div>
 
     <script>
+    // ── i18n（中／英切換）─────────────────────────────────────────────────────
+    // 版面上所有固定文案都掛 data-i18n="key"，切換語言時由 applyLang() 一次換掉；
+    // 帶參數的字串（模式名稱、資料來源）用 {{model}} / {{source}} 佔位，
+    // 由 data-i18n-model / data-i18n-source 提供值。
+    const PAGE_TRACK_IDS = "{title_track_ids}";
+
+    const I18N = {{
+      en: {{
+        'doc.title':        "Pillar's Tropical Cyclone Forecast",
+        'brand.title':      "Pillar's Tropical Cyclone Forecast",
+        'brand.sub':        'Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+        'header.updated':   'Updated',
+        'btn.dark':         '🌙 Dark',
+        'btn.light':        '☀️ Light',
+        'btn.lang':         '🌐 中文',
+        'empty.title':      'No Active Systems',
+        'empty.status':     'Status',
+        'empty.await':      'Awaiting data…',
+        'storm.subtitle':   'Western Pacific Tropical Cyclone',
+        'badge.live':       'LIVE',
+        'info.time':        '⏱ Obs Time',
+        'info.pos':         '📍 Position',
+        'info.wind':        '💨 Max Wind',
+        'info.intensity':   '🔥 Intensity',
+        'panel.comparison': 'Multi-Model Comparison',
+        'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
+        'zoom.hint':        '🔍 Click to enlarge',
+        'panel.anim':       '{{model}} Track Evolution Animation',
+        'btn.play':         '▶ Play',
+        'btn.pause':        '⏸ Pause',
+        'btn.reset':        '⟲ Reset',
+        'label.speed':      '⚡ Speed:',
+        'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
+        'panel.ensemble':   'Ensemble Track Forecast',
+        'note.ensemble':    '{{model}} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position',
+        'panel.jtwc':       'JTWC Official Forecast',
+        'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
+        'panel.genesis':    'Western Pacific Genesis Potential — Ensemble Overview',
+        'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure; filled once the member reaches gale force (≥ 34 kt). Gray lines = individual ensemble tracks (0–360 h). Data sourced from {{source}}.',
+        'footer.title':     "Pillar's Tropical Cyclone Forecast System",
+        'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+        'footer.link1':     '🌐 DeepMind Weather',
+        'footer.link2':     '🇪🇺 ECMWF Open Data',
+        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
+        'lb.close':         'Close',
+      }},
+      zh: {{
+        'doc.title':        'Pillar 熱帶氣旋預報',
+        'brand.title':      'Pillar 熱帶氣旋預報',
+        'brand.sub':        'WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+        'header.updated':   '更新於',
+        'btn.dark':         '🌙 深色',
+        'btn.light':        '☀️ 淺色',
+        'btn.lang':         '🌐 English',
+        'empty.title':      '目前無活躍系統',
+        'empty.status':     '狀態',
+        'empty.await':      '等待資料中…',
+        'storm.subtitle':   '西北太平洋熱帶氣旋',
+        'badge.live':       '即時',
+        'info.time':        '⏱ 觀測時間',
+        'info.pos':         '📍 中心位置',
+        'info.wind':        '💨 最大風速',
+        'info.intensity':   '🔥 強度',
+        'panel.comparison': '多模式比較',
+        'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
+        'zoom.hint':        '🔍 點擊放大',
+        'panel.anim':       '{{model}} 路徑演變動畫',
+        'btn.play':         '▶ 播放',
+        'btn.pause':        '⏸ 暫停',
+        'btn.reset':        '⟲ 重置',
+        'label.speed':      '⚡ 速度：',
+        'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
+        'panel.ensemble':   '系集路徑預報',
+        'note.ensemble':    '{{model}} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 34 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
+        'panel.jtwc':       'JTWC 官方預報',
+        'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
+        'panel.genesis':    '西北太平洋生成潛勢 — 系集綜覽',
+        'note.genesis':     '圓點＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓；成員達到暴風強度（≥ 34 kt）後轉為實心。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{{source}}。',
+        'footer.title':     'Pillar 熱帶氣旋預報系統',
+        'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
+        'footer.link1':     '🌐 DeepMind 天氣實驗室',
+        'footer.link2':     '🇪🇺 ECMWF 開放資料',
+        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
+        'lb.close':         '關閉',
+      }}
+    }};
+
+    // 先讀使用者上次的選擇，沒有的話看瀏覽器語言（zh-* 一律給中文）
+    let currentLang = (function() {{
+        try {{
+            const saved = localStorage.getItem('lang');
+            if (saved === 'zh' || saved === 'en') return saved;
+        }} catch (e) {{}}
+        return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    }})();
+
+    function t(key, params) {{
+        const dict = I18N[currentLang] || I18N.en;
+        let s = (dict[key] !== undefined) ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : '');
+        if (params) {{
+            for (const k in params) s = s.split('{{' + k + '}}').join(params[k]);
+        }}
+        return s;
+    }}
+
+    function applyLang(lang, save=true) {{
+        currentLang = (lang === 'zh') ? 'zh' : 'en';
+        document.documentElement.setAttribute('lang', currentLang === 'zh' ? 'zh-Hant' : 'en');
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {{
+            const params = {{}};
+            if (el.dataset.i18nModel)  params.model  = el.dataset.i18nModel;
+            if (el.dataset.i18nSource) params.source = el.dataset.i18nSource;
+            const txt = t(el.dataset.i18n, params);
+            if (!txt) return;                       // 字典沒這個 key 就保留原文，不要清空
+            if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, txt);
+            else el.innerHTML = txt;
+        }});
+
+        const langBtn = document.getElementById('lang-btn');
+        if (langBtn) langBtn.textContent = t('btn.lang');
+        document.title = t('doc.title') + (PAGE_TRACK_IDS ? ' | ' + PAGE_TRACK_IDS : '');
+        // 深色／淺色按鈕的文字也跟著換語言
+        applyTheme(document.documentElement.getAttribute('data-theme') || 'light', false);
+
+        if (save) {{ try {{ localStorage.setItem('lang', currentLang); }} catch (e) {{}} }}
+    }}
+
+    function toggleLang() {{
+        applyLang(currentLang === 'zh' ? 'en' : 'zh');
+    }}
+
     // ── Theme ─────────────────────────────────────────────────────────────────
     (function() {{
         const hour = new Date().getHours();
@@ -967,7 +1110,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     function applyTheme(theme, save=true) {{
         document.documentElement.setAttribute('data-theme', theme);
         const btn = document.getElementById('theme-btn');
-        if (btn) btn.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+        if (btn) btn.textContent = theme === 'dark' ? t('btn.light') : t('btn.dark');
         if (save) localStorage.setItem('theme', theme);
     }}
 
@@ -975,6 +1118,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         const current = document.documentElement.getAttribute('data-theme');
         applyTheme(current === 'dark' ? 'light' : 'dark');
     }}
+
+    applyLang(currentLang, false);
 
     // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
     function switchModelTab(trackId, model) {{
