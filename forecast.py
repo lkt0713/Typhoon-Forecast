@@ -391,7 +391,6 @@ MSLP_COLOR_BINS = [
 ]
 MSLP_WEAKEST_COLOR = MSLP_COLOR_BINS[-1][1]
 
-GALE_KT = 34.0   # 暴風強度門檻
 
 
 def _mslp_to_color(mslp: float) -> str:
@@ -404,51 +403,28 @@ def _mslp_to_color(mslp: float) -> str:
     return MSLP_WEAKEST_COLOR
 
 
-def _is_gale(wind) -> bool:
-    """是否達暴風強度（>=34 kt）。未達者畫空心圈，達到者畫實心點。"""
-    try:
-        return float(wind) >= GALE_KT
-    except (TypeError, ValueError):
-        return False
+def _scatter_members(ax, lons, lats, colors, kw, size=11.0,
+                     alpha=0.9, zorder=1.15, lw=0.7):
+    """畫集合成員的位置點，一律空心圈。
 
-
-def _scatter_by_strength(ax, lons, lats, winds, colors, kw, size=11.0,
-                         alpha=0.9, zorder=1.15, lw=0.7):
-    """畫集合成員的強度點：>=34 kt 實心、<34 kt 空心。
-
-    空心／實心的區分讓密集的成員點群不再糊成一片色塊 —— 未成形的部分退成細圈，
-    成形之後才是實心，強度的空間分布一眼可讀。
+    早期版本以 34 kt 為界，達到者實心、未達者空心。點放大之後實心點會把密集區
+    糊成一整片色塊，反而看不出個別成員，故改為一律空心 —— 圈與圈重疊時邊界
+    還在，路徑的疏密一眼可讀。強度仍由顏色表示。
     """
     lons = np.asarray(lons, dtype=float)
     lats = np.asarray(lats, dtype=float)
-    colors = list(colors)
-    strong = np.array([_is_gale(w) for w in winds], dtype=bool)
-    if strong.size == 0:
+    if lons.size == 0:
         return
-    if strong.any():
-        ax.scatter(lons[strong], lats[strong], s=size,
-                   c=[c for c, k in zip(colors, strong) if k], marker='o',
-                   edgecolors='none', alpha=alpha, zorder=zorder, **kw)
-    weak = ~strong
-    if weak.any():
-        ax.scatter(lons[weak], lats[weak], s=size, facecolors='none',
-                   edgecolors=[c for c, k in zip(colors, weak) if k], marker='o',
-                   linewidths=lw, alpha=min(1.0, alpha + 0.05), zorder=zorder - 0.05, **kw)
+    ax.scatter(lons, lats, s=size, facecolors='none', edgecolors=list(colors),
+               marker='o', linewidths=lw, alpha=alpha, zorder=zorder, **kw)
 
 
 def _intensity_legend_handles(ms: float = 7.0) -> list:
-    """強度圖例：與地圖一致，TD 用空心圈、其餘實心。"""
-    handles = []
-    for cat in ['TD', 'TS', 'Cat1', 'Cat2', 'Cat3', 'Cat4', 'Cat5']:
-        color = COLOR_MAP[cat]
-        if cat == 'TD':
-            handles.append(mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
-                                         markerfacecolor='none', markeredgecolor=color,
-                                         markeredgewidth=1.1, color=color))
-        else:
-            handles.append(mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
-                                         color=color, markeredgecolor='none'))
-    return handles
+    """強度圖例：與地圖一致，一律空心圈，只用顏色分強度。"""
+    return [mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
+                          markerfacecolor='none', markeredgecolor=COLOR_MAP[cat],
+                          markeredgewidth=1.1, color=COLOR_MAP[cat])
+            for cat in ['TD', 'TS', 'Cat1', 'Cat2', 'Cat3', 'Cat4', 'Cat5']]
 
 
 def _cyclone_marker_path(turns: float = 0.62, r_core: float = 0.30,
@@ -1056,9 +1032,9 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 wind = last_pt.get('wind', np.nan)
                 cat = ss_category(wind)
                 last_lon = _normalize_lon_values([last_pt['lon']], use_360=use_360)[0]
-                _scatter_by_strength(ax, [last_lon], [last_pt['lat']], [wind],
-                                     [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
-                                     size=50, alpha=0.9, zorder=1.15, lw=1.5)
+                _scatter_members(ax, [last_lon], [last_pt['lat']],
+                                 [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
+                                 size=50, alpha=0.9, zorder=1.15, lw=1.5)
 
         # ── 平均軌跡 + 24h 標記 ───────────────────────────────────────────────
         mean_subset = mean_df[mean_df['valid_time'] <= current_time].sort_values('valid_time')
@@ -1116,7 +1092,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                              det_label=det_label if has_det else None)
 
         int_leg = ax.legend(handles=_intensity_legend_handles(ms=6), loc='lower right',
-                            bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
+                            bbox_to_anchor=(0.995, 0.005), title='Intensity',
                             fontsize=7, ncol=4, borderpad=0.6, labelspacing=0.28,
                             handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
                             markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
@@ -1500,8 +1476,8 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
             winds = (pts_6h['wind'] if 'wind' in pts_6h.columns
                      else pd.Series(np.nan, index=pts_6h.index)).to_numpy()
             colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds]
-            _scatter_by_strength(ax, marker_lons, pts_6h['lat'].to_numpy(), winds, colors, kw,
-                                 size=32, alpha=0.85, zorder=1.15, lw=1.15)
+            _scatter_members(ax, marker_lons, pts_6h['lat'].to_numpy(), colors, kw,
+                             size=32, alpha=0.85, zorder=1.15, lw=1.15)
 
     # 起始位置星形標記
     if not mean_df.empty:
@@ -1560,7 +1536,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                          det_label=det_label if has_det else None)
 
     int_leg = ax.legend(handles=_intensity_legend_handles(ms=7), loc='lower right',
-                        bbox_to_anchor=(0.995, 0.005), title='Intensity  ·  filled ≥ 34 kt',
+                        bbox_to_anchor=(0.995, 0.005), title='Intensity',
                         fontsize=8, ncol=4, borderpad=0.6, labelspacing=0.3,
                         handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
                         markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
@@ -1788,7 +1764,6 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         lons = g['lon'].to_numpy()
         lats = g['lat'].to_numpy()
         mslps = g['minimum_sea_level_pressure_hpa'].to_numpy()
-        winds = g['wind'].to_numpy() if 'wind' in g.columns else np.full(len(g), np.nan)
 
         # 軌跡連線（淡灰）
         ax.plot(lons, lats, color=TRACK_LINE, linewidth=2.3, alpha=0.35,
@@ -1797,18 +1772,19 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         # MSLP 著色圓點：達暴風強度者實心、未達者空心（整條軌跡一次 scatter，
         # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
-        _scatter_by_strength(ax, lons, lats, winds, colors, kw,
-                             size=34, alpha=0.85, zorder=2, lw=1.2)
+        _scatter_members(ax, lons, lats, colors, kw,
+                         size=34, alpha=0.85, zorder=2, lw=1.2)
 
     # 圖例（MSLP 色階）
     legend_handles = []
     for _, color, label in MSLP_COLOR_BINS:
         h = mlines.Line2D([], [], marker='o', ms=7.5, ls='',
-                          color=color, markeredgecolor='none', label=label)
+                          markerfacecolor='none', markeredgecolor=color,
+                          markeredgewidth=1.4, color=color, label=label)
         legend_handles.append(h)
 
     leg = ax.legend(handles=legend_handles, loc='upper left',
-                    title='min. sea level pressure\nfilled ≥ 34 kt', title_fontsize=8,
+                    title='min. sea level pressure', title_fontsize=8,
                     fontsize=8, borderpad=0.7, labelspacing=0.34, handletextpad=0.6,
                     **LEGEND_KW)
     _style_legend(leg)
