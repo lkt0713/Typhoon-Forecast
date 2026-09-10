@@ -349,8 +349,10 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
                 ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> bool:
     """下載並轉出某個 cycle 的四份 CSV（系集／平均／決定報／潛勢總覽）。
 
-    回傳 False 表示該 cycle 尚未上架或對不到追蹤中的颱風，呼叫端應往前一個
-    cycle 再試。系集檔缺就整期跳過；決定報缺只是少一條線，不影響其餘產出。
+    回傳 False 表示這一期沒有可用的系集檔（BUFR 尚未上架，或對不到任何追蹤
+    中的颱風），呼叫端應往前一個 cycle 再試。潛勢總覽不受此影響：它畫的是模式
+    自己生出來的擾動，與現行有沒有颱風無關，只要 BUFR 解得開就逐期寫出。
+    決定報缺只是少一條線，不影響其餘產出。
     """
     stamp = cycle.strftime("%Y_%m_%dT%H_00")
     prefix = cfg["local_prefix"]
@@ -378,9 +380,6 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
 
     ref_pos = _reference_positions(ref_mean_dir, ref_prefix, cycle)
     mapping = _match_track_ids(tracks, ref_pos)
-    if not mapping:
-        print(f"[{model}] 無法對應到任何追蹤中的颱風，跳過此 cycle")
-        return False
 
     # 潛勢總覽（Ensemble Overview）：ECMWF Open Data 沒有對應 DeepMind
     # cyclogenesis 的獨立產品，但 tf.bufr 本來就把模式自己生出來的擾動
@@ -389,9 +388,17 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     # 候選」並存（實測 WP222026 與編號 1、2、3… 同在一檔），故這裡照樣全收，
     # 對不到現行颱風的就沿用 ECMWF 自己的暴風代號當 track_id。
     # 西太平洋範圍的篩選交給 plot_genesis_potential_map，這裡不預先裁切。
+    # 這段刻意排在編號對應成敗之前。西北太平洋淨空時 mapping 會是空的，但
+    # BUFR 裡的生成候選照樣有值（實測 WP222026 消散後的 2026-09-10 00Z，AIFS
+    # 在西太範圍內仍有 19 個候選系統、5700 個路徑點）。早期版本把整期跳掉，
+    # 潛勢圖就停在最後一顆颱風消散的那期，看起來像 AIFS／EC 斷更。
     genesis = tracks.copy()
     genesis["track_id"] = genesis["storm_id"].map(lambda s: mapping.get(s, s))
     _write_csv(_to_paired(genesis, cycle), cyc_path, f"{model} cyclogenesis")
+
+    if not mapping:
+        print(f"[{model}] 無法對應到任何追蹤中的颱風，本期僅輸出潛勢總覽")
+        return False
 
     tracks["track_id"] = tracks["storm_id"].map(mapping)
     tracks = tracks.dropna(subset=["track_id"]).copy()

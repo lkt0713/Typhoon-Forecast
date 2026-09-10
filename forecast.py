@@ -1866,6 +1866,11 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
         path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
         if os.path.exists(path):
             return cycle, path
+        # 潛勢檔在、系集檔不在 ⇒ 這期先前已經解過，當時對不到任何追蹤中的颱風。
+        # BUFR 是靜態的，重下也是同樣結果，直接往前一期，省掉一次 1 MB 下載。
+        if os.path.exists(os.path.join(
+                cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")):
+            continue
         try:
             ok = ecmwf_bufr.fetch_cycle(cfg["ecmwf_model"], cycle, cfg,
                                         ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
@@ -1878,18 +1883,47 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
     return None, None
 
 
+def _cycle_from_stamp(name: str) -> datetime | None:
+    """檔名（或時間戳）→ cycle，與 _cycle_stamp 互為反向；解不出來回 None。"""
+    m = re.search(r"(\d{4})_(\d{2})_(\d{2})T(\d{2})_00", os.path.basename(name))
+    if not m:
+        return None
+    y, mo, d, h = (int(g) for g in m.groups())
+    return datetime(y, mo, d, h, tzinfo=timezone.utc)
+
+
+def _latest_local_cyclogenesis(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
+    """cyc_dir 內最新一期潛勢檔的 (cycle, 路徑)；檔名字典序即時間序。
+
+    ECMWF 專用。潛勢總覽與系集檔的 cycle 會脫鉤：西北太平洋淨空時 ecmwf_bufr
+    對不到颱風編號、不寫系集檔，但潛勢檔照樣逐期寫出。潛勢圖要跟著自己這份
+    檔案的時間走，綁系集檔的 cycle 會讓它一起卡在最後一顆颱風消散的那期。
+    """
+    d = cfg.get("cyc_dir")
+    if not d or not os.path.isdir(d):
+        return None, None
+    names = sorted(n for n in os.listdir(d)
+                   if n.startswith(f"{cfg['local_prefix']}_")
+                   and n.endswith("_cyclogenesis.csv"))
+    if not names:
+        return None, None
+    return _cycle_from_stamp(names[-1]), os.path.join(d, names[-1])
+
+
 def _get_cyclogenesis_csv(cfg: dict, stamp: str) -> str | None:
     """取得潛勢 CSV：優先用當期檔，否則下載；下載失敗才退而用目錄中最新檔。"""
     if not cfg.get("cyc_dir"):
         return None
     display = cfg["display"]
     if cfg.get("fetcher") == "ecmwf":
-        # ECMWF 的潛勢檔是解 BUFR 時一併寫出的，沒有可下載的遠端來源
-        path = os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")
-        if os.path.exists(path):
-            return path
-        print(f"[{display}-GENESIS] 找不到當期潛勢檔: {os.path.basename(path)}")
-        return None
+        # ECMWF 的潛勢檔是解 BUFR 時一併寫出的，沒有可下載的遠端來源；
+        # 也不綁當期 stamp，理由見 _latest_local_cyclogenesis
+        _, path = _latest_local_cyclogenesis(cfg)
+        if path is None:
+            print(f"[{display}-GENESIS] {cfg['cyc_dir']} 內無可用潛勢檔")
+            return None
+        print(f"[{display}-GENESIS] 使用潛勢檔: {os.path.basename(path)}")
+        return path
     path = os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")
     if os.path.exists(path):
         print(f"[{display}-GENESIS] 使用當期潛勢檔: {path}")
@@ -2082,21 +2116,31 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
     print(f"\n[{display}] === 開始處理 {display} 模式 ===")
 
     cycle, csv_path = _resolve_cycle(cfg)
+    if cycle is None and cfg.get("fetcher") == "ecmwf":
+        # 西北太平洋一顆颱風都沒有時，ECMWF 五期全都對不到編號、寫不出系集檔，
+        # 但潛勢檔仍逐期產出。這不是失敗，只是本期沒有颱風可畫，照樣往下走，
+        # 讓潛勢總覽跟著最新一期更新（早期版本在這裡直接拋錯，整個模式消失）。
+        cycle, _ = _latest_local_cyclogenesis(cfg)
+        if cycle is not None:
+            print(f"[{display}] 本期無追蹤中的颱風，僅更新潛勢總覽")
     if cycle is None:
         raise RuntimeError(f"無法取得最近 5 個 cycle 的 {display} ensemble CSV")
     if cycle != _latest_cycle():
         print(f"[{display}] 回退至 cycle: {cycle.strftime('%Y-%m-%d %HZ')}")
     stamp = _cycle_stamp(cycle)
 
-    # 下載 Ensemble Mean 檔
+    # 下載 Ensemble Mean 檔（ECMWF 的平均是解 BUFR 時一併算出的，沒有遠端來源）
     mean_csv_path = os.path.join(cfg["mean_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
-    if not os.path.exists(mean_csv_path):
+    if not os.path.exists(mean_csv_path) and cfg.get("fetcher") != "ecmwf":
         _download_file(_remote_csv_url(cfg["remote"], "ensemble_mean/paired", stamp),
                        mean_csv_path, f"{display}-MEAN")
 
-    # 用當前 cycle 的 mean CSV 偵測颱風，確保不會抓到舊資料
-    track_ids = _auto_detect_track_ids(cfg["mean_dir"], preferred_path=mean_csv_path,
-                                       model_prefix=cfg["local_prefix"])
+    # 用當前 cycle 的 mean CSV 偵測颱風，確保不會抓到舊資料。
+    # csv_path 是 None 代表這期根本沒有系集檔，此時不能讓 _auto_detect_track_ids
+    # 退去讀目錄裡的舊檔，否則會拿早就消散的颱風重畫一次路徑圖。
+    track_ids = (_auto_detect_track_ids(cfg["mean_dir"], preferred_path=mean_csv_path,
+                                        model_prefix=cfg["local_prefix"])
+                 if csv_path else [])
     jtwc_forecast_urls, jtwc_text_urls = _build_jtwc_urls(track_ids)
 
     # 先清掉本模式已不再追蹤的颱風產物，再產生本次結果
@@ -2112,9 +2156,11 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
     cyc_csv_path = _get_cyclogenesis_csv(cfg, stamp)
     if cfg.get("genesis_png") and cyc_csv_path and os.path.exists(cyc_csv_path):
         print(f"[{display}-GENESIS] 正在繪製西太平洋潛勢預報圖...")
+        # 時距用潛勢檔自己的 cycle 推：ECMWF 兩邊的 cycle 會脫鉤，而 IFS 的
+        # 06Z／18Z 只跑 144h，拿系集檔的 cycle 去算會在標題寫錯時距
         genesis_map_path = plot_genesis_potential_map(
             cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=display,
-            range_hours=_genesis_range_hours(cfg, cycle))
+            range_hours=_genesis_range_hours(cfg, _cycle_from_stamp(cyc_csv_path) or cycle))
 
     # 逐颱風產出：路徑圖、JTWC 官方圖、動畫幀序列與 GIF
     storms = []
