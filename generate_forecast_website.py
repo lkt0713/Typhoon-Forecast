@@ -380,7 +380,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                             <p class="map-note" style="margin-top:0;"
                                data-i18n="note.genesis" data-i18n-source="{_genesis_source(label)}">
                                 Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure; filled once the member reaches gale force (≥ 34 kt).
+                                pressure; filled once the member reaches storm force (≥ 34 kt).
                                 Gray lines = individual ensemble tracks (0–360 h).
                                 Data sourced from {_genesis_source(label)}.
                             </p>
@@ -1007,7 +1007,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'panel.jtwc':       'JTWC Official Forecast',
         'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
         'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
-        'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure; filled once the member reaches gale force (≥ 34 kt). Gray lines = individual ensemble tracks (0–360 h). Data sourced from {{source}}.',
+        'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure; filled once the member reaches storm force (≥ 34 kt). Gray lines = individual ensemble tracks (0–360 h). Data sourced from {{source}}.',
         'footer.title':     "Pillar's Tropical Cyclone Forecast System",
         'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
         'footer.link1':     '🌐 DeepMind Weather',
