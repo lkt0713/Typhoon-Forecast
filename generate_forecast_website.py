@@ -2,6 +2,10 @@ import os
 import pandas as pd  # type: ignore
 from datetime import datetime
 
+# 網站版號，顯示在頁尾。改版時只動這裡 —— 頁尾的 HTML 預設字與中英文
+# i18n 字串都由 f-string 從這個常數取值，不會三處各改各的而對不起來。
+SITE_VERSION = "2.0"
+
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
 CAT_COLOR_MAP = {
@@ -962,7 +966,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                        data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
                     <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank">🛰 JTWC</a>
                 </div>
-                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
+                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · v{SITE_VERSION} · Not for operational use</div>
             </div>
         </footer>
     </div>
@@ -1011,7 +1015,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
         'footer.link1':     '🌐 DeepMind Weather',
         'footer.link2':     '🇪🇺 ECMWF Open Data',
-        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
+        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · v{SITE_VERSION} · Not for operational use",
         'lb.close':         'Close',
       }},
       zh: {{
@@ -1050,7 +1054,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
         'footer.link1':     '🌐 DeepMind 天氣實驗室',
         'footer.link2':     '🇪🇺 ECMWF 開放資料',
-        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
+        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · v{SITE_VERSION} · 僅供參考，請勿作為作業依據',
         'lb.close':         '關閉',
       }}
     }};
