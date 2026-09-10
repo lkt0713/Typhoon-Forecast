@@ -534,14 +534,14 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
     """
     handles = [
         mlines.Line2D([], [], color=TRACK_LINE, lw=1.4),
-        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=3.0,
+        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=3.6,
                       markerfacecolor='white', markeredgecolor=MEAN_COLOR,
                       markeredgewidth=1.4),
     ]
     labels = ['Ensemble Members', f'{model_name} Mean']
     if det_label:
         handles.append(mlines.Line2D([], [], color=DET_COLOR, marker='o', ms=ms * 0.55,
-                                     lw=2.8, markerfacecolor='white',
+                                     lw=3.4, markerfacecolor='white',
                                      markeredgecolor=DET_COLOR, markeredgewidth=1.4))
         labels.append(det_label)
     handles += [
@@ -1050,7 +1050,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
                 lats = g["lat"].to_numpy()
                 for seg_lon, seg_lat in _split_track_segments(lons, lats):
-                    ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.2, alpha=0.55,
+                    ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.7, alpha=0.55,
                             zorder=0.9, solid_capstyle='round', **kw)
                 last_pt = g.iloc[-1]
                 wind = last_pt.get('wind', np.nan)
@@ -1058,7 +1058,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 last_lon = _normalize_lon_values([last_pt['lon']], use_360=use_360)[0]
                 _scatter_by_strength(ax, [last_lon], [last_pt['lat']], [wind],
                                      [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
-                                     size=28, alpha=0.9, zorder=1.15, lw=1.15)
+                                     size=42, alpha=0.9, zorder=1.15, lw=1.4)
 
         # ── 平均軌跡 + 24h 標記 ───────────────────────────────────────────────
         mean_subset = mean_df[mean_df['valid_time'] <= current_time].sort_values('valid_time')
@@ -1069,9 +1069,9 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             mean_lons = _normalize_lon_values(mean_subset["lon"].to_numpy(), use_360=use_360)
             mean_lats = mean_subset["lat"].to_numpy()
             for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
-                ax.plot(seg_lon, seg_lat, color='white', lw=5.2, alpha=0.85,
+                ax.plot(seg_lon, seg_lat, color='white', lw=6.0, alpha=0.85,
                         solid_capstyle='round', zorder=3.9, **kw)
-                ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.0,
+                ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.6,
                         solid_capstyle='round', zorder=4, **kw)
             last_mean_pt = mean_subset.iloc[-1]
             last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
@@ -1416,9 +1416,9 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
     lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
     lats = d['lat'].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(lons, lats):
-        ax.plot(seg_lon, seg_lat, color='white', lw=4.8, alpha=0.85,
+        ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.85,
                 solid_capstyle='round', zorder=4.1, **kw)
-        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=2.8,
+        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=3.4,
                 solid_capstyle='round', zorder=4.2, **kw)
 
     # 每 24 小時的空心圓點（與平均路徑同款，僅顏色不同）
@@ -1492,7 +1492,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
         lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
         lats = g["lat"].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.2, alpha=0.5,
+            ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.7, alpha=0.5,
                     zorder=0.9, solid_capstyle='round', **kw)
         pts_6h = get_6h_markers(g, init_time)
         if not pts_6h.empty:
@@ -1501,7 +1501,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                      else pd.Series(np.nan, index=pts_6h.index)).to_numpy()
             colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds]
             _scatter_by_strength(ax, marker_lons, pts_6h['lat'].to_numpy(), winds, colors, kw,
-                                 size=17, alpha=0.85, zorder=1.15, lw=0.8)
+                                 size=26, alpha=0.85, zorder=1.15, lw=1.05)
 
     # 起始位置星形標記
     if not mean_df.empty:
@@ -1514,9 +1514,9 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     mean_lats = mean_plot_df["lat"].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
         # 先鋪一層白色描邊：平均路徑穿過密集的成員點時才不會被淹沒
-        ax.plot(seg_lon, seg_lat, color='white', lw=5.2, alpha=0.85,
+        ax.plot(seg_lon, seg_lat, color='white', lw=6.0, alpha=0.85,
                 solid_capstyle='round', zorder=3.9, **kw)
-        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.0,
+        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.6,
                 solid_capstyle='round', zorder=4, **kw)
     last_mean_pt = mean_plot_df.sort_values('valid_time').iloc[-1]
     last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
@@ -1664,9 +1664,9 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
         lats = d['lat'].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            ax.plot(seg_lon, seg_lat, color='white', lw=4.8, alpha=0.8,
+            ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.8,
                     solid_capstyle='round', zorder=3.5, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=2.8,
+            ax.plot(seg_lon, seg_lat, color=color, lw=3.4,
                     solid_capstyle='round', zorder=4, **kw)
 
         # 24h 標記：各模式在同一時間點的位置差距，是這張圖最想讓人看到的東西
@@ -1791,14 +1791,14 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         winds = g['wind'].to_numpy() if 'wind' in g.columns else np.full(len(g), np.nan)
 
         # 軌跡連線（淡灰）
-        ax.plot(lons, lats, color=TRACK_LINE, linewidth=1.2, alpha=0.35,
+        ax.plot(lons, lats, color=TRACK_LINE, linewidth=1.7, alpha=0.35,
                 zorder=1, solid_capstyle='round', **kw)
 
         # MSLP 著色圓點：達暴風強度者實心、未達者空心（整條軌跡一次 scatter，
         # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
         _scatter_by_strength(ax, lons, lats, winds, colors, kw,
-                             size=19, alpha=0.85, zorder=2, lw=0.85)
+                             size=28, alpha=0.85, zorder=2, lw=1.1)
 
     # 圖例（MSLP 色階）
     legend_handles = []
