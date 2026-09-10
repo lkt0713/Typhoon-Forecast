@@ -48,6 +48,14 @@ MEAN_MIN_MEMBER_FRACTION = 0.5
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CopilotDownloader/1.0)"}
 
+# fetch_cycle 的三種結果。「這期沒有颱風」與「這期還沒上架」必須分得開：
+# 前者是事實，該照實顯示成目前沒有颱風；只有後者才該往前一期找。混為一談的
+# 話，颱風一消散就會一路退到它還在的那期，把早就結束的路徑當成最新預報掛在
+# 網頁上（實測 WP222026 消散後 AIFS／EC 仍顯示 09-09 12Z 的路徑）。
+FETCH_OK = "ok"                    # 系集檔已寫出
+FETCH_NO_STORMS = "no-storms"      # BUFR 解得開，但沒有追蹤中的颱風
+FETCH_UNAVAILABLE = "unavailable"  # BUFR 尚未上架，或解不出任何路徑
+
 
 # ── cycle 與網址 ────────────────────────────────────────────────────────────
 
@@ -346,13 +354,13 @@ def _download_bufr(url: str, dest: str, label: str) -> bool:
 
 
 def fetch_cycle(model: str, cycle: datetime, cfg: dict,
-                ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> bool:
+                ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> str:
     """下載並轉出某個 cycle 的四份 CSV（系集／平均／決定報／潛勢總覽）。
 
-    回傳 False 表示這一期沒有可用的系集檔（BUFR 尚未上架，或對不到任何追蹤
-    中的颱風），呼叫端應往前一個 cycle 再試。潛勢總覽不受此影響：它畫的是模式
-    自己生出來的擾動，與現行有沒有颱風無關，只要 BUFR 解得開就逐期寫出。
-    決定報缺只是少一條線，不影響其餘產出。
+    回傳 FETCH_OK／FETCH_NO_STORMS／FETCH_UNAVAILABLE 三者之一，只有
+    FETCH_UNAVAILABLE 該讓呼叫端往前一個 cycle 再試。潛勢總覽不受影響：
+    它畫的是模式自己生出來的擾動，與現行有沒有颱風無關，只要 BUFR 解得開
+    就逐期寫出。決定報缺只是少一條線，不影響其餘產出。
     """
     stamp = cycle.strftime("%Y_%m_%dT%H_00")
     prefix = cfg["local_prefix"]
@@ -366,7 +374,7 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     raw_ens = os.path.join(scratch_dir, f"{prefix}_{stamp}_ens.bufr")
 
     if not _download_bufr(_url(model, cycle, ens_src, ens_stream), raw_ens, f"{model}-ENS"):
-        return False
+        return FETCH_UNAVAILABLE
 
     try:
         tracks = _decode(raw_ens)
@@ -376,7 +384,7 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
 
     if tracks.empty:
         print(f"[{model}] BUFR 內無路徑資料")
-        return False
+        return FETCH_UNAVAILABLE
 
     ref_pos = _reference_positions(ref_mean_dir, ref_prefix, cycle)
     mapping = _match_track_ids(tracks, ref_pos)
@@ -397,8 +405,8 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     _write_csv(_to_paired(genesis, cycle), cyc_path, f"{model} cyclogenesis")
 
     if not mapping:
-        print(f"[{model}] 無法對應到任何追蹤中的颱風，本期僅輸出潛勢總覽")
-        return False
+        print(f"[{model}] 本期無追蹤中的颱風，僅輸出潛勢總覽")
+        return FETCH_NO_STORMS
 
     tracks["track_id"] = tracks["storm_id"].map(mapping)
     tracks = tracks.dropna(subset=["track_id"]).copy()
@@ -425,4 +433,4 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
         if os.path.exists(raw_det):
             os.remove(raw_det)
 
-    return True
+    return FETCH_OK

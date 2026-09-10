@@ -1863,7 +1863,7 @@ def _download_file(url: str, out_path: str, label: str, allow_404: bool = False)
     return True
 
 
-def _resolve_cycle(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
+def _resolve_cycle(cfg: dict) -> tuple[datetime, str | None] | tuple[None, None]:
     """從最新 cycle 起往回逐 6 小時嘗試（最多 5 個），回傳 (cycle, ensemble CSV 路徑)。"""
     if cfg.get("fetcher") == "ecmwf":
         return _resolve_cycle_ecmwf(cfg)
@@ -1881,7 +1881,7 @@ def _resolve_cycle(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
     return None, None
 
 
-def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
+def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str | None] | tuple[None, None]:
     """ECMWF 版的 cycle 解析：下載 BUFR 並就地轉成 paired CSV。
 
     ECMWF Open Data 的上架時間與時距都跟 Weather Lab 不同（見 ecmwf_bufr），
@@ -1889,6 +1889,11 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
 
     暴風編號的對應要靠 WNC2-r2 的平均路徑當基準（ECMWF 與 JTWC 各自編號，
     對不上），因此 ECMWF 兩個模式必須排在 MODEL_CONFIGS 的 WNC2-r2 之後。
+
+    回傳的 CSV 路徑可能是 None，代表最新一期解得開、但模式已經不追任何颱風。
+    這種情況**不可以**往前找還有颱風的舊 cycle：那等於把早就結束的路徑當成
+    最新預報掛在網頁上。只有「尚未上架」才回退，判斷依據是 fetch_cycle 的
+    三態回傳值。
     """
     import ecmwf_bufr
 
@@ -1899,20 +1904,22 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str] | tuple[None, None]:
         path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
         if os.path.exists(path):
             return cycle, path
-        # 潛勢檔在、系集檔不在 ⇒ 這期先前已經解過，當時對不到任何追蹤中的颱風。
-        # BUFR 是靜態的，重下也是同樣結果，直接往前一期，省掉一次 1 MB 下載。
+        # 潛勢檔在、系集檔不在 ⇒ 這期先前解過且沒有颱風。BUFR 是靜態的，重下
+        # 也是同樣結果，直接認定「目前無颱風」，不必再花一次 1 MB 下載。
         if os.path.exists(os.path.join(
                 cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv")):
-            continue
+            return cycle, None
         try:
-            ok = ecmwf_bufr.fetch_cycle(cfg["ecmwf_model"], cycle, cfg,
-                                        ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
-                                        scratch_dir=ECMWF_SCRATCH_DIR)
+            status = ecmwf_bufr.fetch_cycle(cfg["ecmwf_model"], cycle, cfg,
+                                            ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
+                                            scratch_dir=ECMWF_SCRATCH_DIR)
         except Exception as e:
             print(f"[{cfg['display']}-DL] cycle {stamp} 取用失敗: {e}")
             continue
-        if ok:
+        if status == ecmwf_bufr.FETCH_OK:
             return cycle, path
+        if status == ecmwf_bufr.FETCH_NO_STORMS:
+            return cycle, None
     return None, None
 
 
@@ -2150,14 +2157,16 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
 
     cycle, csv_path = _resolve_cycle(cfg)
     if cycle is None and cfg.get("fetcher") == "ecmwf":
-        # 西北太平洋一顆颱風都沒有時，ECMWF 五期全都對不到編號、寫不出系集檔，
-        # 但潛勢檔仍逐期產出。這不是失敗，只是本期沒有颱風可畫，照樣往下走，
-        # 讓潛勢總覽跟著最新一期更新（早期版本在這裡直接拋錯，整個模式消失）。
+        # 五期全都還沒上架時連 cycle 都定不出來，改拿最新潛勢檔的 cycle 頂替，
+        # 至少讓潛勢總覽跟著更新（早期版本在這裡直接拋錯，整個模式從網頁消失）。
         cycle, _ = _latest_local_cyclogenesis(cfg)
-        if cycle is not None:
-            print(f"[{display}] 本期無追蹤中的颱風，僅更新潛勢總覽")
     if cycle is None:
         raise RuntimeError(f"無法取得最近 5 個 cycle 的 {display} ensemble CSV")
+    if csv_path is None:
+        # 模式已經不追任何颱風。照實走完流程：track_ids 會是空的，
+        # _cleanup_stale_outputs 把殘留的路徑圖與動畫清掉，網頁上這個模式
+        # 就跟 WNC 一樣只剩潛勢總覽，不會掛著早就結束的舊路徑。
+        print(f"[{display}] 本期無追蹤中的颱風，僅更新潛勢總覽")
     if cycle != _latest_cycle():
         print(f"[{display}] 回退至 cycle: {cycle.strftime('%Y-%m-%d %HZ')}")
     stamp = _cycle_stamp(cycle)
