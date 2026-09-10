@@ -1791,14 +1791,14 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         winds = g['wind'].to_numpy() if 'wind' in g.columns else np.full(len(g), np.nan)
 
         # 軌跡連線（淡灰）
-        ax.plot(lons, lats, color=TRACK_LINE, linewidth=0.45, alpha=0.35,
+        ax.plot(lons, lats, color=TRACK_LINE, linewidth=0.8, alpha=0.35,
                 zorder=1, solid_capstyle='round', **kw)
 
         # MSLP 著色圓點：達暴風強度者實心、未達者空心（整條軌跡一次 scatter，
         # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
         _scatter_by_strength(ax, lons, lats, winds, colors, kw,
-                             size=11, alpha=0.85, zorder=2, lw=0.6)
+                             size=19, alpha=0.85, zorder=2, lw=0.85)
 
     # 圖例（MSLP 色階）
     legend_handles = []
