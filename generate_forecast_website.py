@@ -4,7 +4,7 @@ from datetime import datetime
 
 # 網站版號，顯示在頁尾。改版時只動這裡 —— 頁尾的 HTML 預設字與中英文
 # i18n 字串都由 f-string 從這個常數取值，不會三處各改各的而對不起來。
-SITE_VERSION = "2.0"
+SITE_VERSION = "2.0.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -540,6 +540,18 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         }}
         .theme-btn:hover {{ background: var(--accent-lo); color: var(--accent); border-color: var(--accent); }}
 
+        /* 版號徽章：與旁邊兩顆按鈕同高，但用實心 accent 底色，一眼看得到 */
+        .version-badge {{
+            background: var(--accent); color: #fff;
+            border: 1px solid var(--accent); border-radius: 8px;
+            padding: 7px 13px;
+            font-size: .8em; font-weight: 700; letter-spacing: .03em;
+            display: flex; align-items: center;
+            white-space: nowrap;
+        }}
+        /* 深色主題的 --accent 是淺藍，白字在上面幾乎讀不到，改用深色字 */
+        [data-theme="dark"] .version-badge {{ color: #06263f; border-color: var(--accent); }}
+
         /* ── Page Layout ────────────────────────────────────────── */
         .page {{ max-width: 1380px; margin: 0 auto; padding: 28px 20px 48px; }}
         .main-content {{
@@ -939,6 +951,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
                     title="Switch language / 切換語言">🌐 中文</button>
+            <span class="version-badge" title="Site version / 網站版本">v{SITE_VERSION}</span>
         </div>
     </header>
 
@@ -966,7 +979,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                        data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
                     <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank">🛰 JTWC</a>
                 </div>
-                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · v{SITE_VERSION} · Not for operational use</div>
+                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
             </div>
         </footer>
     </div>
@@ -1015,7 +1028,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
         'footer.link1':     '🌐 DeepMind Weather',
         'footer.link2':     '🇪🇺 ECMWF Open Data',
-        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · v{SITE_VERSION} · Not for operational use",
+        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
         'lb.close':         'Close',
       }},
       zh: {{
@@ -1054,7 +1067,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
         'footer.link1':     '🌐 DeepMind 天氣實驗室',
         'footer.link2':     '🇪🇺 ECMWF 開放資料',
-        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · v{SITE_VERSION} · 僅供參考，請勿作為作業依據',
+        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
         'lb.close':         '關閉',
       }}
     }};
