@@ -1058,7 +1058,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 last_lon = _normalize_lon_values([last_pt['lon']], use_360=use_360)[0]
                 _scatter_by_strength(ax, [last_lon], [last_pt['lat']], [wind],
                                      [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
-                                     size=42, alpha=0.9, zorder=1.15, lw=1.4)
+                                     size=50, alpha=0.9, zorder=1.15, lw=1.5)
 
         # ── 平均軌跡 + 24h 標記 ───────────────────────────────────────────────
         mean_subset = mean_df[mean_df['valid_time'] <= current_time].sort_values('valid_time')
@@ -1078,7 +1078,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
             last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
             ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR,
-                       s=52, ec='white', zorder=5, linewidth=1.4, **kw)
+                       s=64, ec='white', zorder=5, linewidth=1.4, **kw)
             ax.text(last_mean_lon + LABEL_OFFSET,
                     last_mean_pt['lat'] + LABEL_OFFSET, f'+{last_fh}h\n{last_intensity}',
                     fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
@@ -1087,7 +1087,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             pts_24h_mean = get_24h_markers(mean_subset, init_time)
             if not pts_24h_mean.empty:
                 marker_lons = _normalize_lon_values(pts_24h_mean['lon'].to_numpy(), use_360=use_360)
-                ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=34, facecolors='white',
+                ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=42, facecolors='white',
                            edgecolors=MEAN_COLOR, linewidths=1.4, zorder=5, **kw)
                 # +Nh 時間標籤
                 for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
@@ -1426,13 +1426,13 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
         pts_24h_det = get_24h_markers(d, init_time)
         if not pts_24h_det.empty:
             det_marker_lons = _normalize_lon_values(pts_24h_det['lon'].to_numpy(), use_360=use_360)
-            ax.scatter(det_marker_lons, pts_24h_det['lat'].to_numpy(), marker='o', s=34,
+            ax.scatter(det_marker_lons, pts_24h_det['lat'].to_numpy(), marker='o', s=42,
                        facecolors='white', edgecolors=DET_COLOR, linewidths=1.4,
                        zorder=4.5, **kw)
 
     last = d.iloc[-1]
     last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
-    ax.scatter([last_lon], [last['lat']], marker='D', color=DET_COLOR, s=34,
+    ax.scatter([last_lon], [last['lat']], marker='D', color=DET_COLOR, s=42,
                ec='white', zorder=4.6, linewidth=1.2, **kw)
     if label_end and init_time is not None:
         fh = int(round((last['valid_time'] - init_time).total_seconds() / 3600.0))
@@ -1501,7 +1501,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                      else pd.Series(np.nan, index=pts_6h.index)).to_numpy()
             colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds]
             _scatter_by_strength(ax, marker_lons, pts_6h['lat'].to_numpy(), winds, colors, kw,
-                                 size=26, alpha=0.85, zorder=1.15, lw=1.05)
+                                 size=32, alpha=0.85, zorder=1.15, lw=1.15)
 
     # 起始位置星形標記
     if not mean_df.empty:
@@ -1522,7 +1522,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
     last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
     last_intensity = _format_intensity_label(last_mean_pt.get('wind', np.nan))
-    ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR, s=54,
+    ax.scatter([last_mean_lon], [last_mean_pt['lat']], marker='o', color=MEAN_COLOR, s=66,
                ec='white', zorder=5, linewidth=1.4, **kw)
     ax.text(last_mean_lon + LABEL_OFFSET,
             last_mean_pt['lat'] + LABEL_OFFSET, f'+{last_fh}h\n{last_intensity}',
@@ -1531,7 +1531,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     pts_24h_mean = get_24h_markers(mean_plot_df, init_time)
     if not pts_24h_mean.empty:
         marker_lons = _normalize_lon_values(pts_24h_mean['lon'].to_numpy(), use_360=use_360)
-        ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=34, facecolors='white',
+        ax.scatter(marker_lons, pts_24h_mean['lat'], marker='o', s=42, facecolors='white',
                    edgecolors=MEAN_COLOR, linewidths=1.4, zorder=5, **kw)
         # +24h、+48h… 文字標籤（白色描邊，壓在成員點上仍讀得到）
         for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
@@ -1675,12 +1675,12 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
             pts = get_24h_markers(d, init_time)
             if not pts.empty:
                 mlons = _normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360)
-                ax.scatter(mlons, pts['lat'], marker='o', s=22, facecolors='white',
+                ax.scatter(mlons, pts['lat'], marker='o', s=28, facecolors='white',
                            edgecolors=color, linewidths=1.3, zorder=5, **kw)
 
         last = d.iloc[-1]
         last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
-        ax.scatter([last_lon], [last['lat']], marker='o', s=30, color=color,
+        ax.scatter([last_lon], [last['lat']], marker='o', s=38, color=color,
                    ec='white', linewidth=1.1, zorder=5.2, **kw)
 
         suffix = ''
@@ -1798,7 +1798,7 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
         _scatter_by_strength(ax, lons, lats, winds, colors, kw,
-                             size=28, alpha=0.85, zorder=2, lw=1.1)
+                             size=34, alpha=0.85, zorder=2, lw=1.2)
 
     # 圖例（MSLP 色階）
     legend_handles = []
