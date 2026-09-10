@@ -4,7 +4,7 @@ from datetime import datetime
 
 # 網站版號，顯示在頁尾。改版時只動這裡 —— 頁尾的 HTML 預設字與中英文
 # i18n 字串都由 f-string 從這個常數取值，不會三處各改各的而對不起來。
-SITE_VERSION = "2.0.1"
+SITE_VERSION = "2.0.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -509,6 +509,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         .header-actions {{
             display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
         }}
+        /* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。
+           中文一列剛好放得下，英文的 Updated 較長會把時間戳擠成兩行，
+           與其讓兩種語言各自跑版，不如一律讓版號自成一列。 */
+        .actions-break {{ display: none; }}
         .update-badge {{
             display: flex; align-items: center; gap: 6px;
             background: var(--surface-2);
@@ -892,6 +896,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             .header-brand small {{ display: none; }}
             header {{ padding: 10px 16px; gap: 10px; }}
             .header-actions {{ width: 100%; justify-content: space-between; }}
+            .actions-break {{ display: block; flex-basis: 100%; height: 0; margin: 0; }}
         }}
         @media (max-width: 600px) {{
             .page {{ padding: 16px 12px 40px; }}
@@ -900,7 +905,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             .brand-icon {{ width: 32px; height: 32px; font-size: 1em; }}
             .brand-text h1 {{ font-size: .95em; }}
             .header-actions {{ gap: 8px; }}
-            .update-badge {{ flex: 1 1 170px; padding: 6px 10px; font-size: .72em; }}
+            .update-badge {{ flex: 0 1 auto; padding: 6px 9px; font-size: .70em;
+                             white-space: nowrap; min-width: 0; }}
             .theme-btn {{ flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }}
             .storm-title {{ font-size: 1.55em; }}
             .info-grid {{ grid-template-columns: 1fr 1fr; gap: 9px; }}
@@ -951,6 +957,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
                     title="Switch language / 切換語言">🌐 中文</button>
+            <span class="actions-break"></span>
             <span class="version-badge" title="Site version / 網站版本">v{SITE_VERSION}</span>
         </div>
     </header>

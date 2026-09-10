@@ -106,6 +106,10 @@
         .header-actions {
             display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
         }
+        /* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。
+           中文一列剛好放得下，英文的 Updated 較長會把時間戳擠成兩行，
+           與其讓兩種語言各自跑版，不如一律讓版號自成一列。 */
+        .actions-break { display: none; }
         .update-badge {
             display: flex; align-items: center; gap: 6px;
             background: var(--surface-2);
@@ -489,6 +493,7 @@
             .header-brand small { display: none; }
             header { padding: 10px 16px; gap: 10px; }
             .header-actions { width: 100%; justify-content: space-between; }
+            .actions-break { display: block; flex-basis: 100%; height: 0; margin: 0; }
         }
         @media (max-width: 600px) {
             .page { padding: 16px 12px 40px; }
@@ -497,7 +502,8 @@
             .brand-icon { width: 32px; height: 32px; font-size: 1em; }
             .brand-text h1 { font-size: .95em; }
             .header-actions { gap: 8px; }
-            .update-badge { flex: 1 1 170px; padding: 6px 10px; font-size: .72em; }
+            .update-badge { flex: 0 1 auto; padding: 6px 9px; font-size: .70em;
+                             white-space: nowrap; min-width: 0; }
             .theme-btn { flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }
             .storm-title { font-size: 1.55em; }
             .info-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
@@ -543,12 +549,13 @@
         <div class="header-actions">
             <div class="update-badge">
                 <span class="update-dot"></span>
-                <span data-i18n="header.updated">Updated</span>: 2026-09-10 22:30:13
+                <span data-i18n="header.updated">Updated</span>: 2026-09-10 22:34:23
             </div>
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
                     title="Switch language / 切換語言">🌐 中文</button>
-            <span class="version-badge" title="Site version / 網站版本">v2.0.1</span>
+            <span class="actions-break"></span>
+            <span class="version-badge" title="Site version / 網站版本">v2.0.2</span>
         </div>
     </header>
 
