@@ -1821,7 +1821,7 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
                       edgecolor=BOX_EDGE, alpha=0.94, linewidth=0.8))
 
     _set_map_titles(ax,
-                    f'{model_name}  ·  Western Pacific Genesis Potential  ·  0–{int(range_hours)} h',
+                    f'{model_name}  ·  Western Pacific Tropical Cyclone Genesis Potential  ·  0–{int(range_hours)} h',
                     f'Init {init_time_str}\n{_data_source(model_name)}',
                     main_size=13, right_size=8.5)
     _watermark(ax)

@@ -531,7 +531,7 @@
         <div class="header-actions">
             <div class="update-badge">
                 <span class="update-dot"></span>
-                <span data-i18n="header.updated">Updated</span>: 2026-09-10 21:44:09
+                <span data-i18n="header.updated">Updated</span>: 2026-09-10 21:45:34
             </div>
             <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
@@ -545,7 +545,7 @@
             <div class="panel genesis-panel">
                 <div class="panel-header">
                     <span class="panel-icon">🌏</span>
-                    <span data-i18n="panel.genesis">Western Pacific Genesis Potential — Ensemble Overview</span>
+                    <span data-i18n="panel.genesis">Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview</span>
                 </div>
                 <div class="model-tabs genesis-tabs"><button class="model-tab-btn active" data-track="genesis" data-model="WNC3" onclick="switchModelTab('genesis', 'WNC3')">WNC3</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r2" onclick="switchModelTab('genesis', 'WNC2-r2')">WNC2-r2</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r1" onclick="switchModelTab('genesis', 'WNC2-r1')">WNC2-r1</button><button class="model-tab-btn" data-track="genesis" data-model="GENC" onclick="switchModelTab('genesis', 'GENC')">GENC</button><button class="model-tab-btn" data-track="genesis" data-model="AIFS" onclick="switchModelTab('genesis', 'AIFS')">AIFS</button><button class="model-tab-btn" data-track="genesis" data-model="ECMWF" onclick="switchModelTab('genesis', 'ECMWF')">ECMWF</button></div>
                 
@@ -554,7 +554,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_WNC3.png"
-                                 alt="Western Pacific Genesis Potential (WNC3)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC3)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -576,7 +576,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential.png"
-                                 alt="Western Pacific Genesis Potential (WNC2-r2)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r2)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -598,7 +598,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_WNC2-r1.png"
-                                 alt="Western Pacific Genesis Potential (WNC2-r1)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r1)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -620,7 +620,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_GENC.png"
-                                 alt="Western Pacific Genesis Potential (GENC)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (GENC)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -642,7 +642,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_AIFS.png"
-                                 alt="Western Pacific Genesis Potential (AIFS)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (AIFS)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -664,7 +664,7 @@
                         <div class="map-image-wrapper genesis-map-wrapper"
                              onclick="openLightbox(this.querySelector('img').src)">
                             <img src="WP_Genesis_Potential_ECMWF.png"
-                                 alt="Western Pacific Genesis Potential (ECMWF)"
+                                 alt="Western Pacific Tropical Cyclone Genesis Potential (ECMWF)"
                                  class="map-image genesis-map-img"
                                  onload="this.classList.remove('loading')"
                                  onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
@@ -761,7 +761,7 @@
         'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position',
         'panel.jtwc':       'JTWC Official Forecast',
         'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
-        'panel.genesis':    'Western Pacific Genesis Potential — Ensemble Overview',
+        'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
         'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure; filled once the member reaches gale force (≥ 34 kt). Gray lines = individual ensemble tracks (0–360 h). Data sourced from {source}.',
         'footer.title':     "Pillar's Tropical Cyclone Forecast System",
         'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
@@ -801,7 +801,7 @@
         'panel.jtwc':       'JTWC 官方預報',
         'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
         'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
-        'note.genesis':     '圓點＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓；成員達到暴風強度（≥ 34 kt）後轉為實心。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{source}。',
+        'note.genesis':     '圓點＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓；成員達到風暴強度（≥ 34 kt）後轉為實心。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{source}。',
         'footer.title':     'Pillar 熱帶氣旋預報系統',
         'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
         'footer.link1':     '🌐 DeepMind 天氣實驗室',
