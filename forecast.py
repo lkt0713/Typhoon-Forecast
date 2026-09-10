@@ -649,6 +649,37 @@ TARGET_TRACK_IDS = _auto_detect_track_ids(MEAN_DIR)
 JTWC_FORECAST_URLS, JTWC_TEXT_URLS = _build_jtwc_urls(TARGET_TRACK_IDS)
 
 
+# 本次執行中已確認不存在的 JTWC 產品 URL。JTWC 對某顆颱風停止發布後，該產品在
+# 這次執行內不會突然冒出來，六個模式各問一次只是白費六個 request。
+_JTWC_ABSENT: set[str] = set()
+
+
+def _jtwc_fetch(url: str, label: str):
+    """抓一份 JTWC 產品；產品不存在時回 None，其餘錯誤照拋。
+
+    metoc.navy.mil 的 /jtwc/products/ 是 S3 靜態託管，而且沒開 ListBucket，
+    所以物件不存在時回的是 403 AccessDenied 而不是 404（實測 2026-09-10：
+    已停發的 wp2226web.txt 回 403 + 111 bytes 的 AccessDenied XML，仍在發布的
+    wp9926web.txt 回 200）。照著字面把這個 403 當錯誤，log 裡就會刷出一排
+    「403 Client Error: Forbidden」，看起來像被擋或壞掉，實際上只是這顆颱風
+    已經沒有公報可抓。
+
+    只認 body 帶 AccessDenied 的 403：真的被 WAF 擋下時回的是 HTML，
+    那種情況仍然要拋出來，不能默默當成「沒有這顆颱風」。
+    """
+    if url in _JTWC_ABSENT:
+        print(f"[JTWC] {label}: 本次執行已確認 JTWC 無此產品，略過")
+        return None
+    resp = requests.get(url, headers=HEADERS, timeout=30)
+    if resp.status_code == 404 or (resp.status_code == 403
+                                   and b"AccessDenied" in resp.content[:512]):
+        _JTWC_ABSENT.add(url)
+        print(f"[JTWC] {label}: JTWC 已停止發布此產品（HTTP {resp.status_code}），略過")
+        return None
+    resp.raise_for_status()
+    return resp
+
+
 def download_jtwc_image(track_id: str, output_dir: str = OUTPUT_DIR, jtwc_forecast_urls: dict | None = None) -> str | None:
     """下載 JTWC 預報圖
 
@@ -670,9 +701,10 @@ def download_jtwc_image(track_id: str, output_dir: str = OUTPUT_DIR, jtwc_foreca
     
     try:
         print(f"[JTWC] 正在下載: {url}")
-        response = requests.get(url, headers=HEADERS, timeout=30)
-        response.raise_for_status()
-        
+        response = _jtwc_fetch(url, track_id)
+        if response is None:
+            return None
+
         with open(output_path, 'wb') as f:
             f.write(response.content)
         
@@ -857,8 +889,9 @@ def scrape_jtwc_text_product(track_id: str, jtwc_text_urls: dict | None = None) 
         return {}
     try:
         print(f"[JTWC] 下載 web.txt: {url}")
-        resp = requests.get(url, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
+        resp = _jtwc_fetch(url, track_id)
+        if resp is None:
+            return {}
         text = resp.text
 
         info: dict[str, object] = {}
