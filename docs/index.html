@@ -2,1071 +2,2199 @@
 <html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&family=Noto+Serif+TC:wght@600;900&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | Forecast</title>
+    <script>
+    // 在第一次繪製前就決定主題與語言，避免先閃一下淺色／英文
+    (function () {
+        var d = document.documentElement, h = new Date().getHours();
+        d.classList.add('js');
+        d.setAttribute('data-theme', (h >= 18 || h < 6) ? 'dark' : 'light');
+    })();
+    </script>
     <style>
-        /* ── Design Tokens ─────────────────────────────────────── */
-        /* 色票與地圖同源：海軍藍 #16324F = 平均路徑、海洋藍 #2E86C8 = TS、
-           青綠 #1FA97E = Cat1，網頁與圖面因此看起來是同一套系統。 */
-        :root {
-            --bg:        #e9eff5;
-            --surface:   #ffffff;
-            --surface-2: #f2f7fb;
-            --surface-3: #e5edf5;
-            --accent:    #1b5c94;
-            --accent-2:  #0f9b8e;
-            --accent-lo: rgba(27,92,148,.10);
-            --accent-rgb: 27,92,148;
-            --text:      #16324f;
-            --text-2:    #4a6076;
-            --text-3:    #8194a8;
-            --border:    #d2dde9;
-            --danger:    #dc3a4e;
-            --ok:        #1fa97e;
-            --warn:      #ee7a22;
-            --shadow:    0 2px 12px rgba(22,50,79,.07);
-            --shadow-md: 0 8px 32px rgba(22,50,79,.10);
-            --shadow-lg: 0 20px 60px rgba(22,50,79,.14);
-            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
-            --header-h:  64px;
-            --radius:    14px;
-        }
-        [data-theme="dark"] {
-            --bg:        #071320;
-            --surface:   #0d1e2e;
-            --surface-2: #12283b;
-            --surface-3: #1a3550;
-            --accent:    #58b0e8;
-            --accent-2:  #3fcbb4;
-            --accent-lo: rgba(88,176,232,.12);
-            --accent-rgb: 88,176,232;
-            --text:      #dfe9f2;
-            --text-2:    #91a6ba;
-            --text-3:    #5c7386;
-            --border:    rgba(88,176,232,.16);
-            --danger:    #f26173;
-            --ok:        #35c496;
-            --warn:      #f79445;
-            --shadow:    0 2px 12px rgba(0,0,0,.32);
-            --shadow-md: 0 8px 32px rgba(0,0,0,.42);
-            --shadow-lg: 0 20px 60px rgba(0,0,0,.55);
-            --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
-        }
+/* ── Design Tokens ─────────────────────────────────────────── */
+/* 色票與地圖同源：海軍藍 #16324F = 平均路徑、海洋藍 #2E86C8 = TS、
+   青綠 #1FA97E = Cat1，網頁與圖面因此看起來是同一套系統。 */
+:root {
+    --bg:        #e9eff5;
+    --surface:   #ffffff;
+    --surface-2: #f2f7fb;
+    --surface-3: #e5edf5;
+    --accent:    #1b5c94;
+    --accent-2:  #0f9b8e;
+    --accent-lo: rgba(27,92,148,.10);
+    --accent-rgb: 27,92,148;
+    --text:      #16324f;
+    --text-2:    #4a6076;
+    --text-3:    #72869b;
+    --border:    #d2dde9;
+    --danger:    #dc3a4e;
+    --ok:        #1fa97e;
+    --warn:      #ee7a22;
+    --shadow:    0 2px 12px rgba(22,50,79,.07);
+    --shadow-md: 0 8px 32px rgba(22,50,79,.10);
+    --shadow-lg: 0 20px 60px rgba(22,50,79,.16);
+    --btn-bg:    linear-gradient(135deg,#1b5c94,#2e86c8);
+    --glass:     rgba(255,255,255,.74);
+    --header-h:  64px;
+    --radius:    16px;
+    --ease-out:  cubic-bezier(.16,1,.3,1);
+    --ease-spring: cubic-bezier(.34,1.56,.64,1);
+    --hero-1: #04111e; --hero-2: #082239; --hero-3: #0d3558;
+    --broken-text: "Image unavailable";
+}
+[data-theme="dark"] {
+    --bg:        #071320;
+    --surface:   #0d1e2e;
+    --surface-2: #12283b;
+    --surface-3: #1a3550;
+    --accent:    #58b0e8;
+    --accent-2:  #3fcbb4;
+    --accent-lo: rgba(88,176,232,.12);
+    --accent-rgb: 88,176,232;
+    --text:      #dfe9f2;
+    --text-2:    #91a6ba;
+    --text-3:    #6a8397;
+    --border:    rgba(88,176,232,.16);
+    --danger:    #f26173;
+    --ok:        #35c496;
+    --warn:      #f79445;
+    --shadow:    0 2px 12px rgba(0,0,0,.32);
+    --shadow-md: 0 8px 32px rgba(0,0,0,.42);
+    --shadow-lg: 0 20px 60px rgba(0,0,0,.55);
+    --glass:     rgba(9,22,35,.74);
+}
 
-        /* ── Reset ─────────────────────────────────────────────── */
-        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-        html { scroll-behavior:smooth; }
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system,
-                         'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
-            background: var(--bg);
-            min-height: 100vh;
-            color: var(--text);
-            transition: background .35s, color .35s;
-        }
-        html, body { max-width: 100%; overflow-x: hidden; }
-        img { max-width: 100%; height: auto; }
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+/* 字體：拉丁字用 Inter，中文落到思源黑體（Noto Sans TC）；大標題的中文用思源宋體。
+   Google Fonts 載不到時退回系統字（蘋方／微軟正黑），版面不受影響。 */
+body {
+    font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
+                 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+    background: var(--bg);
+    min-height: 100vh;
+    color: var(--text);
+    transition: background .35s, color .35s;
+    -webkit-font-smoothing: antialiased;
+}
+html, body { max-width: 100%; overflow-x: hidden; }
+img { max-width: 100%; height: auto; }
+button { font-family: inherit; }
+/* 中文內文：稍微加寬字距與行高，讀起來比較鬆 */
+html[lang^="zh"] body { letter-spacing: .02em; }
+html[lang^="zh"] p, html[lang^="zh"] .map-note { line-height: 1.8; }
+html[lang^="zh"] .hero-title, html[lang^="zh"] .page-title,
+html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
+html[lang^="zh"] .scale-head span:first-child {
+    font-family: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
+    font-weight: 900; letter-spacing: .04em;
+}
+html[lang^="zh"] .section-head h3 { font-weight: 900; }
+.mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+body.lb-lock { overflow: hidden; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.skip-link { position:absolute; left:-9999px; top:8px; z-index:1000; background:var(--surface); padding:8px 14px; border-radius:8px; }
+.skip-link:focus { left:8px; }
 
-        /* ── Header ────────────────────────────────────────────── */
-        header {
-            position: sticky; top: 0; z-index: 300;
-            min-height: var(--header-h);
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            display: flex; align-items: center;
-            flex-wrap: wrap;
-            padding: 0 28px;
-            gap: 16px;
-            transition: background .35s, border .35s;
-            animation: slideDown .4s ease-out;
-        }
-        @keyframes slideDown {
-            from { opacity:0; transform:translateY(-12px); }
-            to   { opacity:1; transform:translateY(0); }
-        }
-        .header-brand {
-            display: flex; align-items: center; gap: 10px; flex: 1;
-        }
-        .brand-icon {
-            width: 38px; height: 38px; border-radius: 10px;
-            background: var(--btn-bg);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.2em; flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(var(--accent-rgb),.35);
-        }
-        .brand-text h1 {
-            font-size: 1.05em; font-weight: 800; letter-spacing: -.3px;
-            color: var(--text); line-height: 1.1;
-        }
-        .brand-text small {
-            font-size: .72em; color: var(--text-3); font-weight: 500;
-            display: block; margin-top: 1px;
-        }
-        .header-actions {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-        }
-        /* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。
-           中文一列剛好放得下，英文的 Updated 較長會把時間戳擠成兩行，
-           與其讓兩種語言各自跑版，不如一律讓版號自成一列。 */
-        .actions-break { display: none; }
-        .update-badge {
-            display: flex; align-items: center; gap: 6px;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 6px 13px;
-            font-size: .77em; font-weight: 600; color: var(--text-2);
-            white-space: normal;
-            line-height: 1.25;
-        }
-        .update-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: var(--ok);
-            box-shadow: 0 0 0 2px rgba(31,169,126,.25);
-            animation: pulse-green 2s ease-in-out infinite;
-        }
-        @keyframes pulse-green {
-            0%,100% { box-shadow: 0 0 0 2px rgba(31,169,126,.25); }
-            50%      { box-shadow: 0 0 0 5px rgba(31,169,126,.08); }
-        }
-        .theme-btn {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            color: var(--text-2); border-radius: 8px;
-            padding: 7px 14px; cursor: pointer;
-            font-size: .8em; font-weight: 600;
-            display: flex; align-items: center; gap: 5px;
-            transition: all .2s;
-        }
-        .theme-btn:hover { background: var(--accent-lo); color: var(--accent); border-color: var(--accent); }
+/* 主題切換時整頁用圓形擴散揭露（View Transitions API） */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 
-        /* 版號徽章：與旁邊兩顆按鈕同高，但用實心 accent 底色，一眼看得到 */
-        .version-badge {
-            background: var(--accent); color: #fff;
-            border: 1px solid var(--accent); border-radius: 8px;
-            padding: 7px 13px;
-            font-size: .8em; font-weight: 700; letter-spacing: .03em;
-            display: flex; align-items: center;
-            white-space: nowrap;
-        }
-        /* 深色主題的 --accent 是淺藍，白字在上面幾乎讀不到，改用深色字 */
-        [data-theme="dark"] .version-badge { color: #06263f; border-color: var(--accent); }
+/* ── Header ────────────────────────────────────────────────── */
+header {
+    position: sticky; top: 0; z-index: 300;
+    min-height: 64px;
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(1.6) blur(16px);
+    backdrop-filter: saturate(1.6) blur(16px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; flex-wrap: wrap;
+    padding: 0 28px; gap: 12px 18px;
+    transition: background .35s, border .35s;
+    animation: slideDown .5s var(--ease-out);
+}
+@keyframes slideDown { from { opacity:0; transform:translateY(-14px); } to { opacity:1; transform:none; } }
+.scroll-progress {
+    position:absolute; left:0; right:0; bottom:-1px; height:2px;
+    transform-origin: 0 50%; transform: scaleX(var(--p, 0));
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    pointer-events: none;
+}
+.header-brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; min-width:0; }
+.brand-icon {
+    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+    background: var(--btn-bg);
+    display:flex; align-items:center; justify-content:center; font-size:1.2em;
+    box-shadow: 0 4px 12px rgba(var(--accent-rgb),.35);
+    transition: transform .5s var(--ease-spring);
+}
+.brand-icon span { display:inline-block; animation: spin 14s linear infinite; }
+.header-brand:hover .brand-icon { transform: rotate(-12deg) scale(1.06); }
+@keyframes spin { to { transform: rotate(-360deg); } }
+.brand-text h1 { font-size: 1.02em; font-weight: 800; letter-spacing: -.3px; line-height: 1.15; }
+.brand-text small { font-size: .7em; color: var(--text-3); font-weight: 500; display:block; margin-top:1px; max-width: 34ch; }
 
-        /* ── Page Layout ────────────────────────────────────────── */
-        .page { max-width: 1380px; margin: 0 auto; padding: 28px 20px 48px; }
-        .main-content {
-            display: flex; flex-direction: column; gap: 24px;
-            animation: fadeUp .5s ease-out .1s both;
-        }
-        @keyframes fadeUp {
-            from { opacity:0; transform:translateY(12px); }
-            to   { opacity:1; transform:translateY(0); }
-        }
+.top-nav { position: relative; display:flex; align-items:center; gap:2px; flex:1; justify-content:center; min-width:0; }
+.nav-link {
+    position: relative; z-index: 1;
+    display:flex; align-items:center; gap:7px;
+    padding: 8px 13px; border-radius: 10px;
+    color: var(--text-2); text-decoration:none;
+    font-size: .85em; font-weight: 650; white-space: nowrap;
+    transition: color .25s;
+}
+.nav-link svg { width: 17px; height: 17px; }
+.nav-link:hover { color: var(--text); }
+.nav-link.active { color: var(--accent); }
+.nav-indicator {
+    position:absolute; left:0; top:0; z-index:0; border-radius:10px;
+    background: var(--accent-lo); border: 1px solid rgba(var(--accent-rgb),.22);
+    opacity: 0;
+    transition: transform .5s var(--ease-out), width .5s var(--ease-out), height .5s var(--ease-out), opacity .3s;
+}
+.nav-dot { width:9px; height:9px; border-radius:50%; background: var(--c); box-shadow: 0 0 0 3px rgba(255,255,255,.0), 0 0 10px var(--c); flex-shrink:0; }
 
-        /* ── Storm Card ─────────────────────────────────────────── */
-        .storm-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-md);
-            overflow: hidden;
-            display: flex;
-            transition: background .35s, border .35s;
-        }
-        .intensity-stripe {
-            width: 7px; flex-shrink: 0;
-        }
-        .storm-card-inner {
-            flex: 1; padding: 26px 26px 22px;
-        }
-        .storm-header {
-            display: flex; justify-content: space-between;
-            align-items: flex-start; flex-wrap: wrap; gap: 12px;
-            margin-bottom: 22px; padding-bottom: 18px;
-            border-bottom: 1px solid var(--border);
-        }
-        .storm-title {
-            font-size: 2em; font-weight: 800;
-            letter-spacing: -.5px; color: var(--text);
-            line-height: 1.1;
-            overflow-wrap: anywhere;
-        }
-        .storm-subtitle {
-            font-size: .8em; color: var(--text-3);
-            font-weight: 500; margin-top: 4px;
-            text-transform: uppercase; letter-spacing: .6px;
-        }
-        /* 中文字沒有大小寫，字母間距也會讓字距散掉 */
-        html[lang^="zh"] .storm-subtitle {
-            text-transform: none; letter-spacing: 0;
-        }
-        .storm-badges {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        }
-        .badge-cat {
-            padding: 6px 14px; border-radius: 8px;
-            font-size: .82em; font-weight: 800;
-            letter-spacing: .5px;
-        }
-        .badge-id {
-            background: var(--surface-3);
-            border: 1px solid var(--border);
-            color: var(--text-2);
-            padding: 6px 13px; border-radius: 8px;
-            font-size: .82em; font-weight: 700;
-            font-family: 'Courier New', monospace;
-        }
-        .badge-live {
-            background: rgba(220,58,78,.10);
-            border: 1px solid rgba(220,58,78,.32);
-            color: var(--danger);
-            padding: 6px 13px; border-radius: 8px;
-            font-size: .8em; font-weight: 700;
-            display: flex; align-items: center; gap: 6px;
-            letter-spacing: .4px;
-        }
-        /* ── Model Tabs (switch WNC3 / WNC2 / GENC for the same storm) ─── */
-        .model-tabs {
-            display: flex; gap: 8px; flex-wrap: wrap;
-        }
-        .model-tab-btn {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--text-2);
-            padding: 9px 20px; border-radius: 10px;
-            font-size: .88em; font-weight: 700; letter-spacing: .3px;
-            cursor: pointer; transition: all .18s;
-            box-shadow: var(--shadow);
-        }
-        .model-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .model-tab-btn.active {
-            background: var(--btn-bg); color: #fff; border-color: transparent;
-            box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3);
-        }
-        .genesis-tabs { margin-bottom: 16px; }
-        .live-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: var(--danger);
-            animation: pulse-red 1.4s ease-in-out infinite;
-        }
-        @keyframes pulse-red {
-            0%,100% { opacity:1; transform:scale(1); }
-            50%      { opacity:.5; transform:scale(.8); }
-        }
+.header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+/* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。 */
+.actions-break { display:none; }
+.update-badge {
+    display:flex; align-items:center; gap:7px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 6px 12px 6px 9px;
+    font-size: .76em; font-weight: 600; color: var(--text-2);
+    line-height: 1.25;
+}
+.ring { width: 18px; height: 18px; transform: rotate(-90deg); flex-shrink:0; }
+.ring circle { fill:none; stroke-width: 2.6; }
+.ring-bg { stroke: var(--border); }
+.ring-fg { stroke: var(--ok); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear, stroke .3s; }
+.update-badge.stale .ring-fg { stroke: var(--warn); }
+.theme-btn {
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-2); border-radius: 9px;
+    padding: 7px 13px; cursor:pointer;
+    font-size: .8em; font-weight: 600;
+    display:flex; align-items:center; gap:5px;
+    transition: background .2s, color .2s, border-color .2s, transform .2s var(--ease-spring);
+}
+.theme-btn:hover { background: var(--accent-lo); color: var(--accent); border-color: var(--accent); }
+.theme-btn:active { transform: scale(.95); }
+/* 版號徽章：與旁邊兩顆按鈕同高，但用實心 accent 底色，一眼看得到 */
+.version-badge {
+    background: var(--accent); color:#fff;
+    border: 1px solid var(--accent); border-radius: 9px;
+    padding: 7px 12px; font-size: .8em; font-weight: 700; letter-spacing: .03em;
+    display:flex; align-items:center; white-space:nowrap;
+}
+/* 深色主題的 --accent 是淺藍，白字在上面幾乎讀不到，改用深色字 */
+[data-theme="dark"] .version-badge { color:#06263f; border-color: var(--accent); }
 
-        /* ── Info Grid ──────────────────────────────────────────── */
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        .info-item {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 11px;
-            padding: 14px 16px;
-            min-width: 0;
-            transition: transform .18s, box-shadow .18s;
-        }
-        .info-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-        .info-label {
-            font-size: .69em; text-transform: uppercase;
-            letter-spacing: 1px; color: var(--text-3);
-            font-weight: 700; margin-bottom: 7px;
-        }
-        .info-value {
-            font-size: 0.95em; font-weight: 700; color: var(--text);
-            line-height: 1.2;
-            overflow-wrap: anywhere;
-        }
-        .intensity-value { display: flex; align-items: center; gap: 9px; }
-        .intensity-dot {
-            width: 13px; height: 13px; border-radius: 50%;
-            border: 1.6px solid rgba(0,0,0,.15); flex-shrink: 0;
-            box-shadow: 0 2px 6px rgba(0,0,0,.2);
-        }
+/* ── Views（hash 路由切換的頁面）─────────────────────────────── */
+.js .view:not(.active) { display:none; }
+.view.entering { animation: viewIn .55s var(--ease-out) both; }
+.view.leaving  { animation: viewOut .16s ease-in both; pointer-events:none; }
+@keyframes viewIn  { from { opacity:0; transform: translate3d(calc(var(--dir,1) * 34px),0,0); } to { opacity:1; transform:none; } }
+@keyframes viewOut { to   { opacity:0; transform: translate3d(calc(var(--dir,1) * -18px),0,0); } }
 
-        /* ── Panel (generic section card) ───────────────────────── */
-        .panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-md);
-            padding: 22px 24px;
-            transition: background .35s, border .35s;
-        }
-        .panel-header {
-            display: flex; align-items: center; gap: 10px;
-            font-size: 1.05em; font-weight: 700; color: var(--text);
-            margin-bottom: 16px; padding-bottom: 13px;
-            border-bottom: 1px solid var(--border);
-        }
-        .panel-icon {
-            font-size: 1.15em;
-        }
-        /* ── Maps Grid ──────────────────────────────────────────── */
-        .maps-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 24px;
-        }
+.page { max-width: 1380px; margin: 0 auto; padding: 30px 20px 48px; display:flex; flex-direction:column; gap: 24px; }
 
-        /* ── Map Image ──────────────────────────────────────────── */
-        .map-image-wrapper {
-            position: relative; border-radius: 10px; overflow: hidden;
-            cursor: zoom-in; background: var(--surface-2);
-            border: 1px solid var(--border);
-        }
-        .map-image {
-            width: 100%; height: auto; display: block;
-            transition: transform .3s ease, opacity .3s;
-        }
-        .map-image.loading { opacity: .3; }
-        .map-image:hover { transform: scale(1.008); }
-        .zoom-hint {
-            position: absolute; bottom: 10px; right: 10px;
-            background: rgba(0,0,0,.6); color: #fff;
-            padding: 4px 10px; border-radius: 6px; font-size: .73em;
-            opacity: 0; transition: opacity .2s; pointer-events: none;
-            font-weight: 500;
-        }
-        .map-image-wrapper:hover .zoom-hint { opacity: 1; }
-        .map-note {
-            margin-top: 11px; color: var(--text-3);
-            font-size: .82em; line-height: 1.6;
-        }
+/* 捲動進場動畫 */
+.js .reveal { opacity:0; transform: translateY(22px); transition: opacity .8s var(--ease-out), transform .8s var(--ease-out); transition-delay: calc(var(--i,0) * 70ms); }
+.js .reveal.in { opacity:1; transform:none; }
 
-        /* ── Lightbox ───────────────────────────────────────────── */
-        .lightbox {
-            display: none; position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,.93); cursor: zoom-out;
-            align-items: center; justify-content: center; padding: 20px;
-        }
-        .lightbox.open { display: flex; }
-        .lightbox img {
-            max-width: 95vw; max-height: 92vh;
-            border-radius: 10px; object-fit: contain;
-            box-shadow: 0 30px 80px rgba(0,0,0,.6);
-        }
-        .lb-close {
-            position: absolute; top: 18px; right: 22px;
-            background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
-            color: #fff; font-size: 1.4em; width: 40px; height: 40px;
-            border-radius: 50%; display: flex; align-items: center;
-            justify-content: center; cursor: pointer; transition: background .2s;
-        }
-        .lb-close:hover { background: rgba(255,255,255,.25); }
+/* ── Hero ───────────────────────────────────────────────────── */
+.hero {
+    position: relative; overflow: hidden; isolation: isolate;
+    min-height: min(80vh, 720px);
+    display:flex; align-items:center;
+    color: #eaf4fc;
+    background:
+        radial-gradient(900px 520px at 72% 46%, rgba(var(--flow-rgb),.16), transparent 62%),
+        radial-gradient(1200px 700px at 10% 0%, var(--hero-3), transparent 60%),
+        linear-gradient(160deg, var(--hero-1) 0%, var(--hero-2) 60%, #0a2c4a 100%);
+}
+.hero::after {
+    content:""; position:absolute; left:0; right:0; bottom:0; height:140px; z-index:0; pointer-events:none;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    transition: background .35s;
+}
+.hero-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:-1; }
+.hero-eye {
+    position:absolute; left: var(--ex, 72%); top: var(--ey, 46%); z-index:-1;
+    width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius:50%;
+    background: radial-gradient(circle, rgba(4,17,30,.95) 0 14%, rgba(var(--flow-rgb),.20) 30%, transparent 70%);
+    animation: eyePulse 5s ease-in-out infinite;
+}
+@keyframes eyePulse { 50% { transform: scale(1.12); opacity:.8; } }
+.hero-inner { position:relative; z-index:1; max-width:1380px; margin:0 auto; width:100%; padding: 72px 28px 150px; }
+.eyebrow {
+    display:inline-flex; align-items:center; gap:9px;
+    padding: 7px 14px; border-radius: 999px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    font-size: .76em; font-weight: 750; letter-spacing: .1em; text-transform: uppercase;
+    animation: fadeUp .8s var(--ease-out) both;
+}
+html[lang^="zh"] .eyebrow { letter-spacing: .06em; }
+.calm-dot { width:8px; height:8px; border-radius:50%; background:#8fd3ff; box-shadow:0 0 12px #8fd3ff; animation: breathe 3s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity:.4; transform: scale(.8); } }
+.hero-title {
+    font-size: clamp(2.6rem, 7vw, 5.4rem); font-weight: 850;
+    letter-spacing: -.035em; line-height: 1.02;
+    margin: 22px 0 16px; max-width: 16ch;
+    text-shadow: 0 0 60px var(--glow, rgba(143,211,255,.45));
+    overflow-wrap: anywhere;
+}
+html[lang^="zh"] .hero-title { letter-spacing: .02em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.15; }
+.hero-title, .page-title, .storm-title { text-wrap: balance; }
+.split .w { display:inline-block; white-space: nowrap; }
+.split .ch { display:inline-block; opacity:0; transform: translateY(.55em) rotate(6deg); filter: blur(6px);
+             animation: chIn .9s var(--ease-out) forwards; animation-delay: calc(var(--i) * 32ms + 120ms); }
+@keyframes chIn { to { opacity:1; transform:none; filter:none; } }
+.hero-lead { display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size: clamp(1rem,1.7vw,1.25rem); font-weight:650; animation: fadeUp .9s var(--ease-out) .35s both; }
+.hero-lead .sep { opacity:.45; }
+.cat-pill { padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size:.85em; letter-spacing:.04em; }
+.hero-sub { margin-top: 12px; font-size: clamp(.98rem,1.4vw,1.12rem); color: rgba(234,244,252,.74); max-width: 56ch; line-height: 1.65; animation: fadeUp .9s var(--ease-out) .45s both; }
+.hero-cta { display:flex; flex-wrap:wrap; gap:12px; margin-top: 30px; animation: fadeUp .9s var(--ease-out) .55s both; }
+.btn-primary, .btn-ghost {
+    display:inline-flex; align-items:center; gap:8px;
+    padding: 13px 22px; border-radius: 13px;
+    font-weight: 750; font-size: .95em; text-decoration:none;
+    transition: transform .3s var(--ease-spring), box-shadow .3s, background .2s;
+}
+.btn-primary { background:#fff; color:#08223a; box-shadow: 0 12px 34px rgba(0,0,0,.28); }
+.btn-primary:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+.btn-primary span[aria-hidden] { transition: transform .3s var(--ease-spring); }
+.btn-primary:hover span[aria-hidden] { transform: translateX(4px); }
+.btn-ghost { color:#eaf4fc; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.05); }
+.btn-ghost:hover { background: rgba(255,255,255,.12); transform: translateY(-3px); }
+.hero-meta { display:flex; flex-wrap:wrap; gap:10px; margin-top: 40px; animation: fadeUp .9s var(--ease-out) .7s both; }
+.hero-chip {
+    display:flex; flex-direction:column; gap:3px;
+    padding: 10px 16px; border-radius: 12px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    min-width: 130px;
+}
+.chip-k { font-size:.68em; letter-spacing:.1em; text-transform:uppercase; opacity:.6; font-weight:700; }
+html[lang^="zh"] .chip-k { letter-spacing:.04em; }
+.chip-v { font-size: 1.05em; font-weight: 750; }
+.chip-v .rel-time { font-size:.8em; opacity:.65; font-weight:600; }
+.scroll-cue { position:absolute; left:50%; bottom: 58px; z-index:1; width: 24px; height: 38px; margin-left:-12px; border: 2px solid rgba(255,255,255,.35); border-radius: 14px; animation: fadeUp 1s var(--ease-out) 1.2s both; }
+.scroll-cue span { position:absolute; left:50%; top:7px; width:4px; height:8px; margin-left:-2px; border-radius:2px; background:#fff; animation: cue 1.8s ease-in-out infinite; }
+@keyframes cue { 0% { opacity:0; transform: translateY(0); } 30% { opacity:1; } 100% { opacity:0; transform: translateY(14px); } }
+@keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform:none; } }
 
-        /* ── Animation Player ───────────────────────────────────── */
-        .animation-player {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 11px;
-            overflow: hidden;
-        }
-        .frame-wrapper {
-            position: relative; cursor: zoom-in; overflow: hidden;
-        }
-        .animation-frame {
-            width: 100%; height: auto; display: block;
-            transition: opacity .12s;
-        }
-        .player-controls {
-            padding: 14px 16px;
-            display: flex; flex-direction: column; gap: 10px;
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-        }
-        .controls-row {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        }
-        .speed-row { justify-content: flex-end; }
-        .control-btn {
-            background: var(--btn-bg); color: #fff; border: none;
-            padding: 8px 16px; border-radius: 8px;
-            font-size: .84em; font-weight: 600; cursor: pointer;
-            transition: all .2s; box-shadow: 0 3px 10px rgba(var(--accent-rgb),.3);
-            white-space: nowrap;
-        }
-        .control-btn.secondary {
-            background: var(--surface-2); color: var(--text-2);
-            border: 1px solid var(--border); box-shadow: none;
-        }
-        .control-btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
-        .control-btn:active { transform: translateY(0); }
-        .progress-bar-container {
-            flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
-        }
-        .progress-slider, .speed-slider {
-            flex: 1; height: 4px; border-radius: 2px;
-            background: var(--border); outline: none;
-            -webkit-appearance: none; cursor: pointer;
-            appearance: none;
-            accent-color: var(--accent);
-        }
-        .progress-slider::-webkit-slider-thumb,
-        .speed-slider::-webkit-slider-thumb {
-            -webkit-appearance: none; width: 14px; height: 14px;
-            appearance: none;
-            border-radius: 50%; cursor: pointer;
-            background: var(--accent);
-            box-shadow: 0 1px 5px rgba(0,0,0,.25);
-        }
-        .frame-counter {
-            font-size: .79em; color: var(--text-3); font-weight: 600;
-            white-space: nowrap; min-width: 54px; text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-        .speed-label { font-size: .79em; color: var(--text-3); font-weight: 600; white-space: nowrap; }
-        .speed-slider { width: 80px; flex: none; }
-        .speed-value { font-size: .82em; font-weight: 700; color: var(--accent); min-width: 28px; }
-        .kbd-hint {
-            font-size: .72em; color: var(--text-3); margin-left: 4px; display: none;
-        }
-        kbd {
-            background: var(--surface-3); border: 1px solid var(--border);
-            border-radius: 4px; padding: 1px 5px;
-            font-family: 'Courier New', monospace; font-size: .9em;
-        }
+/* ── Section heads ──────────────────────────────────────────── */
+.section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-top: 10px; }
+.section-head h3 { font-size: 1.45em; font-weight: 800; letter-spacing: -.02em; }
+.kicker { font-size: .72em; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+html[lang^="zh"] .kicker { letter-spacing:.06em; }
+.count-chip { background: var(--accent-lo); color: var(--accent); border-radius: 999px; padding: 4px 12px; font-weight: 800; font-size: .9em; }
+.legend-inline { display:flex; align-items:center; gap:7px; font-size:.78em; color: var(--text-3); font-weight:600; }
+.page-head { padding-top: 8px; }
+.page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
+html[lang^="zh"] .page-title { letter-spacing: 0; }
+.page-lead { margin-top: 10px; color: var(--text-2); max-width: 70ch; line-height: 1.7; }
 
-        /* ── Footer ─────────────────────────────────────────────── */
-        footer {
-            margin-top: 40px;
-            border-top: 1px solid var(--border);
-            padding-top: 32px;
-        }
-        .footer-inner {
-            max-width: 1380px; margin: 0 auto; padding: 0 20px 32px;
-            display: grid; grid-template-columns: 1fr auto; gap: 24px;
-            align-items: start;
-        }
-        .footer-brand h3 {
-            font-size: 1em; font-weight: 700; color: var(--text); margin-bottom: 6px;
-        }
-        .footer-brand p {
-            font-size: .82em; color: var(--text-3); line-height: 1.6;
-        }
-        .footer-links {
-            display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
-        }
-        .footer-link {
-            color: var(--text-2); text-decoration: none;
-            font-size: .83em; font-weight: 500;
-            display: flex; align-items: center; gap: 5px;
-            transition: color .2s;
-        }
-        .footer-link:hover { color: var(--accent); }
-        .footer-copy {
-            grid-column: 1 / -1;
-            font-size: .76em; color: var(--text-3);
-            padding-top: 16px; border-top: 1px solid var(--border);
-        }
+/* ── Storm tiles (overview) ─────────────────────────────────── */
+.storm-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 20px; }
+.storm-tile {
+    position:relative; display:flex; flex-direction:column; gap:14px;
+    text-decoration:none; color:inherit;
+    background: var(--surface); border:1px solid var(--border); border-radius: 20px;
+    padding: 24px; overflow:hidden; box-shadow: var(--shadow-md);
+    transition: transform .5s var(--ease-out), box-shadow .4s, border-color .3s, opacity .8s var(--ease-out);
+    will-change: transform;
+}
+.storm-tile::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; background: var(--cat); }
+.storm-tile::after {
+    content:""; position:absolute; right:-90px; top:-90px; width:300px; height:300px; border-radius:50%;
+    background: radial-gradient(circle, var(--cat), transparent 65%); opacity:.14; pointer-events:none;
+    transition: opacity .4s, transform .8s var(--ease-out);
+}
+.storm-tile:hover { box-shadow: var(--shadow-lg); border-color: var(--cat); }
+.storm-tile:hover::after { opacity:.26; transform: scale(1.2); }
+.tile-top { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.tile-body { display:grid; grid-template-columns: 1fr minmax(150px, 190px); gap: 16px; align-items:center; }
+.tile-name { font-size: 2em; font-weight: 850; letter-spacing: -.03em; line-height:1.05; overflow-wrap:anywhere; }
+.tile-catname { color: var(--text-3); font-weight: 650; font-size: .88em; margin-top: 4px; }
+.tile-facts { margin-top: 14px; display:grid; gap: 7px; font-size: .84em; }
+.tile-facts div { display:flex; gap: 10px; }
+.tile-facts dt { color: var(--text-3); min-width: 72px; font-weight: 600; }
+.tile-facts dd { font-weight: 700; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; min-width:0; }
+.tile-cta { font-weight: 750; font-size: .88em; color: var(--accent); transition: transform .3s var(--ease-spring); display:inline-block; }
+.storm-tile:hover .tile-cta, .genesis-teaser:hover .tile-cta { transform: translateX(6px); }
 
-        /* ── Genesis Potential Panel ───────────────────────────────── */
-        .genesis-panel {
-            border-left: 4px solid var(--warn);
-        }
-        .genesis-body {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        .genesis-map-wrapper {
-            width: 100%;
-        }
-        .genesis-map-img {
-            width: 100%;
-            border-radius: 8px;
-        }
-        .genesis-legend {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 16px;
-        }
-        /* ── Responsive ─────────────────────────────────────────── */
-        @media (max-width: 900px) {
-            .maps-grid { grid-template-columns: 1fr; }
-            .info-grid  { grid-template-columns: 1fr 1fr; }
-            .header-brand small { display: none; }
-            header { padding: 10px 16px; gap: 10px; }
-            .header-actions { width: 100%; justify-content: space-between; }
-            .actions-break { display: block; flex-basis: 100%; height: 0; margin: 0; }
-        }
-        @media (max-width: 600px) {
-            .page { padding: 16px 12px 40px; }
-            header { padding: 10px 12px; }
-            .header-brand { width: 100%; min-width: 0; }
-            .brand-icon { width: 32px; height: 32px; font-size: 1em; }
-            .brand-text h1 { font-size: .95em; }
-            .header-actions { gap: 8px; }
-            .update-badge { flex: 0 1 auto; padding: 6px 9px; font-size: .70em;
-                             white-space: nowrap; min-width: 0; }
-            .theme-btn { flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }
-            .storm-title { font-size: 1.55em; }
-            .info-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
-            .storm-card-inner { padding: 18px 16px; }
-            .panel { padding: 16px; }
-            .footer-inner { grid-template-columns: 1fr; }
-            .footer-links { align-items: flex-start; }
-            .controls-row { flex-wrap: wrap; }
-            .control-btn { flex: 1 1 calc(33.333% - 8px); min-width: 88px; text-align: center; }
-            .progress-bar-container { width: 100%; min-width: 100%; order: 10; }
-            .speed-row { justify-content: flex-start; }
-            .speed-slider { width: 100%; max-width: 220px; }
-            .map-note { font-size: .78em; }
-        }
-        @media (max-width: 380px) {
-            .info-grid { grid-template-columns: 1fr; }
-            .storm-title { font-size: 1.3em; }
-            .storm-badges { width: 100%; }
-            .badge-cat, .badge-id, .badge-live { padding: 5px 9px; font-size: .72em; }
-            .control-btn { flex: 1 1 100%; }
-        }
-        @media (min-width: 900px) {
-            .kbd-hint { display: inline; }
-        }
-    </style>
+.empty-card {
+    display:flex; align-items:center; gap: 26px;
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 20px;
+    padding: 28px; box-shadow: var(--shadow);
+}
+.empty-title { font-size: 1.3em; font-weight: 800; }
+.empty-desc { color: var(--text-2); margin-top: 6px; line-height:1.6; font-size:.92em; }
+.calm-sea { position:relative; width: 92px; height: 60px; flex-shrink:0; overflow:hidden; border-radius: 14px; background: linear-gradient(180deg, rgba(var(--accent-rgb),.08), rgba(var(--accent-rgb),.18)); }
+.calm-sea span { position:absolute; left:-50%; width:200%; height: 12px; border-radius: 50%; border-top: 2px solid rgba(var(--accent-rgb),.55); animation: wave 4s ease-in-out infinite; }
+.calm-sea span:nth-child(1) { top: 16px; }
+.calm-sea span:nth-child(2) { top: 28px; animation-delay: -1.3s; opacity:.7; }
+.calm-sea span:nth-child(3) { top: 40px; animation-delay: -2.6s; opacity:.45; }
+@keyframes wave { 50% { transform: translateX(22%); } }
+
+/* ── Genesis teaser ─────────────────────────────────────────── */
+.genesis-teaser {
+    display:grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); overflow:hidden;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    text-decoration:none; color:inherit; box-shadow: var(--shadow-md);
+    transition: box-shadow .4s, border-color .3s, transform .5s var(--ease-out), opacity .8s var(--ease-out);
+}
+.genesis-teaser:hover { box-shadow: var(--shadow-lg); border-color: var(--warn); transform: translateY(-3px); }
+.teaser-img { position:relative; overflow:hidden; min-height: 220px; background: var(--surface-2); }
+.teaser-img img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; animation: kenburns 26s ease-in-out infinite alternate; }
+@keyframes kenburns { from { transform: scale(1.05) translate(0,0); } to { transform: scale(1.22) translate(-4%, 2%); } }
+.teaser-body { padding: 26px; display:flex; flex-direction:column; gap: 14px; justify-content:center; border-left: 4px solid var(--warn); }
+.teaser-body p { color: var(--text-2); line-height: 1.65; }
+.mini-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.mini-chip { font-size: .74em; font-weight: 750; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); border:1px solid var(--border); color: var(--text-2); }
+
+/* ── Model cards ────────────────────────────────────────────── */
+.model-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.model-card { background: var(--surface); border:1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); transition: transform .35s var(--ease-out), box-shadow .3s, opacity .8s var(--ease-out); }
+.model-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.model-name { display:flex; align-items:center; justify-content:space-between; font-weight: 800; font-size: 1.05em; }
+.model-org { margin-top: 6px; font-size: .78em; color: var(--accent); font-weight: 700; }
+.model-desc { margin-top: 2px; font-size: .78em; color: var(--text-3); }
+.model-state { width:9px; height:9px; border-radius:50%; background: var(--border); display:inline-block; }
+.model-card.on .model-state, .model-state.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(31,169,126,.2); animation: pulse-green 2.2s ease-in-out infinite; }
+@keyframes pulse-green { 0%,100% { box-shadow: 0 0 0 2px rgba(31,169,126,.25); } 50% { box-shadow: 0 0 0 6px rgba(31,169,126,.05); } }
+
+/* ── Storm page ─────────────────────────────────────────────── */
+.storm-switch { display:flex; gap:8px; flex-wrap:wrap; }
+.switch-chip { display:flex; align-items:center; gap:8px; padding: 8px 14px; border-radius: 999px; background: var(--surface); border:1px solid var(--border); color: var(--text-2); text-decoration:none; font-weight:700; font-size:.86em; transition: all .25s; }
+.switch-chip:hover { color: var(--text); border-color: var(--accent); }
+.switch-chip.active { color: var(--accent); border-color: var(--accent); background: var(--accent-lo); }
+.storm-hero {
+    position:relative; overflow:hidden; isolation:isolate;
+    display:grid; grid-template-columns: 1fr minmax(200px, 280px); gap: 24px; align-items:center;
+    padding: 36px 38px; border-radius: 24px; color:#eaf4fc;
+    background: radial-gradient(700px 380px at 85% 50%, color-mix(in srgb, var(--cat) 26%, transparent), transparent 70%),
+                linear-gradient(135deg, var(--hero-1), var(--hero-2) 55%, #0b2f4f);
+    box-shadow: var(--shadow-lg);
+}
+.storm-hero .swirl {
+    position:absolute; z-index:-1; right: -160px; top: 50%; width: 620px; height: 620px; margin-top:-310px; border-radius:50%;
+    background: conic-gradient(from 0deg, transparent 0 12%, var(--cat) 22%, transparent 36%, transparent 50%, var(--cat) 72%, transparent 86%);
+    opacity: .22; filter: blur(34px);
+    -webkit-mask: radial-gradient(circle, transparent 10%, #000 34%, transparent 70%);
+            mask: radial-gradient(circle, transparent 10%, #000 34%, transparent 70%);
+    animation: spin 22s linear infinite;
+}
+.storm-subtitle { font-size: .76em; color: rgba(234,244,252,.62); font-weight: 700; text-transform: uppercase; letter-spacing: .14em; }
+html[lang^="zh"] .storm-subtitle { text-transform:none; letter-spacing: .04em; }
+.storm-title { font-size: clamp(2.4rem, 6vw, 4.2rem); font-weight: 850; letter-spacing: -.035em; line-height: 1.02; margin: 10px 0 18px; overflow-wrap:anywhere; text-shadow: 0 0 50px var(--cat); }
+.storm-badges { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.badge-cat { padding: 6px 13px; border-radius: 8px; font-size: .82em; font-weight: 800; letter-spacing: .5px; }
+.badge-id { background: var(--surface-3); border: 1px solid var(--border); color: var(--text-2); padding: 6px 12px; border-radius: 8px; font-size: .82em; font-weight: 700; font-family: 'Cascadia Mono','Consolas','Courier New', monospace; }
+.storm-hero .badge-id, .storm-hero .badge-name { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); color: #eaf4fc; }
+.badge-name { padding: 6px 12px; border-radius: 8px; font-size: .8em; font-weight: 700; border: 1px solid; }
+.badge-live { background: rgba(220,58,78,.12); border: 1px solid rgba(220,58,78,.34); color: var(--danger); padding: 6px 12px; border-radius: 8px; font-size: .8em; font-weight: 750; display:flex; align-items:center; gap:6px; letter-spacing:.4px; }
+.storm-hero .badge-live { color: #ff8a98; }
+.live-dot { width:7px; height:7px; border-radius:50%; background: currentColor; animation: pulse-red 1.4s ease-in-out infinite; }
+.eyebrow .live-dot { background: #ff6b7d; box-shadow: 0 0 10px #ff6b7d; }
+@keyframes pulse-red { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(.75); } }
+
+/* 風速儀表（SVG 由腳本產生） */
+.gauge { position:relative; width:100%; max-width: 280px; aspect-ratio: 200 / 128; margin: 0 auto; }
+.gauge svg { width:100%; height:100%; overflow:visible; display:block; }
+.g-track { fill:none; stroke: var(--surface-3); stroke-width: 13; stroke-linecap: round; }
+.storm-hero .g-track { stroke: rgba(255,255,255,.1); }
+.g-band { fill:none; stroke-width: 4; opacity: .75; }
+.g-prog { fill:none; stroke: var(--cat); stroke-width: 13; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset 1.8s var(--ease-out); filter: drop-shadow(0 0 6px var(--cat)); }
+.g-needle { transform-origin: 100px 100px; transition: transform 1.8s var(--ease-spring); }
+.g-needle line { stroke: var(--text); stroke-width: 3.5; stroke-linecap: round; }
+.storm-hero .g-needle line { stroke:#fff; }
+.g-tick { font-size: 8.5px; fill: var(--text-3); font-weight: 700; font-family: inherit; }
+.storm-hero .g-tick { fill: rgba(234,244,252,.5); }
+.gauge-val { position:absolute; left:0; right:0; bottom: -2px; text-align:center; line-height:1; }
+.gauge-val b { font-size: 2.1em; font-weight: 850; letter-spacing: -.03em; }
+.gauge-lg .gauge-val b { font-size: 2.8em; }
+.gauge-val small { display:block; font-size: .72em; font-weight: 750; opacity: .6; margin-top: 3px; letter-spacing: .1em; }
+
+.stat-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border:1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); min-width:0; transition: transform .35s var(--ease-out), box-shadow .3s, opacity .8s var(--ease-out); }
+.stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.stat-label { font-size: .7em; text-transform: uppercase; letter-spacing: .9px; color: var(--text-3); font-weight: 750; margin-bottom: 8px; }
+html[lang^="zh"] .stat-label { letter-spacing: .04em; }
+.stat-value { font-size: 1.35em; font-weight: 800; line-height: 1.2; overflow-wrap:anywhere; font-variant-numeric: tabular-nums; }
+.stat-value small { font-size: .56em; color: var(--text-3); font-weight: 750; margin-left: 4px; }
+
+.scale-panel { padding: 18px 24px 26px; }
+.scale-head { display:flex; justify-content:space-between; align-items:center; font-weight: 750; font-size: .9em; color: var(--text-2); margin-bottom: 14px; }
+.scale-now { color: var(--text); font-weight: 850; }
+.ss-scale { position:relative; padding-top: 4px; }
+.ss-bar { display:flex; gap:3px; height: 30px; }
+.ss-seg { position:relative; background: var(--c); border-radius: 6px; opacity: .28; display:flex; align-items:center; justify-content:center; transition: opacity .6s, transform .6s var(--ease-spring); min-width:0; }
+.ss-seg em { font-style: normal; font-size: .7em; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); white-space:nowrap; overflow:hidden; }
+.ss-scale.in .ss-seg { opacity: .55; }
+.ss-scale.in .ss-seg.cur { opacity: 1; transform: scaleY(1.22); box-shadow: 0 0 18px var(--c); }
+.ss-marker { position:absolute; top: -8px; left: 0; width: 0; height: 50px; transition: left 1.6s var(--ease-out) .2s; }
+.ss-scale.in .ss-marker { left: var(--pos); }
+.ss-marker span { position:absolute; left:-2px; top: 0; width: 4px; height: 100%; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 3px var(--surface), 0 0 14px var(--cat); }
+.ss-marker span::before { content:""; position:absolute; left: 50%; top: -7px; width: 12px; height: 12px; margin-left:-6px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 0 3px var(--surface); }
+
+/* 段落導覽（黏在頁首下方，捲動時標示目前段落） */
+.subnav {
+    position: sticky; top: calc(var(--header-h) + 10px); z-index: 50;
+    display:flex; gap: 4px; padding: 5px; margin: 0 auto;
+    width: max-content; max-width: 100%; overflow-x:auto; scrollbar-width:none;
+    background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-md);
+}
+.subnav::-webkit-scrollbar { display:none; }
+.subnav:empty { display:none; }
+.subnav button { border:0; background:transparent; color: var(--text-2); padding: 8px 15px; border-radius: 10px; font-weight: 700; font-size: .84em; cursor:pointer; white-space:nowrap; transition: background .3s, color .3s; }
+.subnav button:hover { color: var(--text); }
+.subnav button.active { background: var(--btn-bg); color:#fff; box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3); }
+.subnav button[hidden] { display:none; }
+
+/* ── Panels ─────────────────────────────────────────────────── */
+.panel { background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 22px 24px; min-width:0; transition: background .35s, border .35s, opacity .8s var(--ease-out), transform .8s var(--ease-out); scroll-margin-top: calc(var(--header-h) + 80px); }
+.maps-grid { scroll-margin-top: calc(var(--header-h) + 80px); }
+.panel-header { display:flex; align-items:center; gap:10px; flex-wrap: wrap; font-size: 1.05em; font-weight: 750; margin-bottom: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+.panel-icon { width: 32px; height: 32px; border-radius: 9px; display:inline-flex; align-items:center; justify-content:center; background: var(--surface-2); border:1px solid var(--border); font-size: .95em; }
+.panel-aside { margin-left:auto; }
+.maps-grid { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+.model-label { display:inline-block; font-weight: 800; font-size:.82em; padding: 6px 12px; border-radius: 8px; background: var(--accent-lo); color: var(--accent); margin-bottom: 14px; }
+
+/* 模式分頁：滑動的底色指示塊 */
+.seg { position:relative; display:inline-flex; flex-wrap:wrap; gap: 3px; padding: 4px; background: var(--surface-2); border:1px solid var(--border); border-radius: 13px; margin-bottom: 16px; max-width:100%; }
+.seg-ind { position:absolute; left:0; top:0; z-index:0; border-radius: 10px; background: var(--btn-bg); box-shadow: 0 4px 14px rgba(var(--accent-rgb),.32); opacity:0; transition: transform .5s var(--ease-out), width .5s var(--ease-out), height .5s var(--ease-out), opacity .2s; }
+.seg.ready .seg-ind { opacity:1; }
+.model-tab-btn { position:relative; z-index:1; border:0; background: transparent; color: var(--text-2); padding: 8px 17px; border-radius: 10px; font-size: .86em; font-weight: 750; letter-spacing: .2px; cursor:pointer; transition: color .3s; }
+.model-tab-btn:hover { color: var(--text); }
+.model-tab-btn.active { color: #fff; }
+.seg:not(.ready) .model-tab-btn.active { background: var(--btn-bg); }
+.model-panel.swap-in { animation: swapIn .5s var(--ease-out); }
+@keyframes swapIn { from { opacity:0; transform: translateY(8px) scale(.995); } to { opacity:1; transform:none; } }
+
+/* ── Images ─────────────────────────────────────────────────── */
+.zoomable { position:relative; border-radius: 12px; overflow:hidden; cursor: zoom-in; background: var(--surface-2); border: 1px solid var(--border); }
+.zoomable.skel:not(.loaded) { min-height: 240px; }
+.zoomable.skel:not(.loaded)::before {
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(100deg, transparent 30%, rgba(var(--accent-rgb),.12) 50%, transparent 70%);
+    background-size: 220% 100%; animation: shimmer 1.3s linear infinite;
+}
+@keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.zoomable > img { display:block; width:100%; height:auto; }
+.js .zoomable > img:not(.frame) { opacity: 0; transform: scale(1.02); transition: opacity .7s ease, transform .9s var(--ease-out); }
+.js .zoomable.loaded > img:not(.frame) { opacity: 1; transform: none; }
+.zoomable.loaded:hover > img:not(.frame) { transform: scale(1.01); }
+.zoomable.broken { cursor: default; min-height: 160px; }
+.zoomable.broken > img { visibility:hidden; }
+.zoomable.broken::after { content: var(--broken-text); position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color: var(--text-3); font-weight: 650; font-size:.9em; }
+.zoomable.broken .zoom-hint { display:none; }
+.zoom-hint { position:absolute; bottom:10px; right:10px; background: rgba(4,17,30,.7); color:#fff; padding: 5px 11px; border-radius: 8px; font-size: .73em; font-weight: 600; opacity:0; transform: translateY(4px); transition: opacity .25s, transform .25s; pointer-events:none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.zoomable:hover .zoom-hint { opacity:1; transform:none; }
+.map-note { margin-top: 12px; color: var(--text-3); font-size: .82em; line-height: 1.65; }
+
+/* ── Animation player ───────────────────────────────────────── */
+.player { background: var(--surface-2); border:1px solid var(--border); border-radius: 14px; overflow:hidden; }
+.frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: 78vh; width: 100%; }
+.frame-stage .frame { position:absolute; inset:0; width:100%; height:100%; object-fit: contain; opacity:0; transition: opacity .18s linear; }
+.frame-stage .frame.is-front { opacity:1; }
+.frame-stage.broken .frame { visibility:hidden; }
+.buffer { position:absolute; left:0; right:0; bottom:0; height: 3px; background: rgba(var(--accent-rgb),.12); transition: opacity .6s .4s; }
+.buffer span { display:block; height:100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); transition: transform .3s; }
+.frame-stage.buffered .buffer { opacity:0; }
+.player-controls { display:flex; align-items:center; gap: 8px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface); border-top: 1px solid var(--border); }
+.pc-btn { width: 38px; height: 38px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; border-radius: 11px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); cursor:pointer; transition: transform .25s var(--ease-spring), background .2s, color .2s; }
+.pc-btn svg { width: 18px; height: 18px; }
+.pc-btn:hover { color: var(--accent); border-color: var(--accent); }
+.pc-btn:active { transform: scale(.9); }
+.pc-main { width: 46px; height: 46px; border-radius: 50%; border:0; background: var(--btn-bg); color:#fff; box-shadow: 0 6px 18px rgba(var(--accent-rgb),.38); }
+.pc-main:hover { color:#fff; transform: scale(1.06); }
+.pc-main svg { width: 20px; height: 20px; }
+.ic-pause { display:none; }
+.player.playing .ic-play { display:none; }
+.player.playing .ic-pause { display:inline-flex; }
+.ic-play, .ic-pause { display:inline-flex; }
+.player.playing .pc-main { animation: glowPulse 2s ease-in-out infinite; }
+@keyframes glowPulse { 50% { box-shadow: 0 6px 26px rgba(var(--accent-rgb),.6); } }
+.timeline-wrap { flex: 1; min-width: 140px; display:flex; align-items:center; }
+.timeline { width:100%; -webkit-appearance:none; appearance:none; height: 6px; border-radius: 3px; cursor:pointer; outline-offset: 6px;
+    background: linear-gradient(90deg, var(--accent) 0 var(--fill, 0%), var(--border) var(--fill, 0%) 100%); }
+.timeline::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.25); transition: transform .2s var(--ease-spring); }
+.timeline::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); }
+.timeline:active::-webkit-slider-thumb { transform: scale(1.25); }
+.frame-counter { font-size: .8em; color: var(--text-3); font-weight: 700; min-width: 52px; text-align: right; }
+.speed-seg { display:inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-2); border:1px solid var(--border); }
+.speed-btn { border:0; background: transparent; color: var(--text-3); font-weight: 800; font-size: .76em; padding: 5px 9px; border-radius: 7px; cursor:pointer; transition: all .2s; }
+.speed-btn.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
+.kbd-hint { font-size: .7em; color: var(--text-3); font-weight: 600; display:none; }
+kbd { background: var(--surface-3); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font-family: 'Cascadia Mono','Consolas','Courier New', monospace; font-size: .9em; }
+
+/* ── Genesis page ───────────────────────────────────────────── */
+.genesis-panel { border-top: 4px solid var(--warn); }
+.genesis-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
+.genesis-toolbar:empty { display:none; }
+.genesis-legend { margin-top: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.ghost-btn { display:inline-flex; align-items:center; gap: 8px; padding: 9px 15px; border-radius: 11px; border:1px solid var(--border); background: var(--surface); color: var(--text-2); font-weight: 750; font-size:.85em; cursor:pointer; transition: all .25s; box-shadow: var(--shadow); }
+.ghost-btn svg { width: 17px; height: 17px; }
+.ghost-btn:hover { color: var(--accent); border-color: var(--accent); }
+.ghost-btn[aria-pressed="true"] { background: var(--btn-bg); color:#fff; border-color: transparent; }
+.genesis-panel.comparing .genesis-single, .genesis-panel.comparing .genesis-tabs { display:none; }
+.compare { animation: swapIn .5s var(--ease-out); }
+.compare-pickers { display:flex; align-items:center; justify-content:space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.compare-pickers label { display:flex; align-items:center; gap: 8px; }
+.compare-pickers select { font: inherit; font-weight: 750; font-size: .88em; padding: 7px 12px; border-radius: 10px; border:1px solid var(--border); background: var(--surface-2); color: var(--text); cursor:pointer; }
+.compare-hint { font-size: .8em; color: var(--text-3); font-weight: 600; }
+.pick-dot { width: 12px; height: 12px; border-radius: 4px; }
+.pick-dot.a { background: var(--accent); }
+.pick-dot.b { background: var(--warn); }
+.cmp-stage { position:relative; overflow:hidden; border-radius: 12px; border:1px solid var(--border); cursor: ew-resize; touch-action: pan-y; user-select:none; background: var(--surface-2); }
+.cmp-stage img { display:block; width:100%; height:auto; pointer-events:none; }
+.cmp-top { position:absolute; inset:0; clip-path: inset(0 50% 0 0); }
+.cmp-top img { width:100%; height:100%; object-fit: cover; object-position: left top; }
+.cmp-handle { position:absolute; top:0; bottom:0; left: 50%; width: 0; }
+.cmp-handle::before { content:""; position:absolute; top:0; bottom:0; left:-1.5px; width: 3px; background: #fff; box-shadow: 0 0 12px rgba(0,0,0,.4); }
+.cmp-handle span { position:absolute; top:50%; left: -22px; width: 44px; height: 44px; margin-top:-22px; border-radius:50%; background:#fff; color: #16324f; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: transform .25s var(--ease-spring); }
+.cmp-handle span svg { width: 22px; height: 22px; }
+.cmp-stage:active .cmp-handle span { transform: scale(1.12); }
+
+/* ── About page ─────────────────────────────────────────────── */
+.about-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items:start; }
+.scale-table { display:grid; gap: 8px; }
+.scale-row { display:grid; grid-template-columns: 70px 1fr auto; align-items:center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-weight: 650; font-size:.9em; }
+.scale-row .badge-cat { text-align:center; }
+.read-list { display:grid; gap: 16px; }
+.read-list h4 { font-size: .92em; font-weight: 800; }
+.read-list .map-note { margin-top: 4px; }
+.keys-list { display:grid; gap: 10px; font-size:.9em; }
+.keys-list div { display:flex; justify-content:space-between; gap: 12px; align-items:center; padding-bottom: 10px; border-bottom: 1px dashed var(--border); }
+.keys-list div:last-child { border-bottom:0; padding-bottom:0; }
+.keys-list span:last-child { color: var(--text-2); text-align:right; }
+.disclaimer p { color: var(--text-2); line-height:1.7; }
+.ver-line { margin-top: 12px; color: var(--text-3) !important; font-weight: 700; }
+
+/* ── Lightbox ───────────────────────────────────────────────── */
+.lightbox { position:fixed; inset:0; z-index: 9999; display:none; }
+.lightbox.open { display:block; }
+.lb-backdrop { position:absolute; inset:0; background: rgba(2,9,16,.94); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); opacity:0; transition: opacity .38s; }
+.lightbox.show .lb-backdrop { opacity:1; }
+.lb-stage { position:absolute; inset: 0; display:flex; align-items:center; justify-content:center; overflow:hidden; touch-action: none; padding: 64px 16px 48px; }
+.lb-img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 30px 90px rgba(0,0,0,.6); transform-origin: center; will-change: transform; user-select:none; -webkit-user-drag:none; cursor: zoom-in; opacity: 0; }
+.lb-img.anim { transition: transform .5s var(--ease-out), opacity .35s ease; }
+.lightbox.zoomed .lb-img { cursor: grab; }
+.lightbox.dragging .lb-img { cursor: grabbing; }
+.lb-bar { position:absolute; left:0; right:0; top:0; display:flex; align-items:center; gap: 14px; padding: 12px 16px; color:#eaf4fc; opacity:0; transform: translateY(-10px); transition: opacity .35s .1s, transform .45s var(--ease-out) .1s; }
+.lightbox.show .lb-bar { opacity:1; transform:none; }
+.lb-caption { font-weight: 700; font-size: .92em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.lb-counter { font-size: .8em; opacity:.6; font-weight: 700; }
+.lb-tools { margin-left:auto; display:flex; align-items:center; gap: 6px; }
+.lb-zoom { font-size: .78em; opacity:.7; min-width: 44px; text-align:center; }
+.lb-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color:#fff; font-size: 1.15em; cursor:pointer; transition: background .2s, transform .2s var(--ease-spring); }
+.lb-btn:hover { background: rgba(255,255,255,.22); }
+.lb-btn:active { transform: scale(.9); }
+.lb-nav { position:absolute; top:50%; margin-top: -26px; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition: opacity .35s .15s, background .2s, transform .25s var(--ease-spring); }
+.lb-nav svg { width: 24px; height: 24px; }
+.lb-nav.prev { left: 16px; } .lb-nav.next { right: 16px; }
+.lightbox.show .lb-nav { opacity:1; }
+.lb-nav:hover { background: rgba(255,255,255,.2); transform: scale(1.08); }
+.lightbox.single .lb-nav { display:none; }
+.lb-hint { position:absolute; left:50%; bottom: 14px; transform: translateX(-50%); color: rgba(234,244,252,.55); font-size: .76em; font-weight: 600; white-space:nowrap; opacity:0; transition: opacity .4s .3s; pointer-events:none; }
+.lightbox.show .lb-hint { opacity:1; }
+
+/* ── Footer ─────────────────────────────────────────────────── */
+footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12px; }
+.footer-inner { max-width: 1380px; margin: 0 auto; padding: 0 20px 32px; display:grid; grid-template-columns: 1fr auto; gap: 24px; align-items:start; }
+.footer-brand h3 { font-size: 1em; font-weight: 750; margin-bottom: 6px; }
+.footer-brand p { font-size: .82em; color: var(--text-3); line-height: 1.65; }
+.footer-links { display:flex; flex-direction:column; gap: 8px; align-items:flex-end; }
+.footer-link { color: var(--text-2); text-decoration:none; font-size: .83em; font-weight: 550; transition: color .2s; }
+.footer-link:hover { color: var(--accent); }
+.footer-copy { grid-column: 1 / -1; font-size: .76em; color: var(--text-3); padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* ── Bottom nav (mobile) ────────────────────────────────────── */
+.bottom-nav { display:none; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1640px) { .brand-text small { display:none; } }
+@media (min-width: 901px) { .kbd-hint { display:inline; } }
+@media (max-width: 1100px) {
+    .maps-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+    header { padding: 10px 16px; gap: 10px; }
+    .top-nav { display:none; }
+    .header-brand { flex: 1; }
+    .header-actions { width: 100%; justify-content: space-between; }
+    .actions-break { display:block; flex-basis:100%; height:0; margin:0; }
+    .bottom-nav {
+        position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 280;
+        display:flex; justify-content:space-around; gap: 4px; padding: 6px;
+        background: var(--glass); -webkit-backdrop-filter: saturate(1.6) blur(18px); backdrop-filter: saturate(1.6) blur(18px);
+        border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-lg);
+        animation: slideUp .6s var(--ease-out) .2s both;
+    }
+    @keyframes slideUp { from { transform: translateY(120%); } to { transform:none; } }
+    .bottom-nav a { position:relative; flex:1; display:flex; flex-direction:column; align-items:center; gap: 3px; padding: 7px 4px; border-radius: 14px; color: var(--text-3); text-decoration:none; font-size: .66em; font-weight: 750; transition: color .25s, background .3s; }
+    .bottom-nav a svg { width: 22px; height: 22px; transition: transform .35s var(--ease-spring); }
+    .bottom-nav a.active { color: var(--accent); background: var(--accent-lo); }
+    .bottom-nav a.active svg { transform: translateY(-1px) scale(1.1); }
+    .bn-count { position:absolute; top: 3px; right: calc(50% - 22px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color:#fff; font-style: normal; font-size: .9em; line-height: 16px; text-align:center; }
+    body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    .storm-hero { grid-template-columns: 1fr; padding: 28px 24px; }
+    .storm-hero .gauge { max-width: 240px; }
+    .genesis-teaser { grid-template-columns: 1fr; }
+    .teaser-body { border-left: 0; border-top: 4px solid var(--warn); }
+    .hero-inner { padding: 56px 20px 130px; }
+}
+@media (max-width: 600px) {
+    .page { padding: 18px 12px 36px; gap: 18px; }
+    header { padding: 10px 12px; }
+    .header-brand { width: 100%; min-width: 0; }
+    .brand-icon { width: 32px; height: 32px; font-size: 1em; }
+    .brand-text h1 { font-size: .95em; }
+    .header-actions { gap: 8px; }
+    .update-badge { flex: 0 1 auto; padding: 6px 9px 6px 7px; font-size: .68em; white-space: nowrap; min-width: 0; }
+    .ring { width: 15px; height: 15px; }
+    .theme-btn { flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }
+    .hero { min-height: 88vh; }
+    .hero-meta { gap: 8px; }
+    .hero-chip { min-width: 0; flex: 1 1 40%; padding: 9px 12px; }
+    .scroll-cue { display:none; }
+    .tile-body { grid-template-columns: 1fr; }
+    .tile-body .gauge { max-width: 220px; }
+    .storm-tile, .panel { padding: 16px; }
+    .storm-hero { padding: 24px 18px; border-radius: 20px; }
+    .stat-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+    .stat { padding: 13px 14px; }
+    .stat-value { font-size: 1.1em; }
+    .footer-inner { grid-template-columns: 1fr; }
+    .footer-links { align-items: flex-start; }
+    .map-note { font-size: .78em; }
+    .ss-seg em { font-size: .56em; }
+    .player-controls { gap: 6px; padding: 10px; }
+    .timeline-wrap { order: 10; flex-basis: 100%; }
+    .frame-counter { margin-left: auto; }
+    .compare-hint { order: 3; flex-basis: 100%; text-align:center; }
+    .lb-nav { width: 42px; height: 42px; margin-top: -21px; }
+    .lb-nav.prev { left: 8px; } .lb-nav.next { right: 8px; }
+    .lb-hint { white-space: normal; text-align:center; width: 90%; }
+    .empty-card { flex-direction: column; text-align:center; }
+}
+@media (max-width: 380px) {
+    .stat-grid { grid-template-columns: 1fr; }
+    .badge-cat, .badge-id, .badge-live, .badge-name { padding: 5px 9px; font-size: .72em; }
+}
+
+/* 使用者要求減少動態時：停掉所有非必要的動畫與轉場 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; }
+    .split .ch { opacity:1; transform:none; filter:none; }
+}
+</style>
 </head>
 <body>
-    <!-- Lightbox -->
-    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-        <button class="lb-close" onclick="closeLightbox()" title="Close"
-                data-i18n="lb.close" data-i18n-attr="title">✕</button>
-        <img id="lightbox-img" src="" alt="Full-size view">
-    </div>
-
-    <header>
-        <div class="header-brand">
-            <div class="brand-icon">🌀</div>
+    <a class="skip-link" href="#views">Skip to content</a>
+    <header id="site-header">
+        <a class="header-brand" href="#/overview">
+            <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
                 <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
-        </div>
+        </a>
+        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge">
-                <span class="update-dot"></span>
-                <span data-i18n="header.updated">Updated</span>: 2026-09-23 18:30:19
+            <div class="update-badge" id="update-badge">
+                <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
+                <span><span data-i18n="header.updated">Updated</span>: 2026-09-23 18:45:15</span>
             </div>
-            <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
-            <button class="theme-btn" onclick="toggleLang()" id="lang-btn"
-                    title="Switch language / 切換語言">🌐 中文</button>
+            <button class="theme-btn" id="theme-btn">🌙 Dark</button>
+            <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v2.0.2</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.0.0</span>
         </div>
+        <div class="scroll-progress" aria-hidden="true"></div>
     </header>
 
-    <div class="page">
-        <div class="main-content">
+    <main id="views">
 
-            <div class="panel genesis-panel">
-                <div class="panel-header">
-                    <span class="panel-icon">🌏</span>
-                    <span data-i18n="panel.genesis">Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview</span>
-                </div>
-                <div class="model-tabs genesis-tabs"><button class="model-tab-btn active" data-track="genesis" data-model="WNC3" onclick="switchModelTab('genesis', 'WNC3')">WNC3</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r2" onclick="switchModelTab('genesis', 'WNC2-r2')">WNC2-r2</button><button class="model-tab-btn" data-track="genesis" data-model="WNC2-r1" onclick="switchModelTab('genesis', 'WNC2-r1')">WNC2-r1</button><button class="model-tab-btn" data-track="genesis" data-model="GENC" onclick="switchModelTab('genesis', 'GENC')">GENC</button><button class="model-tab-btn" data-track="genesis" data-model="AIFS" onclick="switchModelTab('genesis', 'AIFS')">AIFS</button><button class="model-tab-btn" data-track="genesis" data-model="ECMWF" onclick="switchModelTab('genesis', 'ECMWF')">ECMWF</button></div>
+    <section class="view" data-view="overview" data-title-key="nav.overview">
+        
+        <div class="hero" style="--flow-rgb:143,211,255">
+            <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
+            <div class="hero-eye" aria-hidden="true"></div>
+            <div class="hero-inner">
                 
+                <div class="eyebrow"><span class="calm-dot"></span><span data-i18n="hero.eyebrow.quiet">Western Pacific · Monitoring</span></div>
+                <h2 class="hero-title split" data-i18n="hero.quiet.title">All quiet in the Western Pacific</h2>
+                <p class="hero-sub" data-i18n="hero.quiet.sub">No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.</p>
+                <div class="hero-cta">
+                    <a class="btn-primary" href="#/genesis"><span data-i18n="hero.cta.genesis">Genesis outlook</span> <span aria-hidden="true">→</span></a>
+                    <a class="btn-ghost" href="#/about" data-i18n="nav.about">About</a>
+                </div>
+                <div class="hero-meta">
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.next">Next refresh</span><span class="chip-v mono" id="hero-countdown">--:--</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v"><span class="mono">09-23 18:45</span> <span class="rel-time"></span></span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
+                </div>
+            </div>
+            <div class="scroll-cue" aria-hidden="true"><span></span></div>
+        </div>
+        <div class="page">
+            <div class="section-head reveal">
+                <div><div class="kicker" data-i18n="sec.active.kicker">Live</div>
+                <h3 data-i18n="sec.active">Active systems</h3></div>
+                <span class="count-chip mono">0</span>
+            </div>
+            
+            <div class="empty-card reveal">
+                <div class="calm-sea" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div>
+                    <div class="empty-title" data-i18n="empty.title">No Active Systems</div>
+                    <p class="empty-desc" data-i18n="empty.desc">Nothing is spinning up right now. This page refreshes automatically every 30 minutes.</p>
+                </div>
+            </div>
+            
+            <div class="section-head reveal">
+                <div><div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
+                <h3 data-i18n="sec.genesis">Genesis potential</h3></div>
+            </div>
+            <a class="genesis-teaser reveal" href="#/genesis">
+                <div class="teaser-img"><img src="WP_Genesis_Potential_WNC3.png" alt="" loading="lazy" decoding="async"></div>
+                <div class="teaser-body">
+                    <p data-i18n="genesis.teaser" data-i18n-n="6">Where might the next storm form? Explore ensemble genesis signals from 6 models.</p>
+                    <div class="mini-chips"><span class="mini-chip">WNC3</span><span class="mini-chip">WNC2-r2</span><span class="mini-chip">WNC2-r1</span><span class="mini-chip">GENC</span><span class="mini-chip">AIFS</span><span class="mini-chip">ECMWF</span></div>
+                    <span class="tile-cta" data-i18n="genesis.open">Explore outlook →</span>
+                </div>
+            </a>
+            <div class="section-head reveal">
+                <div><div class="kicker" data-i18n="sec.models.kicker">Sources</div>
+                <h3 data-i18n="sec.models">Forecast models</h3></div>
+                <span class="legend-inline"><span class="model-state on"></span><span data-i18n="models.on">Output in this run</span></span>
+            </div>
+            <div class="model-grid">
+                <div class="model-card reveal on">
+                    <div class="model-name">WNC3<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WNC2-r2<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WNC2-r1<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">GENC<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">AIFS<span class="model-state" title=""></span></div>
+                    <div class="model-org">ECMWF</div>
+                    <div class="model-desc">AIFS-ENS + AIFS-single</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">ECMWF<span class="model-state" title=""></span></div>
+                    <div class="model-org">ECMWF</div>
+                    <div class="model-desc">IFS ENS + HRES</div>
+                </div></div>
+        </div>
+    </section>
+
+
+    <section class="view" data-view="genesis" data-title-key="nav.genesis">
+        <div class="page">
+            <div class="page-head reveal">
+                <div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
+                <h2 class="page-title" data-i18n="panel.genesis">Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview</h2>
+            </div>
+            <div class="panel genesis-panel reveal">
+                <div class="genesis-toolbar">
+                    <div class="seg model-tabs genesis-tabs" role="tablist"><span class="seg-ind"></span><button class="model-tab-btn active" role="tab" data-track="genesis" data-model="WNC3">WNC3</button><button class="model-tab-btn" role="tab" data-track="genesis" data-model="WNC2-r2">WNC2-r2</button><button class="model-tab-btn" role="tab" data-track="genesis" data-model="WNC2-r1">WNC2-r1</button><button class="model-tab-btn" role="tab" data-track="genesis" data-model="GENC">GENC</button><button class="model-tab-btn" role="tab" data-track="genesis" data-model="AIFS">AIFS</button><button class="model-tab-btn" role="tab" data-track="genesis" data-model="ECMWF">ECMWF</button></div>
+                    <button class="ghost-btn" id="gen-compare-btn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg><span data-i18n="genesis.compare">Compare models</span></button>
+                </div>
+                <div class="genesis-single">
                 <div class="model-panel" data-track="genesis" data-model="WNC3">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential_WNC3.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC3)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC3">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC3.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (WNC3)"><img src="WP_Genesis_Potential_WNC3.png" alt="Western Pacific Tropical Cyclone Genesis Potential (WNC3)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC3">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from Google DeepMind WNC3.
+                        </p>
                     </div>
                 </div>
                 <div class="model-panel" data-track="genesis" data-model="WNC2-r2" style="display:none;">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r2)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC2-r2">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC2-r2.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r2)"><img src="WP_Genesis_Potential.png" alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r2)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC2-r2">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from Google DeepMind WNC2-r2.
+                        </p>
                     </div>
                 </div>
                 <div class="model-panel" data-track="genesis" data-model="WNC2-r1" style="display:none;">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential_WNC2-r1.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r1)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC2-r1">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind WNC2-r1.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r1)"><img src="WP_Genesis_Potential_WNC2-r1.png" alt="Western Pacific Tropical Cyclone Genesis Potential (WNC2-r1)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="Google DeepMind WNC2-r1">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from Google DeepMind WNC2-r1.
+                        </p>
                     </div>
                 </div>
                 <div class="model-panel" data-track="genesis" data-model="GENC" style="display:none;">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential_GENC.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (GENC)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="Google DeepMind GENC">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from Google DeepMind GENC.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (GENC)"><img src="WP_Genesis_Potential_GENC.png" alt="Western Pacific Tropical Cyclone Genesis Potential (GENC)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="Google DeepMind GENC">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from Google DeepMind GENC.
+                        </p>
                     </div>
                 </div>
                 <div class="model-panel" data-track="genesis" data-model="AIFS" style="display:none;">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential_AIFS.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (AIFS)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="ECMWF Open Data">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from ECMWF Open Data.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (AIFS)"><img src="WP_Genesis_Potential_AIFS.png" alt="Western Pacific Tropical Cyclone Genesis Potential (AIFS)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="ECMWF Open Data">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from ECMWF Open Data.
+                        </p>
                     </div>
                 </div>
                 <div class="model-panel" data-track="genesis" data-model="ECMWF" style="display:none;">
-                    <div class="genesis-body">
-                        <div class="map-image-wrapper genesis-map-wrapper"
-                             onclick="openLightbox(this.querySelector('img').src)">
-                            <img src="WP_Genesis_Potential_ECMWF.png"
-                                 alt="Western Pacific Tropical Cyclone Genesis Potential (ECMWF)"
-                                 class="map-image genesis-map-img"
-                                 onload="this.classList.remove('loading')"
-                                 onerror="const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';">
-                            <div class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</div>
-                        </div>
-                        <div class="genesis-legend">
-                            <p class="map-note" style="margin-top:0;"
-                               data-i18n="note.genesis" data-i18n-source="ECMWF Open Data">
-                                Circles = ensemble members at each 6-hr step, colored by minimum sea level
-                                pressure. Gray lines = individual ensemble tracks (0–360 h).
-                                Data sourced from ECMWF Open Data.
-                            </p>
-                        </div>
+                    <figure class="zoomable skel genesis-map-wrapper" data-caption="Western Pacific Tropical Cyclone Genesis Potential (ECMWF)"><img src="WP_Genesis_Potential_ECMWF.png" alt="Western Pacific Tropical Cyclone Genesis Potential (ECMWF)" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');const p=this.closest('.model-panel'); p.dataset.broken='true'; p.style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <div class="genesis-legend">
+                        <p class="map-note" style="margin-top:0;"
+                           data-i18n="note.genesis" data-i18n-source="ECMWF Open Data">
+                            Circles = ensemble members at each 6-hr step, colored by minimum sea level
+                            pressure. Gray lines = individual ensemble tracks (0–360 h).
+                            Data sourced from ECMWF Open Data.
+                        </p>
+                    </div>
+                </div></div>
+                
+                <div class="compare" id="gen-compare" hidden>
+                    <div class="compare-pickers">
+                        <label><span class="pick-dot a"></span><select id="cmp-a" aria-label="Left model"><option value="WP_Genesis_Potential_WNC3.png" selected>WNC3</option><option value="WP_Genesis_Potential.png">WNC2-r2</option><option value="WP_Genesis_Potential_WNC2-r1.png">WNC2-r1</option><option value="WP_Genesis_Potential_GENC.png">GENC</option><option value="WP_Genesis_Potential_AIFS.png">AIFS</option><option value="WP_Genesis_Potential_ECMWF.png">ECMWF</option></select></label>
+                        <span class="compare-hint" data-i18n="genesis.compare.hint">Drag the divider to compare two models</span>
+                        <label><select id="cmp-b" aria-label="Right model"><option value="WP_Genesis_Potential_WNC3.png">WNC3</option><option value="WP_Genesis_Potential.png" selected>WNC2-r2</option><option value="WP_Genesis_Potential_WNC2-r1.png">WNC2-r1</option><option value="WP_Genesis_Potential_GENC.png">GENC</option><option value="WP_Genesis_Potential_AIFS.png">AIFS</option><option value="WP_Genesis_Potential_ECMWF.png">ECMWF</option></select><span class="pick-dot b"></span></label>
+                    </div>
+                    <div class="cmp-stage" tabindex="0" role="slider" aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                        <img class="cmp-base" src="WP_Genesis_Potential.png" alt="" draggable="false">
+                        <div class="cmp-top"><img src="WP_Genesis_Potential_WNC3.png" alt="" draggable="false"></div>
+                        <div class="cmp-handle"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></span></div>
                     </div>
                 </div>
             </div>
-
-            <div class="storm-card">
-                <div class="intensity-stripe" style="background:#64748b;"></div>
-                <div class="storm-card-inner">
-                    <div class="storm-header">
-                        <div class="storm-title" data-i18n="empty.title">No Active Systems</div>
-                    </div>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <div class="info-label" data-i18n="empty.status">Status</div>
-                            <div class="info-value" data-i18n="empty.await">Awaiting data…</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        
         </div>
+    </section>
 
-        <footer>
-            <div class="footer-inner">
-                <div class="footer-brand">
-                    <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
-                    <p data-i18n="footer.desc">
-                        Ensemble track forecasts from DeepMind WeatherNext —
-                        WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data —
-                        AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
-                        Official intensity guidance from JTWC. Data refreshed automatically.
-                    </p>
-                </div>
-                <div class="footer-links">
-                    <a href="https://deepmind.google.com/science/weatherlab" class="footer-link" target="_blank"
-                       data-i18n="footer.link1">🌐 DeepMind Weather</a>
-                    <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank"
-                       data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
-                    <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank">🛰 JTWC</a>
-                </div>
-                <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
+    <section class="view" data-view="about" data-title-key="nav.about">
+        <div class="page">
+            <div class="page-head reveal">
+                <div class="kicker" data-i18n="about.kicker">About</div>
+                <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 30 minutes, next to the official JTWC forecast.</p>
             </div>
-        </footer>
+            <div class="about-grid">
+                <div class="panel reveal">
+                    <div class="panel-header"><span class="panel-icon">🎨</span><span data-i18n="about.scale">Intensity categories</span></div>
+                    <div class="scale-table">
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#8A97A6;color:#0D2033">TD</span>
+                        <span data-i18n="catname.TD">TD</span>
+                        <span class="mono">&lt; 34 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF">TS</span>
+                        <span data-i18n="catname.TS">TS</span>
+                        <span class="mono">34–63 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#1FA97E;color:#08281E">Cat1</span>
+                        <span data-i18n="catname.Cat1">Cat1</span>
+                        <span class="mono">64–82 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#E0AC2B;color:#3A2A02">Cat2</span>
+                        <span data-i18n="catname.Cat2">Cat2</span>
+                        <span class="mono">83–95 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#EE7A22;color:#3A1B02">Cat3</span>
+                        <span data-i18n="catname.Cat3">Cat3</span>
+                        <span class="mono">96–112 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#DC3A4E;color:#FFFFFF">Cat4</span>
+                        <span data-i18n="catname.Cat4">Cat4</span>
+                        <span class="mono">113–136 kt</span>
+                    </div>
+                    <div class="scale-row reveal">
+                        <span class="badge-cat" style="background:#A548C8;color:#FFFFFF">Cat5</span>
+                        <span data-i18n="catname.Cat5">Cat5</span>
+                        <span class="mono">≥ 137 kt</span>
+                    </div></div>
+                </div>
+                <div class="panel reveal">
+                    <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
+                    <div class="read-list">
+                        <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WNC3 / GENC / AIFS / ECMWF"></p></div>
+                        <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
+                        <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data"></p></div>
+                    </div>
+                </div>
+                <div class="panel reveal">
+                    <div class="panel-header"><span class="panel-icon">⌨️</span><span data-i18n="about.keys">Keyboard shortcuts</span></div>
+                    <div class="keys-list">
+                        <div><span><kbd>1</kbd>–<kbd>3</kbd></span><span data-i18n="key.views">Switch pages</span></div>
+                        <div><span><kbd>Space</kbd></span><span data-i18n="key.play">Play / pause the animation</span></div>
+                        <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step frames · browse images in the viewer</span></div>
+                        <div><span><kbd>+</kbd><kbd>−</kbd></span><span data-i18n="key.zoom">Zoom in the image viewer</span></div>
+                        <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the image viewer</span></div>
+                    </div>
+                </div>
+                <div class="panel reveal disclaimer">
+                    <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
+                    <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
+                    <p class="mono ver-line">v3.0.0</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    </main>
+
+    <footer>
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
+                <p data-i18n="footer.desc">
+                    Ensemble track forecasts from DeepMind WeatherNext —
+                    WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data —
+                    AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
+                    Official intensity guidance from JTWC. Data refreshed automatically.
+                </p>
+            </div>
+            <div class="footer-links">
+                <a href="https://deepmind.google.com/science/weatherlab" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link1">🌐 DeepMind Weather</a>
+                <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
+                <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank" rel="noopener">🛰 JTWC</a>
+            </div>
+            <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
+        </div>
+    </footer>
+
+    <nav class="bottom-nav" aria-label="Pages"><a href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
+
+    <!-- 看圖器：縮放／拖曳／左右切換 -->
+    <div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="lb-backdrop"></div>
+        <div class="lb-stage"><img id="lb-img" alt="" draggable="false"></div>
+        <div class="lb-bar">
+            <span class="lb-caption" id="lb-caption"></span>
+            <span class="lb-counter mono" id="lb-counter"></span>
+            <div class="lb-tools">
+                <button class="lb-btn" data-lb="out" data-i18n="lb.zoomout" data-i18n-attr="title" title="Zoom out">−</button>
+                <span class="lb-zoom mono" id="lb-zoom">100%</span>
+                <button class="lb-btn" data-lb="in" data-i18n="lb.zoomin" data-i18n-attr="title" title="Zoom in">+</button>
+                <button class="lb-btn" data-lb="close" data-i18n="lb.close" data-i18n-attr="title" title="Close">✕</button>
+            </div>
+        </div>
+        <button class="lb-nav prev" data-lb="prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="lb-nav next" data-lb="next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
     </div>
 
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T18:45:15+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
-    // ── i18n（中／英切換）─────────────────────────────────────────────────────
-    // 版面上所有固定文案都掛 data-i18n="key"，切換語言時由 applyLang() 一次換掉；
-    // 帶參數的字串（模式名稱、資料來源）用 {model} / {source} 佔位，
-    // 由 data-i18n-model / data-i18n-source 提供值。
-    const PAGE_TRACK_IDS = "Forecast";
+(function () {
+'use strict';
 
-    const I18N = {
-      en: {
-        'doc.title':        "Pillar's Tropical Cyclone Forecast",
-        'brand.title':      "Pillar's Tropical Cyclone Forecast",
-        'brand.sub':        'Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
-        'header.updated':   'Updated',
-        'btn.dark':         '🌙 Dark',
-        'btn.light':        '☀️ Light',
-        'btn.lang':         '🌐 中文',
-        'empty.title':      'No Active Systems',
-        'empty.status':     'Status',
-        'empty.await':      'Awaiting data…',
-        'storm.subtitle':   'Western Pacific Tropical Cyclone',
-        'badge.live':       'LIVE',
-        'info.time':        '⏱ Obs Time',
-        'info.pos':         '📍 Position',
-        'info.wind':        '💨 Max Wind',
-        'info.intensity':   '🔥 Intensity',
-        'panel.comparison': 'Multi-Model Comparison',
-        'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
-        'zoom.hint':        '🔍 Click to enlarge',
-        'panel.anim':       '{model} Track Evolution Animation',
-        'btn.play':         '▶ Play',
-        'btn.pause':        '⏸ Pause',
-        'btn.reset':        '⟲ Reset',
-        'label.speed':      '⚡ Speed:',
-        'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
-        'panel.ensemble':   'Ensemble Track Forecast',
-        'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position',
-        'panel.jtwc':       'JTWC Official Forecast',
-        'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
-        'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
-        'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (0–360 h). Data sourced from {source}.',
-        'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-        'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
-        'footer.link1':     '🌐 DeepMind Weather',
-        'footer.link2':     '🇪🇺 ECMWF Open Data',
-        'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
-        'lb.close':         'Close',
-      },
-      zh: {
-        'doc.title':        'Pillar 熱帶氣旋預報',
-        'brand.title':      'Pillar 熱帶氣旋預報',
-        'brand.sub':        'WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
-        'header.updated':   '更新於',
-        'btn.dark':         '🌙 深色',
-        'btn.light':        '☀️ 淺色',
-        'btn.lang':         '🌐 English',
-        'empty.title':      '目前無活躍系統',
-        'empty.status':     '狀態',
-        'empty.await':      '等待資料中…',
-        'storm.subtitle':   '西北太平洋熱帶氣旋',
-        'badge.live':       '即時',
-        'info.time':        '⏱ 觀測時間',
-        'info.pos':         '📍 中心位置',
-        'info.wind':        '💨 最大風速',
-        'info.intensity':   '🔥 強度',
-        'panel.comparison': '多模式比較',
-        'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
-        'zoom.hint':        '🔍 點擊放大',
-        'panel.anim':       '{model} 路徑演變動畫',
-        'btn.play':         '▶ 播放',
-        'btn.pause':        '⏸ 暫停',
-        'btn.reset':        '⟲ 重置',
-        'label.speed':      '⚡ 速度：',
-        'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
-        'panel.ensemble':   '系集路徑預報',
-        'note.ensemble':    '{model} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 34 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
-        'panel.jtwc':       'JTWC 官方預報',
-        'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
-        'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
-        'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{source}。',
-        'footer.title':     'Pillar 熱帶氣旋預報系統',
-        'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
-        'footer.link1':     '🌐 DeepMind 天氣實驗室',
-        'footer.link2':     '🇪🇺 ECMWF 開放資料',
-        'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
-        'lb.close':         '關閉',
-      }
+const SITE = JSON.parse(document.getElementById('site-data').textContent);
+const root = document.documentElement;
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reduced = () => RM.matches;
+const canHover = window.matchMedia('(hover: hover)').matches;
+
+// ── i18n（中／英切換）─────────────────────────────────────────────
+// 版面上所有固定文案都掛 data-i18n="key"，切換語言時由 applyLang() 一次換掉；
+// 帶參數的字串用 {name} 佔位，值由同一元素上的 data-i18n-name 提供。
+const I18N = {
+  en: {
+    'doc.title':        "Pillar's Tropical Cyclone Forecast",
+    'brand.title':      "Pillar's Tropical Cyclone Forecast",
+    'brand.sub':        'Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+    'header.updated':   'Updated',
+    'btn.dark':         '🌙 Dark',
+    'btn.light':        '☀️ Light',
+    'btn.lang':         '🌐 中文',
+    'nav.overview':     'Overview',
+    'nav.storms':       'Storms',
+    'nav.genesis':      'Genesis',
+    'nav.about':        'About',
+    'hero.eyebrow.live':  'Now tracking',
+    'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
+    'hero.quiet.title': 'All quiet in the Western Pacific',
+    'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
+    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 30 minutes.',
+    'hero.cta.storm':   'Open forecast',
+    'hero.cta.genesis': 'Genesis outlook',
+    'hero.next':        'Next refresh',
+    'hero.updated':     'Data updated',
+    'hero.active':      'Active systems',
+    'sec.active.kicker':'Live',
+    'sec.active':       'Active systems',
+    'sec.genesis.kicker':'Outlook',
+    'sec.genesis':      'Genesis potential',
+    'sec.models.kicker':'Sources',
+    'sec.models':       'Forecast models',
+    'models.on':        'Output in this run',
+    'tile.open':        'Open full forecast →',
+    'genesis.teaser':   'Where might the next storm form? Explore ensemble genesis signals from {n} models.',
+    'genesis.open':     'Explore outlook →',
+    'genesis.compare':  'Compare models',
+    'genesis.compare.hint': 'Drag the divider to compare two models',
+    'empty.title':      'No Active Systems',
+    'empty.status':     'Status',
+    'empty.await':      'Awaiting data…',
+    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 30 minutes.',
+    'storm.subtitle':   'Western Pacific Tropical Cyclone',
+    'badge.live':       'LIVE',
+    'catname.TD':       'Tropical Depression',
+    'catname.TS':       'Tropical Storm',
+    'catname.Cat1':     'Category 1 Typhoon',
+    'catname.Cat2':     'Category 2 Typhoon',
+    'catname.Cat3':     'Category 3 Typhoon',
+    'catname.Cat4':     'Category 4 Typhoon',
+    'catname.Cat5':     'Category 5 Super Typhoon',
+    'catname.Unknown':  'Intensity unknown',
+    'stat.time':        'Obs time',
+    'stat.pos':         'Position',
+    'stat.wind':        'Max wind',
+    'stat.gust':        'Gusts',
+    'stat.pres':        'Min pressure (model t0)',
+    'stat.models':      'Models',
+    'scale.title':      'Intensity scale (Saffir–Simpson)',
+    'sub.cmp':          'Comparison',
+    'sub.anim':         'Animation',
+    'sub.maps':         'Ensemble & JTWC',
+    'panel.comparison': 'Multi-Model Comparison',
+    'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
+    'zoom.hint':        '🔍 Click to enlarge',
+    'panel.anim':       '{model} Track Evolution Animation',
+    'panel.anim.generic': 'Track Evolution Animation',
+    'note.anim':        'Step through the forecast frame by frame to watch the ensemble tracks unfold over time.',
+    'pl.play':          'Play',
+    'pl.pause':         'Pause',
+    'pl.prev':          'Previous frame',
+    'pl.next':          'Next frame',
+    'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
+    'panel.ensemble':   'Ensemble Track Forecast',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position',
+    'panel.jtwc':       'JTWC Official Forecast',
+    'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
+    'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
+    'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (0–360 h). Data sourced from {source}.',
+    'about.kicker':     'About',
+    'about.title':      'How to read this site',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 30 minutes, next to the official JTWC forecast.',
+    'about.scale':      'Intensity categories',
+    'about.reading':    'Reading the maps',
+    'about.keys':       'Keyboard shortcuts',
+    'about.notice':     'Notice',
+    'about.disclaimer': 'Not for operational use. For official warnings, follow your national meteorological agency.',
+    'key.views':        'Switch pages',
+    'key.play':         'Play / pause the animation',
+    'key.seek':         'Step frames · browse images in the viewer',
+    'key.zoom':         'Zoom in the image viewer',
+    'key.esc':          'Close the image viewer',
+    'footer.title':     "Pillar's Tropical Cyclone Forecast System",
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.link1':     '🌐 DeepMind Weather',
+    'footer.link2':     '🇪🇺 ECMWF Open Data',
+    'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
+    'lb.close':         'Close',
+    'lb.zoomin':        'Zoom in',
+    'lb.zoomout':       'Zoom out',
+    'lb.hint':          'Scroll or pinch to zoom · drag to pan · ←/→ to browse',
+    'img.broken':       'Image unavailable',
+    'rel.now':          'just now',
+    'rel.min':          '{n} min ago',
+    'rel.hr':           '{n} h ago',
+    'status.stale':     'Data may be stale — last update {t}',
+    'status.next':      'Next refresh in {t}',
+  },
+  zh: {
+    'doc.title':        'Pillar 熱帶氣旋預報',
+    'brand.title':      'Pillar 熱帶氣旋預報',
+    'brand.sub':        'WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+    'header.updated':   '更新於',
+    'btn.dark':         '🌙 深色',
+    'btn.light':        '☀️ 淺色',
+    'btn.lang':         '🌐 English',
+    'nav.overview':     '總覽',
+    'nav.storms':       '颱風',
+    'nav.genesis':      '生成潛勢',
+    'nav.about':        '說明',
+    'hero.eyebrow.live':  '正在追蹤',
+    'hero.eyebrow.quiet': '西北太平洋 · 監測中',
+    'hero.quiet.title': '西北太平洋目前風平浪靜',
+    'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
+    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 30 分鐘更新。',
+    'hero.cta.storm':   '查看預報',
+    'hero.cta.genesis': '生成潛勢',
+    'hero.next':        '下次更新',
+    'hero.updated':     '資料更新',
+    'hero.active':      '活躍系統',
+    'sec.active.kicker':'即時',
+    'sec.active':       '活躍系統',
+    'sec.genesis.kicker':'展望',
+    'sec.genesis':      '生成潛勢',
+    'sec.models.kicker':'資料來源',
+    'sec.models':       '預報模式',
+    'models.on':        '本次有產出',
+    'tile.open':        '查看完整預報 →',
+    'genesis.teaser':   '下一個颱風可能在哪裡生成？查看 {n} 個模式的系集生成訊號。',
+    'genesis.open':     '查看生成潛勢 →',
+    'genesis.compare':  '模式比較',
+    'genesis.compare.hint': '拖曳分隔線比較兩個模式',
+    'empty.title':      '目前無活躍系統',
+    'empty.status':     '狀態',
+    'empty.await':      '等待資料中…',
+    'empty.desc':       '目前沒有正在發展的系統。本頁每 30 分鐘自動更新。',
+    'storm.subtitle':   '西北太平洋熱帶氣旋',
+    'badge.live':       '即時',
+    'catname.TD':       '熱帶性低氣壓',
+    'catname.TS':       '熱帶風暴',
+    'catname.Cat1':     '一級颱風',
+    'catname.Cat2':     '二級颱風',
+    'catname.Cat3':     '三級颱風',
+    'catname.Cat4':     '四級颱風',
+    'catname.Cat5':     '五級超級颱風',
+    'catname.Unknown':  '強度未知',
+    'stat.time':        '觀測時間',
+    'stat.pos':         '中心位置',
+    'stat.wind':        '最大風速',
+    'stat.gust':        '陣風',
+    'stat.pres':        '最低氣壓（模式初始）',
+    'stat.models':      '模式',
+    'scale.title':      '強度分級（薩菲爾－辛普森）',
+    'sub.cmp':          '模式比較',
+    'sub.anim':         '動畫',
+    'sub.maps':         '系集與 JTWC',
+    'panel.comparison': '多模式比較',
+    'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
+    'zoom.hint':        '🔍 點擊放大',
+    'panel.anim':       '{model} 路徑演變動畫',
+    'panel.anim.generic': '路徑演變動畫',
+    'note.anim':        '逐格檢視預報，看系集路徑如何隨預報時間展開。',
+    'pl.play':          '播放',
+    'pl.pause':         '暫停',
+    'pl.prev':          '上一格',
+    'pl.next':          '下一格',
+    'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
+    'panel.ensemble':   '系集路徑預報',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 34 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
+    'panel.jtwc':       'JTWC 官方預報',
+    'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
+    'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
+    'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{source}。',
+    'about.kicker':     '說明',
+    'about.title':      '如何閱讀本站',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 30 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。',
+    'about.scale':      '強度分級',
+    'about.reading':    '圖面說明',
+    'about.keys':       '鍵盤快捷鍵',
+    'about.notice':     '注意事項',
+    'about.disclaimer': '本站僅供參考，不可作為作業依據；官方警報請以各國氣象單位發布為準。',
+    'key.views':        '切換頁面',
+    'key.play':         '播放／暫停動畫',
+    'key.seek':         '逐格播放 · 在看圖器中切換圖片',
+    'key.zoom':         '看圖器縮放',
+    'key.esc':          '關閉看圖器',
+    'footer.title':     'Pillar 熱帶氣旋預報系統',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.link1':     '🌐 DeepMind 天氣實驗室',
+    'footer.link2':     '🇪🇺 ECMWF 開放資料',
+    'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
+    'lb.close':         '關閉',
+    'lb.zoomin':        '放大',
+    'lb.zoomout':       '縮小',
+    'lb.hint':          '滾輪或雙指縮放 · 拖曳平移 · ←/→ 切換圖片',
+    'img.broken':       '圖片暫時無法載入',
+    'rel.now':          '剛剛',
+    'rel.min':          '{n} 分鐘前',
+    'rel.hr':           '{n} 小時前',
+    'status.stale':     '資料可能已過時（最後更新 {t}）',
+    'status.next':      '{t} 後自動更新',
+  }
+};
+
+// 先讀使用者上次的選擇，沒有的話看瀏覽器語言（zh-* 一律給中文）
+let currentLang = (function () {
+    try {
+        const saved = localStorage.getItem('lang');
+        if (saved === 'zh' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+})();
+
+function t(key, params) {
+    const dict = I18N[currentLang] || I18N.en;
+    let s = (dict[key] !== undefined) ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : '');
+    if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+    return s;
+}
+
+function i18nParams(el) {
+    const p = {};
+    for (const k in el.dataset) {
+        if (k.startsWith('i18n') && k !== 'i18n' && k !== 'i18nAttr') p[k.slice(4).toLowerCase()] = el.dataset[k];
+    }
+    return p;
+}
+
+function applyLang(lang, save = true) {
+    currentLang = (lang === 'zh') ? 'zh' : 'en';
+    root.setAttribute('lang', currentLang === 'zh' ? 'zh-Hant' : 'en');
+    $$('[data-i18n]').forEach(el => {
+        const txt = t(el.dataset.i18n, i18nParams(el));
+        if (!txt) return;                       // 字典沒這個 key 就保留原文，不要清空
+        if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, txt);
+        else el.innerHTML = txt;
+    });
+    root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
+    const langBtn = $('#lang-btn');
+    if (langBtn) langBtn.textContent = t('btn.lang');
+    applyTheme(root.getAttribute('data-theme') || 'light', false);
+    $$('.split').forEach(splitText);
+    $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
+    updateTitle();
+    requestAnimationFrame(updateIndicators);   // 字寬變了，指示塊要重新量
+    tickClock();
+    if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
+}
+
+// 標題逐字進場：拆成字元 span；中日文字每個字自成一組，才能正常換行
+function splitText(el) {
+    const text = el.textContent.trim();
+    el.setAttribute('aria-label', text);
+    const tokens = text.match(/[⺀-鿿豈-﫿＀-￯]|[^\s⺀-鿿豈-﫿＀-￯]+|\s+/g) || [];
+    let i = 0, out = '';
+    for (const tok of tokens) {
+        if (/^\s+$/.test(tok)) { out += ' '; continue; }
+        out += '<span class="w" aria-hidden="true">';
+        for (const ch of tok) out += `<span class="ch" style="--i:${i++}">${ch.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`;
+        out += '</span>';
+    }
+    el.innerHTML = out;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────
+// 預設依時段（18–6 點深色），已在 <head> 先套用；按鈕切換時用圓形擴散轉場。
+function applyTheme(theme, save = true) {
+    root.setAttribute('data-theme', theme);
+    const btn = $('#theme-btn');
+    if (btn) btn.textContent = theme === 'dark' ? t('btn.light') : t('btn.dark');
+    if (save) { try { localStorage.setItem('theme', theme); } catch (e) {} }
+}
+
+function toggleTheme(ev) {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    if (!document.startViewTransition || reduced()) { applyTheme(next); return; }
+    const r = ev && ev.currentTarget ? ev.currentTarget.getBoundingClientRect() : null;
+    const x = r ? r.left + r.width / 2 : innerWidth / 2;
+    const y = r ? r.top + r.height / 2 : 0;
+    const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const tr = document.startViewTransition(() => applyTheme(next));
+    tr.ready.then(() => {
+        root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
+                     { duration: 650, easing: 'cubic-bezier(.4,0,.2,1)', pseudoElement: '::view-transition-new(root)' });
+    }).catch(() => {});
+}
+
+// ── Router（#/overview、#/storm/WP..., #/genesis, #/about）─────────
+const ROUTES = SITE.routes;
+let currentRoute = null;
+let navToken = 0;
+
+function viewFor(route) { return $$('.view').find(v => v.dataset.view === route) || null; }
+
+function parseHash() {
+    const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+    if (ROUTES.includes(h)) return h;
+    if (h === 'storm') return ROUTES.find(r => r.startsWith('storm/')) || 'overview';
+    return 'overview';
+}
+
+function show(route, first) {
+    if (route === currentRoute) return;
+    const next = viewFor(route);
+    if (!next) return;
+    const prevIdx = ROUTES.indexOf(currentRoute);
+    const dir = ROUTES.indexOf(route) >= prevIdx ? 1 : -1;
+    currentRoute = route;
+    const token = ++navToken;
+    updateNav();
+
+    const swap = () => {
+        if (token !== navToken) return;             // 使用者已經又點了別頁
+        $$('.view.active').forEach(v => {
+            if (v === next) return;
+            v.classList.remove('active', 'leaving', 'entering');
+            pausePlayersIn(v);
+        });
+        next.style.setProperty('--dir', dir);
+        next.classList.add('active');
+        if (!first && !reduced()) {
+            next.classList.remove('entering'); void next.offsetWidth; next.classList.add('entering');
+        }
+        if (!first) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        onViewShown(next);
     };
+    const leaving = $$('.view.active').filter(v => v !== next);
+    if (!first && leaving.length && !reduced()) {
+        leaving.forEach(v => { v.style.setProperty('--dir', dir); v.classList.add('leaving'); });
+        setTimeout(swap, 150);
+    } else swap();
+}
 
-    // 先讀使用者上次的選擇，沒有的話看瀏覽器語言（zh-* 一律給中文）
-    let currentLang = (function() {
-        try {
-            const saved = localStorage.getItem('lang');
-            if (saved === 'zh' || saved === 'en') return saved;
-        } catch (e) {}
-        return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
-    })();
+function updateTitle() {
+    const v = currentRoute && viewFor(currentRoute);
+    let name = '';
+    if (v) name = v.dataset.title || (v.dataset.titleKey ? t(v.dataset.titleKey) : '');
+    document.title = (name && currentRoute !== 'overview' ? name + ' · ' : '') + t('doc.title')
+                   + (SITE.trackIds ? ' | ' + SITE.trackIds : '');
+}
 
-    function t(key, params) {
-        const dict = I18N[currentLang] || I18N.en;
-        let s = (dict[key] !== undefined) ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : '');
-        if (params) {
-            for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+function updateNav() {
+    $$('.top-nav .nav-link').forEach(a => a.classList.toggle('active', a.dataset.route === currentRoute));
+    $$('.bottom-nav a').forEach(a => {
+        const on = a.dataset.route ? a.dataset.route === currentRoute
+                 : (a.dataset.routePrefix && currentRoute && currentRoute.startsWith(a.dataset.routePrefix));
+        a.classList.toggle('active', !!on);
+        if (on && a.dataset.routePrefix) a.setAttribute('href', '#/' + currentRoute);
+    });
+    updateTitle();
+    requestAnimationFrame(updateIndicators);
+}
+
+function onViewShown(view) {
+    requestAnimationFrame(updateIndicators);
+    refreshSubnavs();
+    scrollSpy();
+    Hero.setActive(view.dataset.view === 'overview');
+}
+
+window.addEventListener('hashchange', () => show(parseHash(), false));
+
+// ── 滑動指示塊（頂部導覽列與模式分頁共用）─────────────────────────
+function placeIndicator(ind, target) {
+    if (!ind || !target || !target.offsetParent) { if (ind) ind.style.opacity = '0'; return; }
+    ind.style.width = target.offsetWidth + 'px';
+    ind.style.height = target.offsetHeight + 'px';
+    ind.style.transform = `translate(${target.offsetLeft}px, ${target.offsetTop}px)`;
+    ind.style.opacity = '1';
+}
+function updateIndicators() {
+    const nav = $('.top-nav');
+    if (nav) placeIndicator($('.nav-indicator', nav), $('.nav-link.active', nav));
+    $$('.seg').forEach(seg => {
+        if (!seg.offsetParent) return;
+        placeIndicator($('.seg-ind', seg), $('.model-tab-btn.active', seg));
+        seg.classList.add('ready');
+    });
+}
+window.addEventListener('resize', () => requestAnimationFrame(updateIndicators));
+
+// ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
+function switchModelTab(trackId, model) {
+    $$('.model-panel').filter(el => el.dataset.track === trackId).forEach(el => {
+        const isActive = el.dataset.model === model;
+        const wasHidden = el.style.display === 'none';
+        // A panel whose image already failed to load stays hidden even if selected —
+        // otherwise switching tabs away and back would silently un-hide the broken image.
+        el.style.display = (isActive && el.dataset.broken !== 'true') ? '' : 'none';
+        if (isActive && wasHidden && !reduced()) {
+            el.classList.remove('swap-in'); void el.offsetWidth; el.classList.add('swap-in');
         }
-        return s;
+        // Pause any animation living in the panel being hidden
+        if (!isActive) pausePlayersIn(el);
+    });
+    $$('.model-tab-btn').filter(b => b.dataset.track === trackId)
+        .forEach(b => b.classList.toggle('active', b.dataset.model === model));
+    requestAnimationFrame(updateIndicators);
+}
+
+// ── 捲動進場、數字跳動、儀表 ──────────────────────────────────────
+function staggerReveals() {
+    const groups = new Map();
+    $$('.reveal').forEach(el => {
+        const p = el.parentElement;
+        const n = groups.get(p) || 0;
+        el.style.setProperty('--i', Math.min(n, 8));
+        groups.set(p, n + 1);
+    });
+}
+
+const revealIO = ('IntersectionObserver' in window) ? new IntersectionObserver(entries => {
+    for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        e.target.classList.add('in');
+        revealIO.unobserve(e.target);
+        onReveal(e.target);
     }
+}, { threshold: 0.12, rootMargin: '0px 0px -5% 0px' }) : null;
 
-    function applyLang(lang, save=true) {
-        currentLang = (lang === 'zh') ? 'zh' : 'en';
-        document.documentElement.setAttribute('lang', currentLang === 'zh' ? 'zh-Hant' : 'en');
+function onReveal(el) {
+    const scope = [el, ...$$('*', el)];
+    scope.filter(n => n.dataset && n.dataset.count !== undefined).forEach(countUp);
+    scope.filter(n => n.classList && n.classList.contains('gauge')).forEach(animateGauge);
+    scope.filter(n => n.classList && n.classList.contains('ss-scale')).forEach(s => s.classList.add('in'));
+}
 
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-            const params = {};
-            if (el.dataset.i18nModel)  params.model  = el.dataset.i18nModel;
-            if (el.dataset.i18nSource) params.source = el.dataset.i18nSource;
-            const txt = t(el.dataset.i18n, params);
-            if (!txt) return;                       // 字典沒這個 key 就保留原文，不要清空
-            if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, txt);
-            else el.innerHTML = txt;
+function countUp(el) {
+    const end = parseFloat(el.dataset.count);
+    if (isNaN(end) || el._counted) return;
+    el._counted = true;
+    if (reduced()) { el.textContent = Math.round(end); return; }
+    const t0 = performance.now(), dur = 1500;
+    const from = end > 500 ? end - 60 : 0;         // 氣壓從接近的數字開始，不從 0 爬到 980
+    const step = now => {
+        const p = Math.min(1, (now - t0) / dur);
+        const e = 1 - Math.pow(1 - p, 4);
+        el.textContent = Math.round(from + (end - from) * e);
+        if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+const G = { cx: 100, cy: 100, r: 78, rb: 93 };
+function gPoint(v, r) {
+    const th = Math.PI + (Math.min(Math.max(v, 0), SITE.scaleMax) / SITE.scaleMax) * Math.PI;
+    return [G.cx + r * Math.cos(th), G.cy + r * Math.sin(th)];
+}
+function gArc(a, b, r) {
+    const [x1, y1] = gPoint(a, r), [x2, y2] = gPoint(b, r);
+    return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+function buildGauge(el) {
+    const kt = parseFloat(el.dataset.kt);
+    const bands = SITE.bands.map(([c, lo, hi, col]) =>
+        `<path class="g-band" d="${gArc(lo + 0.8, hi - 0.8, G.rb)}" stroke="${col}"/>`).join('');
+    const ticks = [64, 137].map(v => {
+        const [x, y] = gPoint(v, 108);
+        return `<text class="g-tick" x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle">${v}</text>`;
+    }).join('');
+    el.innerHTML =
+        `<svg viewBox="0 -12 200 128" aria-hidden="true">
+            ${bands}
+            <path class="g-track" d="${gArc(0, SITE.scaleMax, G.r)}"/>
+            <path class="g-prog" d="${gArc(0, SITE.scaleMax, G.r)}" pathLength="100"/>
+            ${ticks}
+            <g class="g-needle"><line x1="${100 - 60}" y1="100" x2="${100 - 96}" y2="100"/></g>
+        </svg>
+        <div class="gauge-val"><b>${isNaN(kt) ? '—' : '<span data-count="' + kt + '">0</span>'}</b><small>KT</small></div>`;
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', isNaN(kt) ? 'Wind unknown' : `${kt} kt`);
+    if (reduced()) animateGauge(el);
+}
+function animateGauge(el) {
+    const kt = parseFloat(el.dataset.kt);
+    if (isNaN(kt) || el._animated) return;
+    el._animated = true;
+    const frac = Math.min(kt, SITE.scaleMax) / SITE.scaleMax;
+    const prog = $('.g-prog', el), needle = $('.g-needle', el);
+    requestAnimationFrame(() => {
+        if (prog) prog.style.strokeDashoffset = (100 - frac * 100).toFixed(2);
+        if (needle) needle.style.transform = `rotate(${(frac * 180).toFixed(2)}deg)`;
+    });
+    const num = $('[data-count]', el);
+    if (num) countUp(num);
+}
+
+// ── 段落導覽（颱風頁）：點擊平滑捲動、捲動時標示目前段落 ─────────────
+function refreshSubnavs() {
+    $$('.subnav').forEach(nav => {
+        $$('button[data-target]', nav).forEach(b => {
+            const sec = document.getElementById(b.dataset.target);
+            b.hidden = !sec || sec.style.display === 'none' || !sec.offsetParent && nav.offsetParent !== null;
         });
+    });
+}
+let spyRaf = 0;
+function scrollSpy() {
+    spyRaf = 0;
+    const view = currentRoute && viewFor(currentRoute);
+    const nav = view && $('.subnav', view);
+    if (!nav) return;
+    const line = (parseFloat(getComputedStyle(root).getPropertyValue('--header-h')) || 64) + nav.offsetHeight + 60;
+    let active = null;
+    $$('button[data-target]', nav).forEach(b => {
+        const sec = document.getElementById(b.dataset.target);
+        if (sec && !b.hidden && sec.getBoundingClientRect().top <= line) active = b;
+    });
+    if (!active) active = $$('button[data-target]', nav).find(b => !b.hidden) || null;
+    $$('button', nav).forEach(b => b.classList.toggle('active', b === active));
+}
+document.addEventListener('click', e => {
+    const b = e.target.closest('.subnav button[data-target]');
+    if (!b) return;
+    const sec = document.getElementById(b.dataset.target);
+    if (sec) sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+});
+document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') refreshSubnavs(); }, true);
 
-        const langBtn = document.getElementById('lang-btn');
-        if (langBtn) langBtn.textContent = t('btn.lang');
-        document.title = t('doc.title') + (PAGE_TRACK_IDS ? ' | ' + PAGE_TRACK_IDS : '');
-        // 深色／淺色按鈕的文字也跟著換語言
-        applyTheme(document.documentElement.getAttribute('data-theme') || 'light', false);
+// ── 捲動：頁首進度條、段落導覽 ──────────────────────────────────────
+let progRaf = 0;
+window.addEventListener('scroll', () => {
+    if (!progRaf) progRaf = requestAnimationFrame(() => {
+        progRaf = 0;
+        const max = document.documentElement.scrollHeight - innerHeight;
+        const bar = $('.scroll-progress');
+        if (bar) bar.style.setProperty('--p', max > 0 ? (scrollY / max).toFixed(4) : 0);
+    });
+    if (!spyRaf) spyRaf = requestAnimationFrame(scrollSpy);
+}, { passive: true });
 
-        if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
-    }
+// 頁首高度會因換行而變（手機兩列），黏性元素要跟著它的實際高度走
+const header = $('#site-header');
+function syncHeaderH() { if (header) root.style.setProperty('--header-h', header.offsetHeight + 'px'); }
+if ('ResizeObserver' in window && header) new ResizeObserver(syncHeaderH).observe(header);
+syncHeaderH();
 
-    function toggleLang() {
-        applyLang(currentLang === 'zh' ? 'en' : 'zh');
-    }
+// ── 卡片 3D 傾斜（僅限有滑鼠的裝置）────────────────────────────────
+if (canHover) {
+    document.addEventListener('pointermove', e => {
+        const card = e.target.closest && e.target.closest('.tilt');
+        $$('.tilt.tilting').forEach(c => { if (c !== card) { c.classList.remove('tilting'); c.style.transform = ''; } });
+        if (!card || reduced()) return;
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width - 0.5, py = (e.clientY - r.top) / r.height - 0.5;
+        card.classList.add('tilting');
+        card.style.transform = `perspective(1000px) rotateX(${(-py * 5).toFixed(2)}deg) rotateY(${(px * 6).toFixed(2)}deg) translateY(-4px)`;
+    }, { passive: true });
+}
 
-    // ── Theme ─────────────────────────────────────────────────────────────────
-    (function() {
-        const hour = new Date().getHours();
-        applyTheme((hour >= 18 || hour < 6) ? 'dark' : 'light', false);
-    })();
+// ═════════════════════════════════════════════════════════════════
+//  看圖器：從縮圖位置放大展開（FLIP）、滾輪／雙指縮放、拖曳平移、左右切換
+// ═════════════════════════════════════════════════════════════════
+const LB = {
+    el: $('#lightbox'), img: $('#lb-img'), stage: $('.lb-stage'),
+    list: [], idx: 0, fig: null, z: 1, x: 0, y: 0,
+    pointers: new Map(), pan: null, pinch: null, moved: false, lastTap: 0,
+};
+function zoomImgOf(fig) { return $('img.is-front', fig) || $('img', fig); }
+function galleryFor(fig) {
+    const scope = fig.closest('.view') || document;
+    return $$('.zoomable', scope).filter(f => f.offsetParent !== null && !f.classList.contains('broken'));
+}
+function lbApply(anim) {
+    LB.img.classList.toggle('anim', !!anim);
+    LB.img.style.transform = `translate(${LB.x}px, ${LB.y}px) scale(${LB.z})`;
+    LB.el.classList.toggle('zoomed', LB.z > 1.001);
+    const zl = $('#lb-zoom'); if (zl) zl.textContent = Math.round(LB.z * 100) + '%';
+}
+function lbClamp() {
+    const W = LB.stage.clientWidth, H = LB.stage.clientHeight;
+    const mx = Math.max(0, (LB.img.offsetWidth * LB.z - W) / 2 + 40);
+    const my = Math.max(0, (LB.img.offsetHeight * LB.z - H) / 2 + 40);
+    LB.x = Math.min(mx, Math.max(-mx, LB.x));
+    LB.y = Math.min(my, Math.max(-my, LB.y));
+}
+function lbZoomAt(cx, cy, nz, anim) {
+    nz = Math.min(8, Math.max(1, nz));
+    const sr = LB.stage.getBoundingClientRect();
+    const px = cx - (sr.left + sr.width / 2), py = cy - (sr.top + sr.height / 2);
+    const k = nz / LB.z;
+    LB.x = px - (px - LB.x) * k;
+    LB.y = py - (py - LB.y) * k;
+    LB.z = nz;
+    if (nz <= 1.001) { LB.x = 0; LB.y = 0; LB.z = 1; }
+    lbClamp();
+    lbApply(anim);
+}
+function lbCenterZoom(f) { const r = LB.stage.getBoundingClientRect(); lbZoomAt(r.left + r.width / 2, r.top + r.height / 2, LB.z * f, true); }
 
-    function applyTheme(theme, save=true) {
-        document.documentElement.setAttribute('data-theme', theme);
-        const btn = document.getElementById('theme-btn');
-        if (btn) btn.textContent = theme === 'dark' ? t('btn.light') : t('btn.dark');
-        if (save) localStorage.setItem('theme', theme);
-    }
-
-    function toggleTheme() {
-        const current = document.documentElement.getAttribute('data-theme');
-        applyTheme(current === 'dark' ? 'light' : 'dark');
-    }
-
-    applyLang(currentLang, false);
-
-    // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
-    function switchModelTab(trackId, model) {
-        document.querySelectorAll(`.model-panel[data-track="${trackId}"]`).forEach(el => {
-            const isActive = el.dataset.model === model;
-            // A panel whose image already failed to load stays hidden even if selected —
-            // otherwise switching tabs away and back would silently un-hide the broken image.
-            el.style.display = (isActive && el.dataset.broken !== 'true') ? '' : 'none';
-            if (!isActive) {
-                // Pause any animation living in the panel being hidden so it doesn't keep
-                // advancing frames in the background while its tab is inactive.
-                const frameImg = el.querySelector('[id^="animation-frame-"]');
-                if (frameImg) pauseAnimation(frameImg.id.replace('animation-frame-', ''));
+function openLightbox(fig) {
+    LB.list = galleryFor(fig);
+    LB.idx = Math.max(0, LB.list.indexOf(fig));
+    if (!LB.list.length) { LB.list = [fig]; LB.idx = 0; }
+    LB.el.classList.add('open');
+    LB.el.classList.toggle('single', LB.list.length < 2);
+    LB.el.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('lb-lock');
+    requestAnimationFrame(() => LB.el.classList.add('show'));
+    lbLoad(true);
+}
+function lbLoad(fromThumb) {
+    const fig = LB.list[LB.idx];
+    const src = zoomImgOf(fig);
+    LB.fig = fig;
+    LB.z = 1; LB.x = 0; LB.y = 0;
+    $('#lb-caption').textContent = fig.dataset.caption || src.alt || '';
+    $('#lb-counter').textContent = LB.list.length > 1 ? `${LB.idx + 1} / ${LB.list.length}` : '';
+    const img = LB.img;
+    img.classList.remove('anim');
+    img.style.opacity = '0';
+    img.style.transform = 'none';
+    const go = () => {
+        if (fromThumb && !reduced()) {
+            const r = src.getBoundingClientRect();
+            const tr = img.getBoundingClientRect();
+            if (r.width && tr.width) {
+                const s = r.width / tr.width;
+                const dx = (r.left + r.width / 2) - (tr.left + tr.width / 2);
+                const dy = (r.top + r.height / 2) - (tr.top + tr.height / 2);
+                img.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
+                img.style.opacity = '1';
+                void img.offsetWidth;
+                lbApply(true);
+                return;
             }
-        });
-        document.querySelectorAll(`.model-tab-btn[data-track="${trackId}"]`).forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.model === model);
-        });
-    }
-
-    // ── Lightbox ──────────────────────────────────────────────────────────────
-    function openLightbox(src) {
-        document.getElementById('lightbox-img').src = src;
-        document.getElementById('lightbox').classList.add('open');
-        document.body.style.overflow = 'hidden';
-    }
-    function closeLightbox() {
-        document.getElementById('lightbox').classList.remove('open');
-        document.body.style.overflow = '';
-    }
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeLightbox();
-    });
-
-    // ── Animation ─────────────────────────────────────────────────────────────
-    const animationState = {};
-
-    function initAnimation(trackId) {
-        if (animationState[trackId]) return;
-        const frameImg = document.getElementById(`animation-frame-${trackId}`);
-        let allFrames = [];
-        if (frameImg) {
-            try { allFrames = JSON.parse(frameImg.getAttribute('data-all-frames') || '[]'); } catch(e) {}
         }
-        animationState[trackId] = {
-            isPlaying: false,
-            currentFrame: 0,
-            totalFrames: allFrames.length,
-            frameFiles: allFrames,
-            framesDir: frameImg ? (frameImg.getAttribute('data-frames-dir') || '') : '',
-            intervalId: null,
-            speedMultiplier: 2,
+        img.style.transform = 'translate(0px, 0px) scale(.96)';
+        void img.offsetWidth;
+        img.classList.add('anim');
+        img.style.opacity = '1';
+        lbApply(true);
+    };
+    img.onload = null;
+    img.src = src.currentSrc || src.src;
+    if (img.complete && img.naturalWidth) go();
+    else img.onload = () => { img.onload = null; go(); };
+    const zl = $('#lb-zoom'); if (zl) zl.textContent = '100%';
+}
+function lbStep(d) {
+    if (LB.list.length < 2) return;
+    LB.idx = (LB.idx + d + LB.list.length) % LB.list.length;
+    lbLoad(false);
+}
+function closeLightbox() {
+    if (!LB.el.classList.contains('open')) return;
+    const src = LB.fig && zoomImgOf(LB.fig);
+    const r = src && src.getBoundingClientRect();
+    LB.el.classList.remove('show');
+    const onScreen = r && r.width > 0 && r.bottom > 0 && r.top < innerHeight;
+    if (onScreen && !reduced() && LB.z <= 1.001) {
+        LB.img.style.transform = 'none';
+        const tr = LB.img.getBoundingClientRect();
+        LB.img.style.transform = `translate(${LB.x}px, ${LB.y}px) scale(${LB.z})`;
+        void LB.img.offsetWidth;
+        LB.img.classList.add('anim');
+        const s = r.width / tr.width;
+        LB.img.style.transform = `translate(${(r.left + r.width / 2) - (tr.left + tr.width / 2)}px, ${(r.top + r.height / 2) - (tr.top + tr.height / 2)}px) scale(${s})`;
+    } else {
+        LB.img.classList.add('anim');
+        LB.img.style.opacity = '0';
+    }
+    setTimeout(() => {
+        LB.el.classList.remove('open', 'zoomed');
+        LB.el.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('lb-lock');
+        LB.img.classList.remove('anim');
+        LB.img.style.opacity = '0';
+    }, reduced() ? 0 : 420);
+}
+
+document.addEventListener('click', e => {
+    const fig = e.target.closest('.zoomable');
+    if (fig && !fig.classList.contains('broken') && !LB.el.contains(fig)) { openLightbox(fig); return; }
+    const b = e.target.closest('[data-lb]');
+    if (!b) return;
+    const act = b.dataset.lb;
+    if (act === 'close') closeLightbox();
+    else if (act === 'prev') lbStep(-1);
+    else if (act === 'next') lbStep(1);
+    else if (act === 'in') lbCenterZoom(1.6);
+    else if (act === 'out') lbCenterZoom(1 / 1.6);
+});
+LB.stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    lbZoomAt(e.clientX, e.clientY, LB.z * Math.exp(-e.deltaY * 0.0016), false);
+}, { passive: false });
+LB.stage.addEventListener('pointerdown', e => {
+    LB.stage.setPointerCapture(e.pointerId);
+    LB.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    LB.moved = false;
+    if (LB.pointers.size === 1) {
+        LB.pan = { sx: e.clientX, sy: e.clientY, x0: LB.x, y0: LB.y };
+    } else if (LB.pointers.size === 2) {
+        const [a, b] = [...LB.pointers.values()];
+        LB.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: LB.z };
+        LB.pan = null;
+    }
+});
+LB.stage.addEventListener('pointermove', e => {
+    if (!LB.pointers.has(e.pointerId)) return;
+    LB.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (LB.pinch && LB.pointers.size === 2) {
+        const [a, b] = [...LB.pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        LB.moved = true;
+        lbZoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, LB.pinch.z0 * d / LB.pinch.d0, false);
+    } else if (LB.pan) {
+        const dx = e.clientX - LB.pan.sx, dy = e.clientY - LB.pan.sy;
+        if (Math.abs(dx) + Math.abs(dy) > 4) LB.moved = true;
+        if (LB.z > 1.001) {
+            LB.el.classList.add('dragging');
+            LB.x = LB.pan.x0 + dx; LB.y = LB.pan.y0 + dy;
+            lbClamp(); lbApply(false);
+        }
+    }
+});
+function lbPointerEnd(e) {
+    if (!LB.pointers.has(e.pointerId)) return;
+    LB.pointers.delete(e.pointerId);
+    LB.el.classList.remove('dragging');
+    if (LB.pointers.size < 2) LB.pinch = null;
+    if (LB.pointers.size > 0 || e.type === 'pointercancel') return;
+    const wasPan = LB.pan; LB.pan = null;
+    if (LB.moved) {
+        // 未放大時左右滑動＝切換圖片（手機）
+        if (wasPan && LB.z <= 1.001) {
+            const dx = e.clientX - wasPan.sx;
+            if (Math.abs(dx) > 60) lbStep(dx < 0 ? 1 : -1);
+        }
+        return;
+    }
+    const onImg = e.target === LB.img || LB.img.contains(e.target) ||
+        (() => { const r = LB.img.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; })();
+    const now = performance.now();
+    if (onImg) {
+        if (now - LB.lastTap < 320) { lbZoomAt(e.clientX, e.clientY, LB.z > 1.001 ? 1 : 2.5, true); LB.lastTap = 0; }
+        else LB.lastTap = now;
+    } else if (!e.target.closest('button')) {
+        closeLightbox();
+    }
+}
+LB.stage.addEventListener('pointerup', lbPointerEnd);
+LB.stage.addEventListener('pointercancel', lbPointerEnd);
+$('.lb-backdrop').addEventListener('click', closeLightbox);
+
+// ═════════════════════════════════════════════════════════════════
+//  動畫播放器：進入畫面才預載、全部載完自動播放、雙緩衝淡入換格
+// ═════════════════════════════════════════════════════════════════
+const players = {};
+
+function initPlayer(el) {
+    let frames = [];
+    try { frames = JSON.parse(el.dataset.frames || '[]'); } catch (e) {}
+    const dir = el.dataset.framesDir || '';
+    const P = {
+        el, key: el.dataset.animKey,
+        urls: frames.map(f => `${dir}/${f}`),
+        i: 0, playing: false, timer: null, speed: 2,
+        imgs: $$('.frame', el), front: 0,
+        cache: [], loaded: 0, preloading: false,
+        touched: false, autoPaused: false,
+        stage: $('.frame-stage', el), slider: $('.timeline', el),
+        counter: $('.frame-counter', el), btn: $('[data-act="toggle"]', el),
+        buf: $('.buffer span', el),
+    };
+    players[P.key] = P;
+    const first = P.imgs[0];
+    const size = () => { if (first.naturalWidth) P.stage.style.setProperty('--ar', `${first.naturalWidth} / ${first.naturalHeight}`); };
+    if (first.complete) size(); else first.addEventListener('load', size, { once: true });
+    setPlayBtn(P);
+    updPlayerUI(P);
+    if (playerIO) playerIO.observe(el);
+}
+function preload(P) {
+    if (P.preloading) return;
+    P.preloading = true;
+    const n = P.urls.length;
+    P.urls.forEach((u, i) => {
+        const im = new Image();
+        im.decoding = 'async';
+        im.onload = im.onerror = () => {
+            P.loaded++;
+            if (P.buf) P.buf.style.transform = `scaleX(${P.loaded / n})`;
+            if (P.loaded === n) { P.stage.classList.add('buffered'); maybeAutoplay(P); }
         };
-    }
-
-    function getIntervalMs(speed) {
-        return Math.round(1000 / (speed * 1.5));
-    }
-
-    function playAnimation(trackId) {
-        initAnimation(trackId);
-        const state = animationState[trackId];
-        if (state.isPlaying) return;
-        state.isPlaying = true;
-        _scheduleNext(trackId);
-    }
-
-    function _scheduleNext(trackId) {
-        const state = animationState[trackId];
-        if (!state.isPlaying) return;
-        state.intervalId = setTimeout(() => {
-            state.currentFrame = (state.currentFrame + 1) % state.totalFrames;
-            _renderFrame(trackId);
-            _scheduleNext(trackId);
-        }, getIntervalMs(state.speedMultiplier));
-    }
-
-    function pauseAnimation(trackId) {
-        if (!animationState[trackId]) return;
-        const state = animationState[trackId];
-        state.isPlaying = false;
-        if (state.intervalId) { clearTimeout(state.intervalId); state.intervalId = null; }
-    }
-
-    function resetAnimation(trackId) {
-        pauseAnimation(trackId);
-        initAnimation(trackId);
-        animationState[trackId].currentFrame = 0;
-        _renderFrame(trackId);
-    }
-
-    function seekFrame(trackId, idx) {
-        pauseAnimation(trackId);
-        initAnimation(trackId);
-        animationState[trackId].currentFrame = parseInt(idx);
-        _renderFrame(trackId);
-    }
-
-    function updateSpeed(trackId, val) {
-        initAnimation(trackId);
-        const state = animationState[trackId];
-        state.speedMultiplier = parseFloat(val);
-        const el = document.getElementById(`speed-val-${trackId}`);
-        if (el) el.textContent = `${parseFloat(val).toFixed(1)}×`;
-        if (state.isPlaying) {
-            if (state.intervalId) { clearTimeout(state.intervalId); state.intervalId = null; }
-            _scheduleNext(trackId);
-        }
-    }
-
-    function _renderFrame(trackId) {
-        const state = animationState[trackId];
-        const frameImg = document.getElementById(`animation-frame-${trackId}`);
-        const slider   = document.getElementById(`progress-${trackId}`);
-        const counter  = document.getElementById(`frame-counter-${trackId}`);
-        if (!frameImg || !state.frameFiles.length) return;
-        const fileName = state.frameFiles[state.currentFrame];
-        const newSrc   = `${state.framesDir}/${fileName}`;
-        if (frameImg.src !== newSrc) frameImg.src = newSrc;
-        if (slider)  slider.value = state.currentFrame;
-        if (counter) counter.textContent = `${state.currentFrame + 1}/${state.totalFrames}`;
-    }
-
-    // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-    function _visibleAnimationKey() {
-        // Pick the animation whose panel is actually shown (not hidden by a tab switch),
-        // rather than always the first one inserted into animationState.
-        const frameImg = Array.from(document.querySelectorAll('[id^="animation-frame-"]')).find(img => {
-            const panel = img.closest('.model-panel');
-            return !panel || panel.style.display !== 'none';
-        });
-        return frameImg ? frameImg.id.replace('animation-frame-', '') : null;
-    }
-
-    document.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT') return;
-        const tid = _visibleAnimationKey();
-        if (!tid) return;
-        if (e.code === 'Space') {
-            e.preventDefault();
-            const state = animationState[tid];
-            if (state && state.isPlaying) pauseAnimation(tid); else playAnimation(tid);
-        }
-        if (e.code === 'ArrowRight') {
-            e.preventDefault();
-            initAnimation(tid);
-            const state = animationState[tid];
-            state.currentFrame = Math.min(state.currentFrame + 1, state.totalFrames - 1);
-            pauseAnimation(tid); _renderFrame(tid);
-        }
-        if (e.code === 'ArrowLeft') {
-            e.preventDefault();
-            initAnimation(tid);
-            const state = animationState[tid];
-            state.currentFrame = Math.max(state.currentFrame - 1, 0);
-            pauseAnimation(tid); _renderFrame(tid);
-        }
+        im.src = u;
+        P.cache[i] = im;
     });
+}
+function maybeAutoplay(P) {
+    if (!P.touched && P.visible && !reduced() && P.loaded === P.urls.length && !LB.el.classList.contains('open')) play(P);
+}
+function renderFrame(P) {
+    const url = P.urls[P.i];
+    const front = P.imgs[P.front], back = P.imgs[1 - P.front];
+    updPlayerUI(P);
+    if (!url || !back || front.getAttribute('src') === url) return;
+    const swap = () => {
+        back.classList.add('is-front');
+        front.classList.remove('is-front');
+        P.front = 1 - P.front;
+    };
+    back.onload = null;
+    back.src = url;
+    if (back.complete && back.naturalWidth) swap();
+    else back.onload = () => { back.onload = null; if (back.getAttribute('src') === P.urls[P.i]) swap(); };
+}
+function updPlayerUI(P) {
+    const n = P.urls.length;
+    if (P.slider) {
+        P.slider.value = P.i;
+        P.slider.style.setProperty('--fill', (n > 1 ? P.i / (n - 1) * 100 : 0) + '%');
+    }
+    if (P.counter) P.counter.textContent = `${P.i + 1}/${n}`;
+}
+function setPlayBtn(P) {
+    if (P.btn) { const s = P.playing ? t('pl.pause') : t('pl.play'); P.btn.title = s; P.btn.setAttribute('aria-label', s); }
+}
+function frameDelay(P) { return Math.round(1000 / (P.speed * 1.5)); }
+function tick(P) {
+    if (!P.playing) return;
+    const last = P.i === P.urls.length - 1;
+    // 播到最後一格多停一下再從頭開始，看得清楚預報的終點
+    P.timer = setTimeout(() => {
+        P.i = (P.i + 1) % P.urls.length;
+        renderFrame(P);
+        tick(P);
+    }, last ? frameDelay(P) * 5 : frameDelay(P));
+}
+function play(P) {
+    if (P.playing || P.urls.length < 2) return;
+    preload(P);
+    P.playing = true;
+    P.el.classList.add('playing');
+    setPlayBtn(P);
+    tick(P);
+}
+function pause(P) {
+    P.playing = false;
+    clearTimeout(P.timer); P.timer = null;
+    P.el.classList.remove('playing');
+    setPlayBtn(P);
+}
+function seek(P, i) {
+    pause(P);
+    P.i = Math.max(0, Math.min(P.urls.length - 1, i));
+    renderFrame(P);
+}
+function pausePlayersIn(scope) {
+    $$('.player', scope).forEach(el => { const P = players[el.dataset.animKey]; if (P) { pause(P); P.autoPaused = false; } });
+}
+const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(entries => {
+    for (const e of entries) {
+        const P = players[e.target.dataset.animKey];
+        if (!P) continue;
+        P.visible = e.isIntersecting;
+        if (e.isIntersecting) {
+            preload(P);
+            if (P.autoPaused) { P.autoPaused = false; play(P); }
+            else maybeAutoplay(P);
+        } else if (P.playing) {
+            pause(P); P.autoPaused = true;      // 捲出畫面就先停，省電；捲回來再接著播
+        }
+    }
+}, { threshold: 0.35 }) : null;
 
-    // ── Init ───────────────────────────────────────────────────────────────────
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('[id^="animation-frame-"]').forEach(el => {
-            const tid = el.id.replace('animation-frame-', '');
-            initAnimation(tid);
-        });
+document.addEventListener('click', e => {
+    const tab = e.target.closest('.model-tab-btn');
+    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); return; }
+    const pl = e.target.closest('.player');
+    if (!pl) return;
+    const P = players[pl.dataset.animKey];
+    if (!P) return;
+    const act = e.target.closest('[data-act]');
+    const sp = e.target.closest('.speed-btn');
+    if (act) {
+        P.touched = true; P.autoPaused = false;
+        if (act.dataset.act === 'toggle') P.playing ? pause(P) : play(P);
+        else if (act.dataset.act === 'prev') seek(P, P.i - 1);
+        else if (act.dataset.act === 'next') seek(P, P.i + 1);
+    } else if (sp) {
+        P.speed = parseFloat(sp.dataset.speed);
+        $$('.speed-btn', pl).forEach(b => b.classList.toggle('active', b === sp));
+        if (P.playing) { clearTimeout(P.timer); tick(P); }
+    }
+});
+document.addEventListener('input', e => {
+    if (!e.target.classList.contains('timeline')) return;
+    const P = players[e.target.closest('.player').dataset.animKey];
+    if (P) { P.touched = true; P.autoPaused = false; seek(P, parseInt(e.target.value, 10)); }
+});
+
+function visiblePlayer() {
+    const view = currentRoute && viewFor(currentRoute);
+    if (!view) return null;
+    const el = $$('.player', view).find(p => p.offsetParent !== null);
+    return el ? players[el.dataset.animKey] : null;
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  生成潛勢：左右拖曳比較兩個模式
+// ═════════════════════════════════════════════════════════════════
+function initCompare() {
+    const box = $('#gen-compare'), btn = $('#gen-compare-btn');
+    if (!box || !btn) return;
+    const panel = box.closest('.genesis-panel');
+    const stage = $('.cmp-stage', box), clip = $('.cmp-top', box), handle = $('.cmp-handle', box);
+    const topImg = $('.cmp-top img', box), baseImg = $('.cmp-base', box);
+    const selA = $('#cmp-a'), selB = $('#cmp-b');
+    let pos = 50, dragging = false, swept = false;
+    const set = p => {
+        pos = Math.max(0, Math.min(100, p));
+        clip.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+        handle.style.left = pos + '%';
+        stage.setAttribute('aria-valuenow', Math.round(pos));
+    };
+    const fromEvent = e => { const r = stage.getBoundingClientRect(); set((e.clientX - r.left) / r.width * 100); };
+    stage.addEventListener('pointerdown', e => { dragging = true; stage.setPointerCapture(e.pointerId); fromEvent(e); });
+    stage.addEventListener('pointermove', e => { if (dragging) fromEvent(e); });
+    stage.addEventListener('pointerup', () => { dragging = false; });
+    stage.addEventListener('pointercancel', () => { dragging = false; });
+    stage.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft') { set(pos - 4); e.preventDefault(); e.stopPropagation(); }
+        if (e.key === 'ArrowRight') { set(pos + 4); e.preventDefault(); e.stopPropagation(); }
     });
+    selA.addEventListener('change', () => { topImg.src = selA.value; });
+    selB.addEventListener('change', () => { baseImg.src = selB.value; });
+    // 第一次打開時分隔線左右掃一下，提示可以拖
+    const sweep = () => {
+        if (swept || reduced()) return;
+        swept = true;
+        const t0 = performance.now();
+        const f = now => {
+            const p = Math.min(1, (now - t0) / 1600);
+            set(50 + Math.sin(p * Math.PI * 2) * 22 * (1 - p));
+            if (p < 1 && !dragging) requestAnimationFrame(f);
+        };
+        requestAnimationFrame(f);
+    };
+    btn.addEventListener('click', () => {
+        const on = btn.getAttribute('aria-pressed') !== 'true';
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        panel.classList.toggle('comparing', on);
+        box.hidden = !on;
+        if (on) { set(50); setTimeout(sweep, 350); }
+        else requestAnimationFrame(updateIndicators);
+    });
+    set(50);
+}
 
-    // 每半小時（HH:05 與 HH:35）自動重新整理
-    // ——排程任務於 HH:00 與 HH:30 更新資料並推送，各留 5 分鐘緩衝
-    (function scheduleRefresh() {
-        const now = new Date();
-        const next = new Date(now);
-        const m = now.getMinutes();
-        if (m < 5)        next.setMinutes(5, 0, 0);
-        else if (m < 35)  next.setMinutes(35, 0, 0);
-        else { next.setHours(next.getHours() + 1); next.setMinutes(5, 0, 0); }
-        setTimeout(() => location.reload(), next - now);
-    })();
-    </script>
+// ═════════════════════════════════════════════════════════════════
+//  主視覺：以粒子描繪逆時針旋轉的氣旋風場（有颱風時顏色與強度跟著最強的那顆）
+// ═════════════════════════════════════════════════════════════════
+const Hero = (function () {
+    const cv = $('#hero-canvas');
+    const api = { setActive() {} };
+    if (!cv || !cv.getContext) return api;
+    const hero = cv.closest('.hero');
+    const ctx = cv.getContext('2d');
+    const S = Math.max(0, Math.min(1, SITE.hero.strength));
+    const RGB = SITE.hero.rgb;
+    const V = 0.7 + 2.4 * S;             // 最大切向速度（px/frame）
+    const INFLOW = 0.16 + 0.10 * S;      // 向內流入比例，讓流線呈螺旋
+    const DRIFT = -0.25;                 // 背景往西的駛流
+    let W = 0, H = 0, ex = 0, ey = 0, R = 60, parts = [], raf = 0;
+    let onScreen = true, active = false;
+
+    function spawn(p, init) {
+        p.x = Math.random() * W; p.y = Math.random() * H;
+        p.age = init ? Math.random() * 120 : 0;
+        p.life = 90 + Math.random() * 150;
+        return p;
+    }
+    function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = hero.clientWidth; H = hero.clientHeight;
+        if (!W || !H) return;
+        cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const narrow = W < 760;
+        ex = W * (narrow ? 0.66 : 0.72); ey = H * (narrow ? 0.28 : 0.46);
+        R = Math.min(W, H) * (0.05 + 0.05 * S);
+        hero.style.setProperty('--ex', ex + 'px');
+        hero.style.setProperty('--ey', ey + 'px');
+        const n = Math.round(Math.min(1100, W * H / (narrow ? 1500 : 1100)));
+        parts = Array.from({ length: n }, () => spawn({}, true));
+        ctx.clearRect(0, 0, W, H);
+    }
+    function vel(x, y) {
+        const dx = x - ex, dy = y - ey;
+        const r = Math.hypot(dx, dy) + 0.001;
+        const vt = r < R ? V * r / R : V * Math.pow(R / r, 0.5);
+        // 北半球逆時針：螢幕座標 y 朝下，所以切向量取 (dy, -dx)
+        return [vt * dy / r - INFLOW * vt * dx / r + DRIFT, -vt * dx / r - INFLOW * vt * dy / r];
+    }
+    const BUCKETS = 4;
+    const paths = Array.from({ length: BUCKETS }, () => []);
+    function step() {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0,0,0,0.07)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'lighter';
+        for (const b of paths) b.length = 0;
+        for (const p of parts) {
+            const [vx, vy] = vel(p.x, p.y);
+            const nx = p.x + vx, ny = p.y + vy;
+            const fade = Math.min(1, p.age / 25, (p.life - p.age) / 25);
+            const a = Math.max(0, fade) * Math.min(1, Math.hypot(vx, vy) / (V * 0.8));
+            paths[Math.min(BUCKETS - 1, Math.floor(a * BUCKETS))].push(p.x, p.y, nx, ny);
+            p.x = nx; p.y = ny; p.age++;
+            const r = Math.hypot(p.x - ex, p.y - ey);
+            if (p.age > p.life || r < R * 0.4 || p.x < -30 || p.x > W + 30 || p.y < -30 || p.y > H + 30) spawn(p, false);
+        }
+        ctx.lineWidth = 1.15; ctx.lineCap = 'round';
+        for (let b = 0; b < BUCKETS; b++) {
+            const seg = paths[b];
+            if (!seg.length) continue;
+            ctx.strokeStyle = `rgba(${RGB},${(0.06 + 0.5 * (b + 1) / BUCKETS).toFixed(3)})`;
+            ctx.beginPath();
+            for (let i = 0; i < seg.length; i += 4) { ctx.moveTo(seg[i], seg[i + 1]); ctx.lineTo(seg[i + 2], seg[i + 3]); }
+            ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    }
+    function loop() { raf = 0; step(); schedule(); }
+    function schedule() {
+        if (!raf && active && onScreen && !document.hidden && !reduced()) raf = requestAnimationFrame(loop);
+    }
+    function still() { for (let i = 0; i < 140; i++) step(); }   // 減少動態：只畫一張靜態的流線圖
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver(es => { onScreen = es[0].isIntersecting; schedule(); }).observe(hero);
+    }
+    document.addEventListener('visibilitychange', schedule);
+    let rsT = 0;
+    window.addEventListener('resize', () => {
+        clearTimeout(rsT);
+        rsT = setTimeout(() => { if (active) { resize(); if (reduced()) still(); } }, 150);
+    });
+    api.setActive = on => {
+        const wasActive = active;
+        active = on;
+        if (on && !wasActive) { resize(); if (reduced()) still(); }
+        schedule();
+    };
+    return api;
+})();
+
+// ═════════════════════════════════════════════════════════════════
+//  更新時間：相對時間、倒數下一次自動重新整理、資料過時提示
+// ═════════════════════════════════════════════════════════════════
+const UPDATED = new Date(SITE.updatedIso);
+// 每半小時（HH:05 與 HH:35）自動重新整理
+// ——排程任務於 HH:00 與 HH:30 更新資料並推送，各留 5 分鐘緩衝
+function nextRefresh(now) {
+    const next = new Date(now);
+    const m = now.getMinutes();
+    if (m < 5)        next.setMinutes(5, 0, 0);
+    else if (m < 35)  next.setMinutes(35, 0, 0);
+    else { next.setHours(next.getHours() + 1); next.setMinutes(5, 0, 0); }
+    return next;
+}
+const REFRESH_AT = nextRefresh(new Date());
+function fmtRemain(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+function tickClock() {
+    const now = new Date();
+    const remain = REFRESH_AT - now;
+    const cd = $('#hero-countdown'); if (cd) cd.textContent = fmtRemain(remain);
+    const ring = $('.ring-fg');
+    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (30 * 60000))) * 100).toFixed(2);
+    const mins = Math.floor((now - UPDATED) / 60000);
+    const rel = isNaN(mins) ? '' : mins < 1 ? t('rel.now') : mins < 60 ? t('rel.min', { n: mins }) : t('rel.hr', { n: Math.floor(mins / 60) });
+    $$('.rel-time').forEach(el => { el.textContent = rel ? '· ' + rel : ''; });
+    const badge = $('#update-badge');
+    if (badge) {
+        const stale = mins > 75;
+        badge.classList.toggle('stale', stale);
+        badge.title = stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) });
+    }
+}
+setTimeout(() => {
+    try { sessionStorage.setItem('scroll:' + location.hash, String(scrollY)); } catch (e) {}
+    location.reload();
+}, REFRESH_AT - new Date());
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (LB.el.classList.contains('open')) {
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowRight') lbStep(1);
+        else if (e.key === 'ArrowLeft') lbStep(-1);
+        else if (e.key === '+' || e.key === '=') lbCenterZoom(1.6);
+        else if (e.key === '-' || e.key === '_') lbCenterZoom(1 / 1.6);
+        else if (e.key === '0') lbCenterZoom(1 / LB.z);
+        else return;
+        e.preventDefault();
+        return;
+    }
+    if (/^[1-9]$/.test(e.key)) {
+        const r = ROUTES[parseInt(e.key, 10) - 1];
+        if (r) { location.hash = '#/' + r; e.preventDefault(); }
+        return;
+    }
+    const P = visiblePlayer();
+    if (!P) return;
+    if (e.code === 'Space') { e.preventDefault(); P.touched = true; P.playing ? pause(P) : play(P); }
+    if (e.code === 'ArrowRight') { e.preventDefault(); P.touched = true; seek(P, P.i + 1); }
+    if (e.code === 'ArrowLeft')  { e.preventDefault(); P.touched = true; seek(P, P.i - 1); }
+});
+
+// ── Init ───────────────────────────────────────────────────────────
+$('#theme-btn').addEventListener('click', toggleTheme);
+$('#lang-btn').addEventListener('click', () => applyLang(currentLang === 'zh' ? 'en' : 'zh'));
+
+$$('.gauge').forEach(buildGauge);
+if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });
+$$('.player').forEach(initPlayer);
+initCompare();
+staggerReveals();
+applyLang(currentLang, false);
+show(parseHash(), true);
+if (revealIO) $$('.reveal').forEach(el => revealIO.observe(el));
+else $$('.reveal').forEach(el => { el.classList.add('in'); onReveal(el); });
+tickClock();
+setInterval(tickClock, 1000);
+
+// 自動重新整理後回到原本的捲動位置
+window.addEventListener('load', () => {
+    try {
+        const k = 'scroll:' + location.hash, y = sessionStorage.getItem(k);
+        if (y !== null) { sessionStorage.removeItem(k); window.scrollTo({ top: +y, behavior: 'instant' }); }
+    } catch (e) {}
+    updateIndicators();
+});
+})();
+</script>
 </body>
 </html>
