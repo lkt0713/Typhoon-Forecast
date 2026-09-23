@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.1"
+SITE_VERSION = "3.3.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1408,6 +1408,9 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .pick-dot.b { background: var(--warn); }
 .cmp-stage { position:relative; overflow:hidden; border-radius: 12px; border:1px solid var(--border); cursor: ew-resize; touch-action: pan-y; user-select:none; background: var(--surface-2); }
 .cmp-stage img { display:block; width:100%; height:auto; pointer-events:none; }
+/* 與其他圖一樣限高置中：外框縮到底圖寬度，上層圖跟著外框大小走 */
+.cmp-stage { width: fit-content; max-width: 100%; margin-inline: auto; }
+.cmp-stage .cmp-base { width:auto; max-width:100%; max-height: calc(100vh - var(--header-h) - 150px); }
 .cmp-top { position:absolute; inset:0; clip-path: inset(0 50% 0 0); }
 .cmp-top img { width:100%; height:100%; object-fit: cover; object-position: left top; }
 .cmp-handle { position:absolute; top:0; bottom:0; left: 50%; width: 0; }
