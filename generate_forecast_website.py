@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.2"
+SITE_VERSION = "3.3.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -679,11 +679,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 30 minutes, next to the official JTWC forecast.</p>
             </div>
             <div class="about-grid">
-                <div class="panel reveal">
+                <div class="panel reveal about-scale">
                     <div class="panel-header"><span class="panel-icon">🎨</span><span data-i18n="about.scale">Intensity categories</span></div>
                     <div class="scale-table">{scale_rows}</div>
                 </div>
-                <div class="panel reveal">
+                <div class="panel reveal about-read">
                     <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
@@ -692,7 +692,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data"></p></div>
                     </div>
                 </div>
-                <div class="panel reveal">
+                <div class="panel reveal about-keys">
                     <div class="panel-header"><span class="panel-icon">⌨️</span><span data-i18n="about.keys">Keyboard shortcuts</span></div>
                     <div class="keys-list">
                         <div><span><kbd>1</kbd>–<kbd>{min(9, len(routes))}</kbd></span><span data-i18n="key.views">Switch pages</span></div>
@@ -1422,6 +1422,14 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 /* ── About page ─────────────────────────────────────────────── */
 .about-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items:start; }
 .scale-table { display:grid; gap: 8px; }
+/* 寬螢幕排成三欄時，注意事項固定放右下（快捷鍵下方），不要掉到左邊第二列 */
+@media (min-width: 1340px) {
+    .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .about-scale { grid-column: 1; grid-row: 1 / span 2; }
+    .about-read  { grid-column: 2; grid-row: 1 / span 2; }
+    .about-keys  { grid-column: 3; grid-row: 1; }
+    .about-grid .disclaimer { grid-column: 3; grid-row: 2; }
+}
 .scale-row { display:grid; grid-template-columns: 70px 1fr auto; align-items:center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-weight: 650; font-size:.9em; }
 .scale-row .badge-cat { text-align:center; }
 .read-list { display:grid; gap: 16px; }

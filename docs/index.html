@@ -595,6 +595,14 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 /* ── About page ─────────────────────────────────────────────── */
 .about-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items:start; }
 .scale-table { display:grid; gap: 8px; }
+/* 寬螢幕排成三欄時，注意事項固定放右下（快捷鍵下方），不要掉到左邊第二列 */
+@media (min-width: 1340px) {
+    .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .about-scale { grid-column: 1; grid-row: 1 / span 2; }
+    .about-read  { grid-column: 2; grid-row: 1 / span 2; }
+    .about-keys  { grid-column: 3; grid-row: 1; }
+    .about-grid .disclaimer { grid-column: 3; grid-row: 2; }
+}
 .scale-row { display:grid; grid-template-columns: 70px 1fr auto; align-items:center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-weight: 650; font-size:.9em; }
 .scale-row .badge-cat { text-align:center; }
 .read-list { display:grid; gap: 16px; }
@@ -738,14 +746,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 20:40:59">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 20:42:45">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 20:40<span class="ub-long">:59</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 20:42<span class="ub-long">:45</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.3.2</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.3.3</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -768,7 +776,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 20:40</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 20:42</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -944,7 +952,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 30 minutes, next to the official JTWC forecast.</p>
             </div>
             <div class="about-grid">
-                <div class="panel reveal">
+                <div class="panel reveal about-scale">
                     <div class="panel-header"><span class="panel-icon">🎨</span><span data-i18n="about.scale">Intensity categories</span></div>
                     <div class="scale-table">
                     <div class="scale-row reveal">
@@ -983,7 +991,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                         <span class="mono">≥ 137 kt</span>
                     </div></div>
                 </div>
-                <div class="panel reveal">
+                <div class="panel reveal about-read">
                     <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
@@ -992,7 +1000,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data"></p></div>
                     </div>
                 </div>
-                <div class="panel reveal">
+                <div class="panel reveal about-keys">
                     <div class="panel-header"><span class="panel-icon">⌨️</span><span data-i18n="about.keys">Keyboard shortcuts</span></div>
                     <div class="keys-list">
                         <div><span><kbd>1</kbd>–<kbd>3</kbd></span><span data-i18n="key.views">Switch pages</span></div>
@@ -1004,7 +1012,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.3.2</p>
+                    <p class="mono ver-line">v3.3.3</p>
                 </div>
             </div>
         </div>
@@ -1042,7 +1050,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T20:40:59+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T20:42:45+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';
