@@ -508,6 +508,10 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 }
 @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 .zoomable > img { display:block; width:100%; height:auto; }
+/* 圖片高度不超過視窗（扣掉頁首與一點留白），寬螢幕上整張圖一眼看得完；
+   載入後外框縮到圖片寬度並置中，不會留一大片空白 */
+.zoomable > img:not(.frame) { width:auto; max-width:100%; max-height: calc(100vh - var(--header-h) - 150px); margin-inline:auto; }
+.zoomable.loaded:not(.frame-stage):not(.broken) { width: fit-content; max-width: 100%; margin-inline: auto; }
 .js .zoomable > img:not(.frame) { opacity: 0; transform: scale(1.02); transition: opacity .7s ease, transform .9s var(--ease-out); }
 .js .zoomable.loaded > img:not(.frame) { opacity: 1; transform: none; }
 .zoomable.loaded:hover > img:not(.frame) { transform: scale(1.01); }
@@ -521,7 +525,7 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 
 /* ── Animation player ───────────────────────────────────────── */
 .player { background: var(--surface-2); border:1px solid var(--border); border-radius: 14px; overflow:hidden; }
-.frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: 78vh; width: 100%; }
+.frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: calc(100vh - var(--header-h) - 190px); width: 100%; }
 .frame-stage .frame { position:absolute; inset:0; width:100%; height:100%; object-fit: contain; opacity:0; transition: opacity .18s linear; }
 .frame-stage .frame.is-front { opacity:1; }
 .frame-stage.broken .frame { visibility:hidden; }
@@ -731,14 +735,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 20:34:38">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 20:39:08">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 20:34<span class="ub-long">:38</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 20:39<span class="ub-long">:08</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.3.0</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.3.1</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -761,7 +765,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 20:34</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 20:39</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -997,7 +1001,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.3.0</p>
+                    <p class="mono ver-line">v3.3.1</p>
                 </div>
             </div>
         </div>
@@ -1035,7 +1039,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T20:34:38+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T20:39:08+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';

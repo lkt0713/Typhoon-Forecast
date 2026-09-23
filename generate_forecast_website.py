@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.0"
+SITE_VERSION = "3.3.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1335,6 +1335,10 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 }
 @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 .zoomable > img { display:block; width:100%; height:auto; }
+/* 圖片高度不超過視窗（扣掉頁首與一點留白），寬螢幕上整張圖一眼看得完；
+   載入後外框縮到圖片寬度並置中，不會留一大片空白 */
+.zoomable > img:not(.frame) { width:auto; max-width:100%; max-height: calc(100vh - var(--header-h) - 150px); margin-inline:auto; }
+.zoomable.loaded:not(.frame-stage):not(.broken) { width: fit-content; max-width: 100%; margin-inline: auto; }
 .js .zoomable > img:not(.frame) { opacity: 0; transform: scale(1.02); transition: opacity .7s ease, transform .9s var(--ease-out); }
 .js .zoomable.loaded > img:not(.frame) { opacity: 1; transform: none; }
 .zoomable.loaded:hover > img:not(.frame) { transform: scale(1.01); }
@@ -1348,7 +1352,7 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 
 /* ── Animation player ───────────────────────────────────────── */
 .player { background: var(--surface-2); border:1px solid var(--border); border-radius: 14px; overflow:hidden; }
-.frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: 78vh; width: 100%; }
+.frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: calc(100vh - var(--header-h) - 190px); width: 100%; }
 .frame-stage .frame { position:absolute; inset:0; width:100%; height:100%; object-fit: contain; opacity:0; transition: opacity .18s linear; }
 .frame-stage .frame.is-front { opacity:1; }
 .frame-stage.broken .frame { visibility:hidden; }
