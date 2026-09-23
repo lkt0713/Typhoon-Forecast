@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.0.0"
+SITE_VERSION = "3.0.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1691,7 +1691,7 @@ const I18N = {
     'nav.about':        '說明',
     'hero.eyebrow.live':  '正在追蹤',
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
-    'hero.quiet.title': '西北太平洋目前風平浪靜',
+    'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
     'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 30 分鐘更新。',
     'hero.cta.storm':   '查看預報',
