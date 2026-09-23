@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.1.4"
+SITE_VERSION = "3.2.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -49,13 +49,6 @@ KNOWN_MODELS = [
     ('AIFS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
     ('ECMWF', 'ECMWF', 'IFS ENS + HRES'),
 ]
-
-
-def _fmt_coord(val, positive_label: str, negative_label: str):
-    if pd.isna(val):
-        return "N/A"
-    label = positive_label if val >= 0 else negative_label
-    return f"{abs(val):.2f}°{label}"
 
 
 # 與 forecast.py 的 ss_category 相同；刻意重複而不匯入，
@@ -198,15 +191,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if not isinstance(current_info, dict):
             current_info = {}
 
-        curr_lat = _fmt_coord(current_info.get('lat', float('nan')), 'N', 'S')
-        curr_lon = _fmt_coord(current_info.get('lon', float('nan')), 'E', 'W')
-        wind = _num(current_info.get('wind'))
-        curr_cat = current_info.get('category', 'Unknown')
-
+        # 字卡、強度分級、儀表一律只用 JTWC 實際資料；JTWC 沒給的欄位顯示 N/A，
+        # 不拿模式的初始值頂替（模式初始場不是觀測，放在「現況」欄位會誤導）
         jtwc_data = current_info.get('jtwc', {}) or {}
-        if 'max_winds_kt' in jtwc_data:
-            wind = _num(jtwc_data.get('max_winds_kt'))
-            curr_cat = ss_category(jtwc_data.get('max_winds_kt'))
+        wind = _num(jtwc_data.get('max_winds_kt'))
+        curr_cat = ss_category(wind) if wind is not None else 'Unknown'
         if curr_cat not in CAT_COLOR_MAP:
             curr_cat = 'Unknown'
 
@@ -218,10 +207,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             'color': CAT_COLOR_MAP[curr_cat],
             'text': CAT_TEXT_MAP.get(curr_cat, '#0D2033'),
             'wind': wind,
-            'gusts': _num(jtwc_data.get('gusts')),
-            'pressure': _num(current_info.get('pressure')),
-            'lat': jtwc_data.get('latitude', '') or curr_lat,
-            'lon': jtwc_data.get('longitude', '') or curr_lon,
+            'pressure': _num(jtwc_data.get('pressure_mb')),
+            'pos': (f"{jtwc_data['latitude']}, {jtwc_data['longitude']}"
+                    if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
             'models': [m.get('model', 'WNC2-r2') for m in models if isinstance(m, dict)],
         }
@@ -276,7 +264,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <span class="cat-pill" style="background:{lead['color']};color:{lead['text']}">{lead['cat']}</span>
                     <span data-i18n="catname.{lead['cat']}">{lead['cat']}</span>
                     <span class="sep">·</span><span class="mono">{lead_wind}</span>
-                    <span class="sep">·</span><span class="mono">{_esc(lead['lat'])}, {_esc(lead['lon'])}</span>
+                    <span class="sep">·</span><span class="mono">{_esc(lead['pos'])}</span>
                 </p>
                 <p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"
                    data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · ensemble guidance from {len(active_models)} models, refreshed every 30 minutes.</p>
@@ -328,7 +316,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                             <div class="tile-name storm-name">{_esc(_title(info))}</div>
                             <div class="tile-catname" data-i18n="catname.{info['cat']}">{info['cat']}</div>
                             <dl class="tile-facts">
-                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['lat'])}, {_esc(info['lon'])}</dd></div>
+                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['pos'])}</dd></div>
                                 <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">{_esc(info['time'])}</dd></div>
                                 <div><dt data-i18n="stat.models">Models</dt><dd>{' · '.join(_esc(m) for m in info['models'])}</dd></div>
                             </dl>
@@ -419,16 +407,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         kt_txt = f"{info['wind']:.0f}" if info['wind'] is not None else ''
         stats = [
             ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_esc(info["time"])}</span>'),
-            ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["lat"])}, {_esc(info["lon"])}</span>'),
+            ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["pos"])}</span>'),
             ('stat.wind', '💨', 'Max wind',
              f'<span data-count="{info["wind"]:.0f}">{info["wind"]:.0f}</span><small>kt</small>'
              if info['wind'] is not None else 'N/A'),
         ]
-        if info['gusts'] is not None:
-            stats.append(('stat.gust', '🌬', 'Gusts',
-                          f'<span data-count="{info["gusts"]:.0f}">{info["gusts"]:.0f}</span><small>kt</small>'))
         if info['pressure'] is not None:
-            stats.append(('stat.pres', '🧭', 'Min pressure (model t0)',
+            stats.append(('stat.pres', '🧭', 'Min pressure',
                           f'<span data-count="{info["pressure"]:.0f}">{info["pressure"]:.0f}</span><small>hPa</small>'))
         stats_html = "".join(f"""
                 <div class="stat reveal">
@@ -1648,8 +1633,7 @@ const I18N = {
     'stat.time':        'Obs time',
     'stat.pos':         'Position',
     'stat.wind':        'Max wind',
-    'stat.gust':        'Gusts',
-    'stat.pres':        'Min pressure (model t0)',
+    'stat.pres':        'Min pressure',
     'stat.models':      'Models',
     'scale.title':      'Intensity scale (Saffir–Simpson)',
     'sub.cmp':          'Comparison',
@@ -1753,8 +1737,7 @@ const I18N = {
     'stat.time':        '觀測時間',
     'stat.pos':         '中心位置',
     'stat.wind':        '最大風速',
-    'stat.gust':        '陣風',
-    'stat.pres':        '最低氣壓（模式初始）',
+    'stat.pres':        '最低氣壓',
     'stat.models':      '模式',
     'scale.title':      '強度分級（薩菲爾－辛普森）',
     'sub.cmp':          '模式比較',

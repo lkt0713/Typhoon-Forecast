@@ -912,6 +912,13 @@ def scrape_jtwc_text_product(track_id: str, jtwc_text_urls: dict | None = None) 
         if m_gusts:
             info['gusts'] = int(m_gusts.group(1))
 
+        # 最低中心氣壓：警報的 REMARKS 段落寫成
+        # "MINIMUM CENTRAL PRESSURE AT 231200Z IS 932 MB"；沒寫就不給，網頁不顯示這張卡
+        m_pres = re.search(r"MINIMUM\s+CENTRAL\s+PRESSURE\s+(?:AT\s+\d{6}Z\s+)?IS\s+(\d{3,4})\s*MB",
+                           text, re.IGNORECASE)
+        if m_pres:
+            info['pressure_mb'] = int(m_pres.group(1))
+
         if info:
             print(f"[JTWC] 解析成功: {info}")
         else:
