@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.2.0"
+SITE_VERSION = "3.2.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1275,7 +1275,7 @@ html[lang^="zh"] .storm-subtitle { text-transform:none; letter-spacing: .04em; }
 .g-tick { font-size: 8.5px; fill: var(--text-3); font-weight: 700; font-family: inherit; }
 .storm-hero .g-tick { fill: rgba(234,244,252,.5); }
 .gauge-val { position:absolute; left:0; right:0; bottom: -2px; text-align:center; line-height:1; }
-.gauge-val b { font-size: 2.1em; font-weight: 850; letter-spacing: -.03em; }
+.gauge-val b { font-size: 2.1em; font-weight: 850; letter-spacing: .05em; margin-left: .05em; }
 .gauge-lg .gauge-val b { font-size: 2.8em; }
 .gauge-val small { display:block; font-size: .72em; font-weight: 750; opacity: .6; margin-top: 3px; letter-spacing: .1em; }
 
