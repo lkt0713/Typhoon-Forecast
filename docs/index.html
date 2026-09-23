@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&family=Noto+Serif+TC:wght@600;900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | Forecast</title>
     <script>
     // 在第一次繪製前就決定主題與語言，避免先閃一下淺色／英文
@@ -72,7 +72,7 @@
 
 /* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-/* 字體：拉丁字用 Inter，中文落到思源黑體（Noto Sans TC）；大標題的中文用思源宋體。
+/* 字體：拉丁字用 Inter，中文落到思源黑體（Noto Sans TC）。
    Google Fonts 載不到時退回系統字（蘋方／微軟正黑），版面不受影響。 */
 body {
     font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
@@ -91,13 +91,7 @@ button { font-family: inherit; }
 /* 中文內文：稍微加寬字距與行高，讀起來比較鬆 */
 html[lang^="zh"] body { letter-spacing: .02em; }
 html[lang^="zh"] p, html[lang^="zh"] .map-note { line-height: 1.8; }
-html[lang^="zh"] .hero-title, html[lang^="zh"] .page-title,
-html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
-html[lang^="zh"] .scale-head span:first-child {
-    font-family: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
-    font-weight: 900; letter-spacing: .04em;
-}
-html[lang^="zh"] .section-head h3 { font-weight: 900; }
+
 .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 body.lb-lock { overflow: hidden; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
@@ -106,6 +100,17 @@ body.lb-lock { overflow: hidden; }
 
 /* 主題切換時整頁用圓形擴散揭露（View Transitions API） */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* 語言切換：舊文字模糊淡出、新文字從模糊中浮現 */
+html.lang-vt::view-transition-old(root) { animation: langOut .26s ease-in both; }
+html.lang-vt::view-transition-new(root) { animation: langIn .5s cubic-bezier(.16,1,.3,1) both; }
+@keyframes langOut { to { opacity: 0; filter: blur(8px); } }
+@keyframes langIn  { from { opacity: 0; filter: blur(8px); } }
+/* 不支援 View Transitions 的瀏覽器：只讓換過字的元素淡入 */
+html.lang-fallback [data-i18n] { animation: langInFb .45s cubic-bezier(.16,1,.3,1); }
+@keyframes langInFb { from { opacity: 0; filter: blur(4px); transform: translateY(4px); } }
+#lang-btn .bi { display:inline-block; }
+#lang-btn.spin .bi { animation: globeSpin .7s cubic-bezier(.34,1.56,.64,1); }
+@keyframes globeSpin { from { transform: rotate(-360deg) scale(.6); } }
 
 /* ── Header ────────────────────────────────────────────────── */
 header {
@@ -723,14 +728,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:06:10">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:10:34">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:06<span class="ub-long">:10</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:10<span class="ub-long">:34</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.0.4</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.1.0</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -753,7 +758,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:06</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:10</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -990,7 +995,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.0.4</p>
+                    <p class="mono ver-line">v3.1.0</p>
                 </div>
             </div>
         </div>
@@ -1040,7 +1045,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:06:10+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:10:34+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';
@@ -1314,6 +1319,37 @@ function applyLang(lang, save = true) {
     if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
 }
 
+// View Transition 的保險：瀏覽器若遲遲不執行更新（分頁在背景、轉場被中斷等），
+// 0.7 秒後直接套用，確保主題／語言一定會切過去；轉場之後才跑到也只是 no-op。
+function runTransition(update) {
+    let done = false;
+    const once = () => { if (!done) { done = true; update(); } };
+    const tr = document.startViewTransition(once);
+    setTimeout(once, 700);
+    return tr;
+}
+
+// 切換語言：支援 View Transitions 的瀏覽器整頁模糊交錯淡入，否則只淡入換過字的元素
+function switchLang() {
+    const next = currentLang === 'zh' ? 'en' : 'zh';
+    const spinGlobe = () => {
+        const b = $('#lang-btn');
+        if (b) { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }
+    };
+    if (reduced()) { applyLang(next); return; }
+    if (document.startViewTransition) {
+        root.classList.add('lang-vt');
+        const tr = runTransition(() => { applyLang(next); spinGlobe(); });
+        tr.finished.finally(() => root.classList.remove('lang-vt'));
+        setTimeout(() => root.classList.remove('lang-vt'), 1500);
+    } else {
+        root.classList.remove('lang-fallback'); void root.offsetWidth;
+        applyLang(next); spinGlobe();
+        root.classList.add('lang-fallback');
+        setTimeout(() => root.classList.remove('lang-fallback'), 500);
+    }
+}
+
 // 標題逐字進場：拆成字元 span；中日文字每個字自成一組，才能正常換行
 function splitText(el) {
     const text = el.textContent.trim();
@@ -1353,7 +1389,7 @@ function toggleTheme(ev) {
     const x = r ? r.left + r.width / 2 : innerWidth / 2;
     const y = r ? r.top + r.height / 2 : 0;
     const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    const tr = document.startViewTransition(() => applyTheme(next));
+    const tr = runTransition(() => applyTheme(next));
     tr.ready.then(() => {
         root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
                      { duration: 650, easing: 'cubic-bezier(.4,0,.2,1)', pseudoElement: '::view-transition-new(root)' });
@@ -2192,7 +2228,7 @@ document.addEventListener('keydown', e => {
 
 // ── Init ───────────────────────────────────────────────────────────
 $('#theme-btn').addEventListener('click', toggleTheme);
-$('#lang-btn').addEventListener('click', () => applyLang(currentLang === 'zh' ? 'en' : 'zh'));
+$('#lang-btn').addEventListener('click', switchLang);
 
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });

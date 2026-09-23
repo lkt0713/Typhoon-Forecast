@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.0.4"
+SITE_VERSION = "3.1.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -769,7 +769,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <meta name="color-scheme" content="light dark">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&family=Noto+Serif+TC:wght@600;900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | {_esc(title_track_ids)}</title>
     <script>
     // 在第一次繪製前就決定主題與語言，避免先閃一下淺色／英文
@@ -927,7 +927,7 @@ _CSS = r"""
 
 /* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-/* 字體：拉丁字用 Inter，中文落到思源黑體（Noto Sans TC）；大標題的中文用思源宋體。
+/* 字體：拉丁字用 Inter，中文落到思源黑體（Noto Sans TC）。
    Google Fonts 載不到時退回系統字（蘋方／微軟正黑），版面不受影響。 */
 body {
     font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
@@ -946,13 +946,7 @@ button { font-family: inherit; }
 /* 中文內文：稍微加寬字距與行高，讀起來比較鬆 */
 html[lang^="zh"] body { letter-spacing: .02em; }
 html[lang^="zh"] p, html[lang^="zh"] .map-note { line-height: 1.8; }
-html[lang^="zh"] .hero-title, html[lang^="zh"] .page-title,
-html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
-html[lang^="zh"] .scale-head span:first-child {
-    font-family: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
-    font-weight: 900; letter-spacing: .04em;
-}
-html[lang^="zh"] .section-head h3 { font-weight: 900; }
+
 .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 body.lb-lock { overflow: hidden; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
@@ -961,6 +955,17 @@ body.lb-lock { overflow: hidden; }
 
 /* 主題切換時整頁用圓形擴散揭露（View Transitions API） */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* 語言切換：舊文字模糊淡出、新文字從模糊中浮現 */
+html.lang-vt::view-transition-old(root) { animation: langOut .26s ease-in both; }
+html.lang-vt::view-transition-new(root) { animation: langIn .5s cubic-bezier(.16,1,.3,1) both; }
+@keyframes langOut { to { opacity: 0; filter: blur(8px); } }
+@keyframes langIn  { from { opacity: 0; filter: blur(8px); } }
+/* 不支援 View Transitions 的瀏覽器：只讓換過字的元素淡入 */
+html.lang-fallback [data-i18n] { animation: langInFb .45s cubic-bezier(.16,1,.3,1); }
+@keyframes langInFb { from { opacity: 0; filter: blur(4px); transform: translateY(4px); } }
+#lang-btn .bi { display:inline-block; }
+#lang-btn.spin .bi { animation: globeSpin .7s cubic-bezier(.34,1.56,.64,1); }
+@keyframes globeSpin { from { transform: rotate(-360deg) scale(.6); } }
 
 /* ── Header ────────────────────────────────────────────────── */
 header {
@@ -1839,6 +1844,37 @@ function applyLang(lang, save = true) {
     if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
 }
 
+// View Transition 的保險：瀏覽器若遲遲不執行更新（分頁在背景、轉場被中斷等），
+// 0.7 秒後直接套用，確保主題／語言一定會切過去；轉場之後才跑到也只是 no-op。
+function runTransition(update) {
+    let done = false;
+    const once = () => { if (!done) { done = true; update(); } };
+    const tr = document.startViewTransition(once);
+    setTimeout(once, 700);
+    return tr;
+}
+
+// 切換語言：支援 View Transitions 的瀏覽器整頁模糊交錯淡入，否則只淡入換過字的元素
+function switchLang() {
+    const next = currentLang === 'zh' ? 'en' : 'zh';
+    const spinGlobe = () => {
+        const b = $('#lang-btn');
+        if (b) { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }
+    };
+    if (reduced()) { applyLang(next); return; }
+    if (document.startViewTransition) {
+        root.classList.add('lang-vt');
+        const tr = runTransition(() => { applyLang(next); spinGlobe(); });
+        tr.finished.finally(() => root.classList.remove('lang-vt'));
+        setTimeout(() => root.classList.remove('lang-vt'), 1500);
+    } else {
+        root.classList.remove('lang-fallback'); void root.offsetWidth;
+        applyLang(next); spinGlobe();
+        root.classList.add('lang-fallback');
+        setTimeout(() => root.classList.remove('lang-fallback'), 500);
+    }
+}
+
 // 標題逐字進場：拆成字元 span；中日文字每個字自成一組，才能正常換行
 function splitText(el) {
     const text = el.textContent.trim();
@@ -1878,7 +1914,7 @@ function toggleTheme(ev) {
     const x = r ? r.left + r.width / 2 : innerWidth / 2;
     const y = r ? r.top + r.height / 2 : 0;
     const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    const tr = document.startViewTransition(() => applyTheme(next));
+    const tr = runTransition(() => applyTheme(next));
     tr.ready.then(() => {
         root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
                      { duration: 650, easing: 'cubic-bezier(.4,0,.2,1)', pseudoElement: '::view-transition-new(root)' });
@@ -2717,7 +2753,7 @@ document.addEventListener('keydown', e => {
 
 // ── Init ───────────────────────────────────────────────────────────
 $('#theme-btn').addEventListener('click', toggleTheme);
-$('#lang-btn').addEventListener('click', () => applyLang(currentLang === 'zh' ? 'en' : 'zh'));
+$('#lang-btn').addEventListener('click', switchLang);
 
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });
