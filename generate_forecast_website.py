@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.2.2"
+SITE_VERSION = "3.3.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -697,9 +697,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="keys-list">
                         <div><span><kbd>1</kbd>–<kbd>{min(9, len(routes))}</kbd></span><span data-i18n="key.views">Switch pages</span></div>
                         <div><span><kbd>Space</kbd></span><span data-i18n="key.play">Play / pause the animation</span></div>
-                        <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step frames · browse images in the viewer</span></div>
-                        <div><span><kbd>+</kbd><kbd>−</kbd></span><span data-i18n="key.zoom">Zoom in the image viewer</span></div>
-                        <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the image viewer</span></div>
+                        <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step animation frames</span></div>
+                        <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the enlarged image</span></div>
                     </div>
                 </div>
                 <div class="panel reveal disclaimer">
@@ -821,23 +820,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     <nav class="bottom-nav" aria-label="Pages">{"".join(bottom)}</nav>
 
-    <!-- 看圖器：縮放／拖曳／左右切換 -->
-    <div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="lb-backdrop"></div>
-        <div class="lb-stage"><img id="lb-img" alt="" draggable="false"></div>
-        <div class="lb-bar">
-            <span class="lb-caption" id="lb-caption"></span>
-            <span class="lb-counter mono" id="lb-counter"></span>
-            <div class="lb-tools">
-                <button class="lb-btn" data-lb="out" data-i18n="lb.zoomout" data-i18n-attr="title" title="Zoom out">−</button>
-                <span class="lb-zoom mono" id="lb-zoom">100%</span>
-                <button class="lb-btn" data-lb="in" data-i18n="lb.zoomin" data-i18n-attr="title" title="Zoom in">+</button>
-                <button class="lb-btn" data-lb="close" data-i18n="lb.close" data-i18n-attr="title" title="Close">✕</button>
-            </div>
-        </div>
-        <button class="lb-nav prev" data-lb="prev" aria-label="Previous">{ICONS['prev']}</button>
-        <button class="lb-nav next" data-lb="next" aria-label="Next">{ICONS['next']}</button>
-        <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
+    <!-- Lightbox：點圖放大，點任意處或按 Esc 關閉（與 v2 相同的簡單版） -->
+    <div class="lightbox" id="lightbox">
+        <button class="lb-close" data-lb="close" title="Close"
+                data-i18n="lb.close" data-i18n-attr="title">✕</button>
+        <img id="lightbox-img" alt="Full-size view">
     </div>
 
     <script id="site-data" type="application/json">{site_json}</script>
@@ -1441,32 +1428,25 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .ver-line { margin-top: 12px; color: var(--text-3) !important; font-weight: 700; }
 
 /* ── Lightbox ───────────────────────────────────────────────── */
-.lightbox { position:fixed; inset:0; z-index: 9999; display:none; }
-.lightbox.open { display:block; }
-.lb-backdrop { position:absolute; inset:0; background: rgba(2,9,16,.94); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); opacity:0; transition: opacity .38s; }
-.lightbox.show .lb-backdrop { opacity:1; }
-.lb-stage { position:absolute; inset: 0; display:flex; align-items:center; justify-content:center; overflow:hidden; touch-action: none; padding: 64px 16px 48px; }
-.lb-img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 30px 90px rgba(0,0,0,.6); transform-origin: center; will-change: transform; user-select:none; -webkit-user-drag:none; cursor: zoom-in; opacity: 0; }
-.lb-img.anim { transition: transform .5s var(--ease-out), opacity .35s ease; }
-.lightbox.zoomed .lb-img { cursor: grab; }
-.lightbox.dragging .lb-img { cursor: grabbing; }
-.lb-bar { position:absolute; left:0; right:0; top:0; display:flex; align-items:center; gap: 14px; padding: 12px 16px; color:#eaf4fc; opacity:0; transform: translateY(-10px); transition: opacity .35s .1s, transform .45s var(--ease-out) .1s; }
-.lightbox.show .lb-bar { opacity:1; transform:none; }
-.lb-caption { font-weight: 700; font-size: .92em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-.lb-counter { font-size: .8em; opacity:.6; font-weight: 700; }
-.lb-tools { margin-left:auto; display:flex; align-items:center; gap: 6px; }
-.lb-zoom { font-size: .78em; opacity:.7; min-width: 44px; text-align:center; }
-.lb-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color:#fff; font-size: 1.15em; cursor:pointer; transition: background .2s, transform .2s var(--ease-spring); }
-.lb-btn:hover { background: rgba(255,255,255,.22); }
-.lb-btn:active { transform: scale(.9); }
-.lb-nav { position:absolute; top:50%; margin-top: -26px; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition: opacity .35s .15s, background .2s, transform .25s var(--ease-spring); }
-.lb-nav svg { width: 24px; height: 24px; }
-.lb-nav.prev { left: 16px; } .lb-nav.next { right: 16px; }
-.lightbox.show .lb-nav { opacity:1; }
-.lb-nav:hover { background: rgba(255,255,255,.2); transform: scale(1.08); }
-.lightbox.single .lb-nav { display:none; }
-.lb-hint { position:absolute; left:50%; bottom: 14px; transform: translateX(-50%); color: rgba(234,244,252,.55); font-size: .76em; font-weight: 600; white-space:nowrap; opacity:0; transition: opacity .4s .3s; pointer-events:none; }
-.lightbox.show .lb-hint { opacity:1; }
+.lightbox {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.93); cursor: zoom-out;
+    align-items: center; justify-content: center; padding: 20px;
+}
+.lightbox.open { display: flex; }
+.lightbox img {
+    max-width: 95vw; max-height: 92vh;
+    border-radius: 10px; object-fit: contain;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+}
+.lb-close {
+    position: absolute; top: 18px; right: 22px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    color: #fff; font-size: 1.4em; width: 40px; height: 40px;
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; transition: background .2s;
+}
+.lb-close:hover { background: rgba(255,255,255,.25); }
 
 /* ── Footer ─────────────────────────────────────────────────── */
 footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12px; }
@@ -1548,9 +1528,6 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .timeline-wrap { order: 10; flex-basis: 100%; }
     .frame-counter { margin-left: auto; }
     .compare-hint { order: 3; flex-basis: 100%; text-align:center; }
-    .lb-nav { width: 42px; height: 42px; margin-top: -21px; }
-    .lb-nav.prev { left: 8px; } .lb-nav.next { right: 8px; }
-    .lb-hint { white-space: normal; text-align:center; width: 90%; }
     .empty-card { flex-direction: column; text-align:center; padding: 24px 16px; gap: 18px; }
     html[lang^="zh"] .empty-desc { font-size: .88em; white-space: nowrap; letter-spacing: 0; }
 }
@@ -1670,18 +1647,14 @@ const I18N = {
     'about.disclaimer': 'Not for operational use. For official warnings, follow your national meteorological agency.',
     'key.views':        'Switch pages',
     'key.play':         'Play / pause the animation',
-    'key.seek':         'Step frames · browse images in the viewer',
-    'key.zoom':         'Zoom in the image viewer',
-    'key.esc':          'Close the image viewer',
+    'key.seek':         'Step animation frames',
+    'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
     'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
     'lb.close':         'Close',
-    'lb.zoomin':        'Zoom in',
-    'lb.zoomout':       'Zoom out',
-    'lb.hint':          'Scroll or pinch to zoom · drag to pan · ←/→ to browse',
     'img.broken':       'Image unavailable',
     'rel.now':          'just now',
     'rel.min':          '{n} min ago',
@@ -1774,18 +1747,14 @@ const I18N = {
     'about.disclaimer': '本站僅供參考，不可作為作業依據；官方警報請以各國氣象單位發布為準。',
     'key.views':        '切換頁面',
     'key.play':         '播放／暫停動畫',
-    'key.seek':         '逐格播放 · 在看圖器中切換圖片',
-    'key.zoom':         '看圖器縮放',
-    'key.esc':          '關閉看圖器',
+    'key.seek':         '動畫逐格播放',
+    'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
     'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
     'lb.close':         '關閉',
-    'lb.zoomin':        '放大',
-    'lb.zoomout':       '縮小',
-    'lb.hint':          '滾輪或雙指縮放 · 拖曳平移 · ←/→ 切換圖片',
     'img.broken':       '圖片暫時無法載入',
     'rel.now':          '剛剛',
     'rel.min':          '{n} 分鐘前',
@@ -2180,201 +2149,23 @@ if (canHover) {
     }, { passive: true });
 }
 
-// ═════════════════════════════════════════════════════════════════
-//  看圖器：從縮圖位置放大展開（FLIP）、滾輪／雙指縮放、拖曳平移、左右切換
-// ═════════════════════════════════════════════════════════════════
-const LB = {
-    el: $('#lightbox'), img: $('#lb-img'), stage: $('.lb-stage'),
-    list: [], idx: 0, fig: null, z: 1, x: 0, y: 0,
-    pointers: new Map(), pan: null, pinch: null, moved: false, lastTap: 0,
-};
+// ── Lightbox ──────────────────────────────────────────────────────
+const lightbox = $('#lightbox');
 function zoomImgOf(fig) { return $('img.is-front', fig) || $('img', fig); }
-function galleryFor(fig) {
-    const scope = fig.closest('.view') || document;
-    return $$('.zoomable', scope).filter(f => f.offsetParent !== null && !f.classList.contains('broken'));
-}
-function lbApply(anim) {
-    LB.img.classList.toggle('anim', !!anim);
-    LB.img.style.transform = `translate(${LB.x}px, ${LB.y}px) scale(${LB.z})`;
-    LB.el.classList.toggle('zoomed', LB.z > 1.001);
-    const zl = $('#lb-zoom'); if (zl) zl.textContent = Math.round(LB.z * 100) + '%';
-}
-function lbClamp() {
-    const W = LB.stage.clientWidth, H = LB.stage.clientHeight;
-    const mx = Math.max(0, (LB.img.offsetWidth * LB.z - W) / 2 + 40);
-    const my = Math.max(0, (LB.img.offsetHeight * LB.z - H) / 2 + 40);
-    LB.x = Math.min(mx, Math.max(-mx, LB.x));
-    LB.y = Math.min(my, Math.max(-my, LB.y));
-}
-function lbZoomAt(cx, cy, nz, anim) {
-    nz = Math.min(8, Math.max(1, nz));
-    const sr = LB.stage.getBoundingClientRect();
-    const px = cx - (sr.left + sr.width / 2), py = cy - (sr.top + sr.height / 2);
-    const k = nz / LB.z;
-    LB.x = px - (px - LB.x) * k;
-    LB.y = py - (py - LB.y) * k;
-    LB.z = nz;
-    if (nz <= 1.001) { LB.x = 0; LB.y = 0; LB.z = 1; }
-    lbClamp();
-    lbApply(anim);
-}
-function lbCenterZoom(f) { const r = LB.stage.getBoundingClientRect(); lbZoomAt(r.left + r.width / 2, r.top + r.height / 2, LB.z * f, true); }
-
-function openLightbox(fig) {
-    LB.list = galleryFor(fig);
-    LB.idx = Math.max(0, LB.list.indexOf(fig));
-    if (!LB.list.length) { LB.list = [fig]; LB.idx = 0; }
-    LB.el.classList.add('open');
-    LB.el.classList.toggle('single', LB.list.length < 2);
-    LB.el.setAttribute('aria-hidden', 'false');
+function openLightbox(src) {
+    $('#lightbox-img').src = src;
+    lightbox.classList.add('open');
     document.body.classList.add('lb-lock');
-    requestAnimationFrame(() => LB.el.classList.add('show'));
-    lbLoad(true);
-}
-function lbLoad(fromThumb) {
-    const fig = LB.list[LB.idx];
-    const src = zoomImgOf(fig);
-    LB.fig = fig;
-    LB.z = 1; LB.x = 0; LB.y = 0;
-    $('#lb-caption').textContent = fig.dataset.caption || src.alt || '';
-    $('#lb-counter').textContent = LB.list.length > 1 ? `${LB.idx + 1} / ${LB.list.length}` : '';
-    const img = LB.img;
-    img.classList.remove('anim');
-    img.style.opacity = '0';
-    img.style.transform = 'none';
-    const go = () => {
-        if (fromThumb && !reduced()) {
-            const r = src.getBoundingClientRect();
-            const tr = img.getBoundingClientRect();
-            if (r.width && tr.width) {
-                const s = r.width / tr.width;
-                const dx = (r.left + r.width / 2) - (tr.left + tr.width / 2);
-                const dy = (r.top + r.height / 2) - (tr.top + tr.height / 2);
-                img.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
-                img.style.opacity = '1';
-                void img.offsetWidth;
-                lbApply(true);
-                return;
-            }
-        }
-        img.style.transform = 'translate(0px, 0px) scale(.96)';
-        void img.offsetWidth;
-        img.classList.add('anim');
-        img.style.opacity = '1';
-        lbApply(true);
-    };
-    img.onload = null;
-    img.src = src.currentSrc || src.src;
-    if (img.complete && img.naturalWidth) go();
-    else img.onload = () => { img.onload = null; go(); };
-    const zl = $('#lb-zoom'); if (zl) zl.textContent = '100%';
-}
-function lbStep(d) {
-    if (LB.list.length < 2) return;
-    LB.idx = (LB.idx + d + LB.list.length) % LB.list.length;
-    lbLoad(false);
 }
 function closeLightbox() {
-    if (!LB.el.classList.contains('open')) return;
-    const src = LB.fig && zoomImgOf(LB.fig);
-    const r = src && src.getBoundingClientRect();
-    LB.el.classList.remove('show');
-    const onScreen = r && r.width > 0 && r.bottom > 0 && r.top < innerHeight;
-    if (onScreen && !reduced() && LB.z <= 1.001) {
-        LB.img.style.transform = 'none';
-        const tr = LB.img.getBoundingClientRect();
-        LB.img.style.transform = `translate(${LB.x}px, ${LB.y}px) scale(${LB.z})`;
-        void LB.img.offsetWidth;
-        LB.img.classList.add('anim');
-        const s = r.width / tr.width;
-        LB.img.style.transform = `translate(${(r.left + r.width / 2) - (tr.left + tr.width / 2)}px, ${(r.top + r.height / 2) - (tr.top + tr.height / 2)}px) scale(${s})`;
-    } else {
-        LB.img.classList.add('anim');
-        LB.img.style.opacity = '0';
-    }
-    setTimeout(() => {
-        LB.el.classList.remove('open', 'zoomed');
-        LB.el.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('lb-lock');
-        LB.img.classList.remove('anim');
-        LB.img.style.opacity = '0';
-    }, reduced() ? 0 : 420);
+    lightbox.classList.remove('open');
+    document.body.classList.remove('lb-lock');
 }
-
 document.addEventListener('click', e => {
+    if (lightbox.classList.contains('open')) { closeLightbox(); return; }   // 點任意處關閉
     const fig = e.target.closest('.zoomable');
-    if (fig && !fig.classList.contains('broken') && !LB.el.contains(fig)) { openLightbox(fig); return; }
-    const b = e.target.closest('[data-lb]');
-    if (!b) return;
-    const act = b.dataset.lb;
-    if (act === 'close') closeLightbox();
-    else if (act === 'prev') lbStep(-1);
-    else if (act === 'next') lbStep(1);
-    else if (act === 'in') lbCenterZoom(1.6);
-    else if (act === 'out') lbCenterZoom(1 / 1.6);
+    if (fig && !fig.classList.contains('broken')) { const img = zoomImgOf(fig); openLightbox(img.currentSrc || img.src); }
 });
-LB.stage.addEventListener('wheel', e => {
-    e.preventDefault();
-    lbZoomAt(e.clientX, e.clientY, LB.z * Math.exp(-e.deltaY * 0.0016), false);
-}, { passive: false });
-LB.stage.addEventListener('pointerdown', e => {
-    LB.stage.setPointerCapture(e.pointerId);
-    LB.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    LB.moved = false;
-    if (LB.pointers.size === 1) {
-        LB.pan = { sx: e.clientX, sy: e.clientY, x0: LB.x, y0: LB.y };
-    } else if (LB.pointers.size === 2) {
-        const [a, b] = [...LB.pointers.values()];
-        LB.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: LB.z };
-        LB.pan = null;
-    }
-});
-LB.stage.addEventListener('pointermove', e => {
-    if (!LB.pointers.has(e.pointerId)) return;
-    LB.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (LB.pinch && LB.pointers.size === 2) {
-        const [a, b] = [...LB.pointers.values()];
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        LB.moved = true;
-        lbZoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, LB.pinch.z0 * d / LB.pinch.d0, false);
-    } else if (LB.pan) {
-        const dx = e.clientX - LB.pan.sx, dy = e.clientY - LB.pan.sy;
-        if (Math.abs(dx) + Math.abs(dy) > 4) LB.moved = true;
-        if (LB.z > 1.001) {
-            LB.el.classList.add('dragging');
-            LB.x = LB.pan.x0 + dx; LB.y = LB.pan.y0 + dy;
-            lbClamp(); lbApply(false);
-        }
-    }
-});
-function lbPointerEnd(e) {
-    if (!LB.pointers.has(e.pointerId)) return;
-    LB.pointers.delete(e.pointerId);
-    LB.el.classList.remove('dragging');
-    if (LB.pointers.size < 2) LB.pinch = null;
-    if (LB.pointers.size > 0 || e.type === 'pointercancel') return;
-    const wasPan = LB.pan; LB.pan = null;
-    if (LB.moved) {
-        // 未放大時左右滑動＝切換圖片（手機）
-        if (wasPan && LB.z <= 1.001) {
-            const dx = e.clientX - wasPan.sx;
-            if (Math.abs(dx) > 60) lbStep(dx < 0 ? 1 : -1);
-        }
-        return;
-    }
-    const onImg = e.target === LB.img || LB.img.contains(e.target) ||
-        (() => { const r = LB.img.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; })();
-    const now = performance.now();
-    if (onImg) {
-        if (now - LB.lastTap < 320) { lbZoomAt(e.clientX, e.clientY, LB.z > 1.001 ? 1 : 2.5, true); LB.lastTap = 0; }
-        else LB.lastTap = now;
-    } else if (!e.target.closest('button')) {
-        closeLightbox();
-    }
-}
-LB.stage.addEventListener('pointerup', lbPointerEnd);
-LB.stage.addEventListener('pointercancel', lbPointerEnd);
-$('.lb-backdrop').addEventListener('click', closeLightbox);
 
 // ═════════════════════════════════════════════════════════════════
 //  動畫播放器：進入畫面才預載、全部載完自動播放、雙緩衝淡入換格
@@ -2421,7 +2212,7 @@ function preload(P) {
     });
 }
 function maybeAutoplay(P) {
-    if (!P.touched && P.visible && !reduced() && P.loaded === P.urls.length && !LB.el.classList.contains('open')) play(P);
+    if (!P.touched && P.visible && !reduced() && P.loaded === P.urls.length && !lightbox.classList.contains('open')) play(P);
 }
 function renderFrame(P) {
     const url = P.urls[P.i];
@@ -2724,15 +2515,8 @@ document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    if (LB.el.classList.contains('open')) {
-        if (e.key === 'Escape') closeLightbox();
-        else if (e.key === 'ArrowRight') lbStep(1);
-        else if (e.key === 'ArrowLeft') lbStep(-1);
-        else if (e.key === '+' || e.key === '=') lbCenterZoom(1.6);
-        else if (e.key === '-' || e.key === '_') lbCenterZoom(1 / 1.6);
-        else if (e.key === '0') lbCenterZoom(1 / LB.z);
-        else return;
-        e.preventDefault();
+    if (lightbox.classList.contains('open')) {
+        if (e.key === 'Escape') { closeLightbox(); e.preventDefault(); }
         return;
     }
     if (/^[1-9]$/.test(e.key)) {
