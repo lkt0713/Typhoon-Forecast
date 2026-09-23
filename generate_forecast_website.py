@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.3"
+SITE_VERSION = "3.3.4"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -704,7 +704,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v{SITE_VERSION}</p>
                 </div>
             </div>
         </div>
@@ -1424,7 +1423,7 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .scale-table { display:grid; gap: 8px; }
 /* 寬螢幕排成三欄時，注意事項固定放右下（快捷鍵下方），不要掉到左邊第二列 */
 @media (min-width: 1340px) {
-    .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
     .about-scale { grid-column: 1; grid-row: 1 / span 2; }
     .about-read  { grid-column: 2; grid-row: 1 / span 2; }
     .about-keys  { grid-column: 3; grid-row: 1; }
@@ -1440,7 +1439,6 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .keys-list div:last-child { border-bottom:0; padding-bottom:0; }
 .keys-list span:last-child { color: var(--text-2); text-align:right; }
 .disclaimer p { color: var(--text-2); line-height:1.7; }
-.ver-line { margin-top: 12px; color: var(--text-3) !important; font-weight: 700; }
 
 /* ── Lightbox ───────────────────────────────────────────────── */
 .lightbox {
