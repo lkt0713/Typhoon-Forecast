@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.4"
+SITE_VERSION = "3.3.5"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -318,7 +318,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                             <dl class="tile-facts">
                                 <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['pos'])}</dd></div>
                                 <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">{_esc(info['time'])}</dd></div>
-                                <div><dt data-i18n="stat.models">Models</dt><dd>{' · '.join(_esc(m) for m in info['models'])}</dd></div>
+                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models">{' · '.join(f'<span>{_esc(m)}</span>' for m in info['models'])}</dd></div>
                             </dl>
                         </div>
                         <div class="gauge" data-kt="{kt}" style="--cat:{info['color']}"></div>
@@ -1171,6 +1171,8 @@ html[lang^="zh"] .brand-text h1 { letter-spacing: .05em; }
 .tile-facts div { display:flex; gap: 10px; }
 .tile-facts dt { color: var(--text-3); min-width: 72px; font-weight: 600; }
 .tile-facts dd { font-weight: 700; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; min-width:0; }
+.tile-facts dd.tile-models { white-space: normal; overflow: visible; }
+.tile-models span { white-space: nowrap; }
 .tile-cta { font-weight: 750; font-size: .88em; color: var(--accent); transition: transform .3s var(--ease-spring); display:inline-block; }
 .storm-tile:hover .tile-cta, .genesis-teaser:hover .tile-cta { transform: translateX(6px); }
 
