@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.0.2"
+SITE_VERSION = "3.0.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -303,8 +303,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="hero-inner">
                 {hero_inner}
                 <div class="hero-meta">
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.next">Next refresh</span><span class="chip-v mono" id="hero-countdown">--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v"><span class="mono">{update_time[5:16]}</span> <span class="rel-time"></span></span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">{update_time[5:16]}</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">{len(infos)}</span></div>
                 </div>
             </div>
@@ -1134,16 +1134,15 @@ html[lang^="zh"] .hero-title { letter-spacing: .02em; max-width: none; font-size
 .btn-ghost:hover { background: rgba(255,255,255,.12); transform: translateY(-3px); }
 .hero-meta { display:flex; flex-wrap:wrap; gap:10px; margin-top: 40px; animation: fadeUp .9s var(--ease-out) .7s both; }
 .hero-chip {
-    display:flex; flex-direction:column; gap:3px;
-    padding: 10px 16px; border-radius: 12px;
+    display:flex; flex-direction:column; gap:5px;
+    padding: 12px 18px; border-radius: 12px;
     background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     min-width: 130px;
 }
-.chip-k { font-size:.68em; letter-spacing:.1em; text-transform:uppercase; opacity:.6; font-weight:700; }
-html[lang^="zh"] .chip-k { letter-spacing:.04em; }
-.chip-v { font-size: 1.05em; font-weight: 750; }
-.chip-v .rel-time { font-size:.8em; opacity:.65; font-weight:600; }
+.chip-k { font-size:.78em; letter-spacing:.1em; text-transform:uppercase; opacity:.78; font-weight:800; }
+html[lang^="zh"] .chip-k { letter-spacing:.06em; }
+.chip-v { font-size: 1.5em; font-weight: 850; letter-spacing: -.01em; white-space: nowrap; }
 .scroll-cue { position:absolute; left:50%; bottom: 58px; z-index:1; width: 24px; height: 38px; margin-left:-12px; border: 2px solid rgba(255,255,255,.35); border-radius: 14px; animation: fadeUp 1s var(--ease-out) 1.2s both; }
 .scroll-cue span { position:absolute; left:50%; top:7px; width:4px; height:8px; margin-left:-2px; border-radius:2px; background:#fff; animation: cue 1.8s ease-in-out infinite; }
 @keyframes cue { 0% { opacity:0; transform: translateY(0); } 30% { opacity:1; } 100% { opacity:0; transform: translateY(14px); } }
@@ -1530,7 +1529,8 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .version-badge { padding: 7px 10px; }
     .hero { min-height: 88vh; }
     .hero-meta { gap: 8px; }
-    .hero-chip { min-width: 0; flex: 1 1 40%; padding: 9px 12px; }
+    .hero-chip { min-width: 0; flex: 1 1 40%; padding: 11px 14px; }
+    .chip-v { font-size: 1.3em; }
     .scroll-cue { display:none; }
     .tile-body { grid-template-columns: 1fr; }
     .tile-body .gauge { max-width: 220px; }
@@ -1600,7 +1600,7 @@ const I18N = {
     'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 30 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
-    'hero.next':        'Next refresh',
+    'hero.now':         'Current time',
     'hero.updated':     'Data updated',
     'hero.active':      'Active systems',
     'sec.active.kicker':'Live',
@@ -1705,7 +1705,7 @@ const I18N = {
     'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 30 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
-    'hero.next':        '下次更新',
+    'hero.now':         '現在時間',
     'hero.updated':     '資料更新',
     'hero.active':      '活躍系統',
     'sec.active.kicker':'即時',
@@ -2666,12 +2666,12 @@ function fmtRemain(ms) {
 function tickClock() {
     const now = new Date();
     const remain = REFRESH_AT - now;
-    const cd = $('#hero-countdown'); if (cd) cd.textContent = fmtRemain(remain);
+    const clk = $('#hero-clock');
+    if (clk) clk.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
     const ring = $('.ring-fg');
     if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (30 * 60000))) * 100).toFixed(2);
     const mins = Math.floor((now - UPDATED) / 60000);
     const rel = isNaN(mins) ? '' : mins < 1 ? t('rel.now') : mins < 60 ? t('rel.min', { n: mins }) : t('rel.hr', { n: Math.floor(mins / 60) });
-    $$('.rel-time').forEach(el => { el.textContent = rel ? '· ' + rel : ''; });
     const badge = $('#update-badge');
     if (badge) {
         const stale = mins > 75;
