@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.1.2"
+SITE_VERSION = "3.1.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1147,7 +1147,8 @@ html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size
 }
 .chip-k { font-size:.78em; letter-spacing:.1em; text-transform:uppercase; opacity:.78; font-weight:800; }
 html[lang^="zh"] .chip-k { letter-spacing:.06em; }
-.chip-v { font-size: 1.5em; font-weight: 850; letter-spacing: -.01em; white-space: nowrap; }
+/* 時間數字字距拉開（中英文一致），日期與時間之間再多留一點空 */
+.chip-v, html[lang^="zh"] .chip-v { font-size: 1.5em; font-weight: 850; letter-spacing: .06em; word-spacing: .3em; white-space: nowrap; }
 .scroll-cue { position:absolute; left:50%; bottom: 58px; z-index:1; width: 24px; height: 38px; margin-left:-12px; border: 2px solid rgba(255,255,255,.35); border-radius: 14px; animation: fadeUp 1s var(--ease-out) 1.2s both; }
 .scroll-cue span { position:absolute; left:50%; top:7px; width:4px; height:8px; margin-left:-2px; border-radius:2px; background:#fff; animation: cue 1.8s ease-in-out infinite; }
 @keyframes cue { 0% { opacity:0; transform: translateY(0); } 30% { opacity:1; } 100% { opacity:0; transform: translateY(14px); } }
