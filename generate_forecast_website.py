@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.1.3"
+SITE_VERSION = "3.1.4"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -271,7 +271,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         lead_wind = f"{lead['wind']:.0f} kt" if lead['wind'] is not None else "— kt"
         hero_inner = f"""
                 <div class="eyebrow"><span class="live-dot"></span><span data-i18n="hero.eyebrow.live">Now tracking</span></div>
-                <h2 class="hero-title split" style="--glow:{lead['color']}">{_esc(_title(lead))}</h2>
+                <h2 class="hero-title storm-name split" style="--glow:{lead['color']}">{_esc(_title(lead))}</h2>
                 <p class="hero-lead">
                     <span class="cat-pill" style="background:{lead['color']};color:{lead['text']}">{lead['cat']}</span>
                     <span data-i18n="catname.{lead['cat']}">{lead['cat']}</span>
@@ -325,7 +325,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     </div>
                     <div class="tile-body">
                         <div>
-                            <div class="tile-name">{_esc(_title(info))}</div>
+                            <div class="tile-name storm-name">{_esc(_title(info))}</div>
                             <div class="tile-catname" data-i18n="catname.{info['cat']}">{info['cat']}</div>
                             <dl class="tile-facts">
                                 <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['lat'])}, {_esc(info['lon'])}</dd></div>
@@ -412,7 +412,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if len(infos) > 1:
             links = "".join(
                 f'<a class="switch-chip{" active" if o["id"] == track_id else ""}" href="#/storm/{_esc(o["id"])}">'
-                f'<span class="nav-dot" style="--c:{o["color"]}"></span>{_esc(_title(o))}</a>'
+                f'<span class="nav-dot" style="--c:{o["color"]}"></span><span class="storm-name">{_esc(_title(o))}</span></a>'
                 for o in infos.values())
             switcher = f'<div class="storm-switch reveal">{links}</div>'
 
@@ -585,7 +585,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="swirl" aria-hidden="true"></div>
                 <div class="storm-hero-main">
                     <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
-                    <h2 class="storm-title">{_esc(_title(info))}</h2>
+                    <h2 class="storm-title storm-name">{_esc(_title(info))}</h2>
                     <div class="storm-badges">
                         <span class="badge-cat" style="background:{info['color']};color:{info['text']};">{info['cat']}</span>
                         <span class="badge-id">{_esc(track_id)}</span>
@@ -733,7 +733,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     for info in infos.values():
         nav_links.append(
             f'<a class="nav-link" href="#/storm/{_esc(info["id"])}" data-route="storm/{_esc(info["id"])}">'
-            f'<span class="nav-dot" style="--c:{info["color"]}"></span><span>{_esc(_title(info))}</span></a>')
+            f'<span class="nav-dot" style="--c:{info["color"]}"></span><span class="storm-name">{_esc(_title(info))}</span></a>')
     if _genesis_entries:
         nav_links.append(f'<a class="nav-link" href="#/genesis" data-route="genesis">{ICONS["genesis"]}<span data-i18n="nav.genesis">Genesis</span></a>')
     nav_links.append(f'<a class="nav-link" href="#/about" data-route="about">{ICONS["about"]}<span data-i18n="nav.about">About</span></a>')
@@ -1116,6 +1116,9 @@ html[lang^="zh"] .eyebrow { letter-spacing: .06em; }
 }
 html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.32; }
 .hero-title, .page-title, .storm-title { text-wrap: balance; }
+/* 颱風名稱（全大寫英文）一律拉開字距，不論出現在哪裡、介面是哪種語言 */
+.storm-name { letter-spacing: .06em !important; }
+.nav-link .storm-name, .switch-chip .storm-name { letter-spacing: .08em !important; }
 .split .w { display:inline-block; white-space: nowrap; }
 .split .ch { display:inline-block; opacity:0; transform: translateY(.55em) rotate(6deg); filter: blur(6px);
              animation: chIn .9s var(--ease-out) forwards; animation-delay: calc(var(--i) * 32ms + 120ms); }
