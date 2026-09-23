@@ -543,7 +543,9 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 
 /* ── Genesis page ───────────────────────────────────────────── */
 .genesis-panel { border-top: 4px solid var(--warn); }
-.genesis-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
+.genesis-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+/* 間距統一由工具列負責：比較模式會把模式分頁藏起來，不能靠分頁自己的下邊距 */
+.genesis-toolbar .seg { margin-bottom: 0; }
 .genesis-toolbar:empty { display:none; }
 .genesis-legend { margin-top: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
 .ghost-btn { display:inline-flex; align-items:center; gap: 8px; padding: 9px 15px; border-radius: 11px; border:1px solid var(--border); background: var(--surface); color: var(--text-2); font-weight: 750; font-size:.85em; cursor:pointer; transition: all .25s; box-shadow: var(--shadow); }
@@ -552,7 +554,7 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .ghost-btn[aria-pressed="true"] { background: var(--btn-bg); color:#fff; border-color: transparent; }
 .genesis-panel.comparing .genesis-single, .genesis-panel.comparing .genesis-tabs { display:none; }
 .compare { animation: swapIn .5s var(--ease-out); }
-.compare-pickers { display:flex; align-items:center; justify-content:space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.compare-pickers { display:flex; align-items:center; justify-content:space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding-top: 16px; border-top: 1px solid var(--border); }
 .compare-pickers label { display:flex; align-items:center; gap: 8px; }
 .compare-pickers select { font: inherit; font-weight: 750; font-size: .88em; padding: 7px 12px; border-radius: 10px; border:1px solid var(--border); background: var(--surface-2); color: var(--text); cursor:pointer; }
 .compare-hint { font-size: .8em; color: var(--text-3); font-weight: 600; }
@@ -721,14 +723,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:02:35">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:06:10">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:02<span class="ub-long">:35</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:06<span class="ub-long">:10</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.0.3</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.0.4</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -751,7 +753,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:02</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:06</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -988,7 +990,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.0.3</p>
+                    <p class="mono ver-line">v3.0.4</p>
                 </div>
             </div>
         </div>
@@ -1038,7 +1040,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:02:35+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:06:10+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';

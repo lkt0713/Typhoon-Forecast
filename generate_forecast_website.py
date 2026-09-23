@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.0.3"
+SITE_VERSION = "3.0.4"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1398,7 +1398,9 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 
 /* ── Genesis page ───────────────────────────────────────────── */
 .genesis-panel { border-top: 4px solid var(--warn); }
-.genesis-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
+.genesis-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+/* 間距統一由工具列負責：比較模式會把模式分頁藏起來，不能靠分頁自己的下邊距 */
+.genesis-toolbar .seg { margin-bottom: 0; }
 .genesis-toolbar:empty { display:none; }
 .genesis-legend { margin-top: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
 .ghost-btn { display:inline-flex; align-items:center; gap: 8px; padding: 9px 15px; border-radius: 11px; border:1px solid var(--border); background: var(--surface); color: var(--text-2); font-weight: 750; font-size:.85em; cursor:pointer; transition: all .25s; box-shadow: var(--shadow); }
@@ -1407,7 +1409,7 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .ghost-btn[aria-pressed="true"] { background: var(--btn-bg); color:#fff; border-color: transparent; }
 .genesis-panel.comparing .genesis-single, .genesis-panel.comparing .genesis-tabs { display:none; }
 .compare { animation: swapIn .5s var(--ease-out); }
-.compare-pickers { display:flex; align-items:center; justify-content:space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.compare-pickers { display:flex; align-items:center; justify-content:space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding-top: 16px; border-top: 1px solid var(--border); }
 .compare-pickers label { display:flex; align-items:center; gap: 8px; }
 .compare-pickers select { font: inherit; font-weight: 750; font-size: .88em; padding: 7px 12px; border-radius: 10px; border:1px solid var(--border); background: var(--surface-2); color: var(--text); cursor:pointer; }
 .compare-hint { font-size: .8em; color: var(--text-3); font-weight: 600; }
