@@ -162,8 +162,10 @@ header {
 .nav-dot { width:9px; height:9px; border-radius:50%; background: var(--c); box-shadow: 0 0 0 3px rgba(255,255,255,.0), 0 0 10px var(--c); flex-shrink:0; }
 
 .header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-/* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。 */
+/* 頁首按鈕一律排成一排；窄螢幕靠縮短內容（只留圖示、時間只留時分）擠進去 */
 .actions-break { display:none; }
+.bt-short { display:none; }
+.bi:empty { display:none; }
 .update-badge {
     display:flex; align-items:center; gap:7px;
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
@@ -634,8 +636,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     header { padding: 10px 16px; gap: 10px; }
     .top-nav { display:none; }
     .header-brand { flex: 1; }
-    .header-actions { width: 100%; justify-content: space-between; }
-    .actions-break { display:block; flex-basis:100%; height:0; margin:0; }
+    .header-actions { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
     .bottom-nav {
         position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 280;
         display:flex; justify-content:space-around; gap: 4px; padding: 6px;
@@ -663,9 +664,15 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .brand-icon { width: 32px; height: 32px; font-size: 1em; }
     .brand-text h1 { font-size: .95em; }
     .header-actions { gap: 8px; }
-    .update-badge { flex: 0 1 auto; padding: 6px 9px 6px 7px; font-size: .68em; white-space: nowrap; min-width: 0; }
-    .ring { width: 15px; height: 15px; }
-    .theme-btn { flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }
+    .header-actions { gap: 6px; }
+    .update-badge { flex: 1 1 auto; padding: 7px 10px 7px 8px; font-size: .8em; white-space: nowrap; min-width: 0; font-variant-numeric: tabular-nums; }
+    .ub-long { display:none; }
+    .ring { width: 16px; height: 16px; }
+    .theme-btn { flex: 0 0 auto; padding: 7px 11px; font-size: .8em; min-width: 40px; justify-content:center; }
+    .theme-btn .bi:not(:empty) + .bt { display:none; }
+    #lang-btn .bt { display:none; }
+    #lang-btn .bt-short { display:inline; font-weight: 800; }
+    .version-badge { padding: 7px 10px; }
     .hero { min-height: 88vh; }
     .hero-meta { gap: 8px; }
     .hero-chip { min-width: 0; flex: 1 1 40%; padding: 9px 12px; }
@@ -714,14 +721,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 18:58:35">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span><span data-i18n="header.updated">Updated</span>: 2026-09-23 18:54:44</span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 18:58<span class="ub-long">:35</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.0.1</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.0.2</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -744,7 +751,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.next">Next refresh</span><span class="chip-v mono" id="hero-countdown">--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v"><span class="mono">09-23 18:54</span> <span class="rel-time"></span></span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v"><span class="mono">09-23 18:58</span> <span class="rel-time"></span></span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -981,7 +988,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.0.1</p>
+                    <p class="mono ver-line">v3.0.2</p>
                 </div>
             </div>
         </div>
@@ -1031,7 +1038,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T18:54:44+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T18:58:35+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';
@@ -1056,6 +1063,7 @@ const I18N = {
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
     'btn.lang':         '🌐 中文',
+    'btn.lang.short':   '中',
     'nav.overview':     'Overview',
     'nav.storms':       'Storms',
     'nav.genesis':      'Genesis',
@@ -1160,6 +1168,7 @@ const I18N = {
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
     'btn.lang':         '🌐 English',
+    'btn.lang.short':   'EN',
     'nav.overview':     '總覽',
     'nav.storms':       '颱風',
     'nav.genesis':      '生成潛勢',
@@ -1293,7 +1302,7 @@ function applyLang(lang, save = true) {
     });
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
-    if (langBtn) langBtn.textContent = t('btn.lang');
+    if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
     applyTheme(root.getAttribute('data-theme') || 'light', false);
     $$('.split').forEach(splitText);
     $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
@@ -1318,12 +1327,20 @@ function splitText(el) {
     el.innerHTML = out;
 }
 
+// 頁首按鈕拆成「圖示＋文字」：窄螢幕只顯示圖示（或短字），頁首才能擠成一排
+function btnHTML(label, short) {
+    const i = label.indexOf(' ');
+    const icon = i > 0 ? label.slice(0, i) : '', text = i > 0 ? label.slice(i + 1) : label;
+    return `<span class="bi">${icon}</span><span class="bt">${text}</span>` +
+           (short ? `<span class="bt-short">${short}</span>` : '');
+}
+
 // ── Theme ─────────────────────────────────────────────────────────
 // 預設依時段（18–6 點深色），已在 <head> 先套用；按鈕切換時用圓形擴散轉場。
 function applyTheme(theme, save = true) {
     root.setAttribute('data-theme', theme);
     const btn = $('#theme-btn');
-    if (btn) btn.textContent = theme === 'dark' ? t('btn.light') : t('btn.dark');
+    if (btn) btn.innerHTML = btnHTML(theme === 'dark' ? t('btn.light') : t('btn.dark'));
     if (save) { try { localStorage.setItem('theme', theme); } catch (e) {} }
 }
 
@@ -2134,7 +2151,8 @@ function tickClock() {
     if (badge) {
         const stale = mins > 75;
         badge.classList.toggle('stale', stale);
-        badge.title = stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) });
+        badge.title = t('header.updated') + ': ' + badge.dataset.full + ' · ' +
+            (stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) }));
     }
 }
 setTimeout(() => {

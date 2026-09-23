@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.0.1"
+SITE_VERSION = "3.0.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -793,9 +793,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge">
+            <div class="update-badge" id="update-badge" data-full="{update_time}">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span><span data-i18n="header.updated">Updated</span>: {update_time}</span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: {update_time[:10]}</span> {update_time[11:16]}<span class="ub-long">{update_time[16:]}</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
@@ -1017,8 +1017,10 @@ header {
 .nav-dot { width:9px; height:9px; border-radius:50%; background: var(--c); box-shadow: 0 0 0 3px rgba(255,255,255,.0), 0 0 10px var(--c); flex-shrink:0; }
 
 .header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-/* 強制換列用的空元素：窄螢幕時把版號徽章擠到下一列。 */
+/* 頁首按鈕一律排成一排；窄螢幕靠縮短內容（只留圖示、時間只留時分）擠進去 */
 .actions-break { display:none; }
+.bt-short { display:none; }
+.bi:empty { display:none; }
 .update-badge {
     display:flex; align-items:center; gap:7px;
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
@@ -1489,8 +1491,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     header { padding: 10px 16px; gap: 10px; }
     .top-nav { display:none; }
     .header-brand { flex: 1; }
-    .header-actions { width: 100%; justify-content: space-between; }
-    .actions-break { display:block; flex-basis:100%; height:0; margin:0; }
+    .header-actions { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
     .bottom-nav {
         position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 280;
         display:flex; justify-content:space-around; gap: 4px; padding: 6px;
@@ -1518,9 +1519,15 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .brand-icon { width: 32px; height: 32px; font-size: 1em; }
     .brand-text h1 { font-size: .95em; }
     .header-actions { gap: 8px; }
-    .update-badge { flex: 0 1 auto; padding: 6px 9px 6px 7px; font-size: .68em; white-space: nowrap; min-width: 0; }
-    .ring { width: 15px; height: 15px; }
-    .theme-btn { flex: 0 0 auto; padding: 7px 10px; font-size: .74em; }
+    .header-actions { gap: 6px; }
+    .update-badge { flex: 1 1 auto; padding: 7px 10px 7px 8px; font-size: .8em; white-space: nowrap; min-width: 0; font-variant-numeric: tabular-nums; }
+    .ub-long { display:none; }
+    .ring { width: 16px; height: 16px; }
+    .theme-btn { flex: 0 0 auto; padding: 7px 11px; font-size: .8em; min-width: 40px; justify-content:center; }
+    .theme-btn .bi:not(:empty) + .bt { display:none; }
+    #lang-btn .bt { display:none; }
+    #lang-btn .bt-short { display:inline; font-weight: 800; }
+    .version-badge { padding: 7px 10px; }
     .hero { min-height: 88vh; }
     .hero-meta { gap: 8px; }
     .hero-chip { min-width: 0; flex: 1 1 40%; padding: 9px 12px; }
@@ -1581,6 +1588,7 @@ const I18N = {
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
     'btn.lang':         '🌐 中文',
+    'btn.lang.short':   '中',
     'nav.overview':     'Overview',
     'nav.storms':       'Storms',
     'nav.genesis':      'Genesis',
@@ -1685,6 +1693,7 @@ const I18N = {
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
     'btn.lang':         '🌐 English',
+    'btn.lang.short':   'EN',
     'nav.overview':     '總覽',
     'nav.storms':       '颱風',
     'nav.genesis':      '生成潛勢',
@@ -1818,7 +1827,7 @@ function applyLang(lang, save = true) {
     });
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
-    if (langBtn) langBtn.textContent = t('btn.lang');
+    if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
     applyTheme(root.getAttribute('data-theme') || 'light', false);
     $$('.split').forEach(splitText);
     $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
@@ -1843,12 +1852,20 @@ function splitText(el) {
     el.innerHTML = out;
 }
 
+// 頁首按鈕拆成「圖示＋文字」：窄螢幕只顯示圖示（或短字），頁首才能擠成一排
+function btnHTML(label, short) {
+    const i = label.indexOf(' ');
+    const icon = i > 0 ? label.slice(0, i) : '', text = i > 0 ? label.slice(i + 1) : label;
+    return `<span class="bi">${icon}</span><span class="bt">${text}</span>` +
+           (short ? `<span class="bt-short">${short}</span>` : '');
+}
+
 // ── Theme ─────────────────────────────────────────────────────────
 // 預設依時段（18–6 點深色），已在 <head> 先套用；按鈕切換時用圓形擴散轉場。
 function applyTheme(theme, save = true) {
     root.setAttribute('data-theme', theme);
     const btn = $('#theme-btn');
-    if (btn) btn.textContent = theme === 'dark' ? t('btn.light') : t('btn.dark');
+    if (btn) btn.innerHTML = btnHTML(theme === 'dark' ? t('btn.light') : t('btn.dark'));
     if (save) { try { localStorage.setItem('theme', theme); } catch (e) {} }
 }
 
@@ -2659,7 +2676,8 @@ function tickClock() {
     if (badge) {
         const stale = mins > 75;
         badge.classList.toggle('stale', stale);
-        badge.title = stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) });
+        badge.title = t('header.updated') + ': ' + badge.dataset.full + ' · ' +
+            (stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) }));
     }
 }
 setTimeout(() => {
