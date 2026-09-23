@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.1.0"
+SITE_VERSION = "3.1.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1114,7 +1114,7 @@ html[lang^="zh"] .eyebrow { letter-spacing: .06em; }
     text-shadow: 0 0 60px var(--glow, rgba(143,211,255,.45));
     overflow-wrap: anywhere;
 }
-html[lang^="zh"] .hero-title { letter-spacing: .02em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.15; }
+html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.32; }
 .hero-title, .page-title, .storm-title { text-wrap: balance; }
 .split .w { display:inline-block; white-space: nowrap; }
 .split .ch { display:inline-block; opacity:0; transform: translateY(.55em) rotate(6deg); filter: blur(6px);
@@ -1162,7 +1162,9 @@ html[lang^="zh"] .kicker { letter-spacing:.06em; }
 .legend-inline { display:flex; align-items:center; gap:7px; font-size:.78em; color: var(--text-3); font-weight:600; }
 .page-head { padding-top: 8px; }
 .page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
-html[lang^="zh"] .page-title { letter-spacing: 0; }
+/* 中文標題：行距拉開、字距微開，兩行時不會擠在一起 */
+html[lang^="zh"] .page-title { letter-spacing: .05em; line-height: 1.38; }
+html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title { letter-spacing: .05em; }
 .page-lead { margin-top: 10px; color: var(--text-2); max-width: 70ch; line-height: 1.7; }
 
 /* ── Storm tiles (overview) ─────────────────────────────────── */
@@ -1557,8 +1559,10 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .lb-nav { width: 42px; height: 42px; margin-top: -21px; }
     .lb-nav.prev { left: 8px; } .lb-nav.next { right: 8px; }
     .lb-hint { white-space: normal; text-align:center; width: 90%; }
-    .empty-card { flex-direction: column; text-align:center; }
+    .empty-card { flex-direction: column; text-align:center; padding: 24px 16px; gap: 18px; }
+    html[lang^="zh"] .empty-desc { font-size: .88em; white-space: nowrap; letter-spacing: 0; }
 }
+@media (max-width: 340px) { html[lang^="zh"] .empty-desc { white-space: normal; } }
 @media (max-width: 380px) {
     .stat-grid { grid-template-columns: 1fr; }
     .badge-cat, .badge-id, .badge-live, .badge-name { padding: 5px 9px; font-size: .72em; }
@@ -1730,7 +1734,7 @@ const I18N = {
     'empty.title':      '目前無活躍系統',
     'empty.status':     '狀態',
     'empty.await':      '等待資料中…',
-    'empty.desc':       '目前沒有正在發展的系統。本頁每 30 分鐘自動更新。',
+    'empty.desc':       '目前沒有發展中的系統，每 30 分鐘自動更新',
     'storm.subtitle':   '西北太平洋熱帶氣旋',
     'badge.live':       '即時',
     'catname.TD':       '熱帶性低氣壓',

@@ -259,7 +259,7 @@ html[lang^="zh"] .eyebrow { letter-spacing: .06em; }
     text-shadow: 0 0 60px var(--glow, rgba(143,211,255,.45));
     overflow-wrap: anywhere;
 }
-html[lang^="zh"] .hero-title { letter-spacing: .02em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.15; }
+html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size: clamp(2.3rem, 6vw, 4.6rem); line-height: 1.32; }
 .hero-title, .page-title, .storm-title { text-wrap: balance; }
 .split .w { display:inline-block; white-space: nowrap; }
 .split .ch { display:inline-block; opacity:0; transform: translateY(.55em) rotate(6deg); filter: blur(6px);
@@ -307,7 +307,9 @@ html[lang^="zh"] .kicker { letter-spacing:.06em; }
 .legend-inline { display:flex; align-items:center; gap:7px; font-size:.78em; color: var(--text-3); font-weight:600; }
 .page-head { padding-top: 8px; }
 .page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
-html[lang^="zh"] .page-title { letter-spacing: 0; }
+/* 中文標題：行距拉開、字距微開，兩行時不會擠在一起 */
+html[lang^="zh"] .page-title { letter-spacing: .05em; line-height: 1.38; }
+html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title { letter-spacing: .05em; }
 .page-lead { margin-top: 10px; color: var(--text-2); max-width: 70ch; line-height: 1.7; }
 
 /* ── Storm tiles (overview) ─────────────────────────────────── */
@@ -702,8 +704,10 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .lb-nav { width: 42px; height: 42px; margin-top: -21px; }
     .lb-nav.prev { left: 8px; } .lb-nav.next { right: 8px; }
     .lb-hint { white-space: normal; text-align:center; width: 90%; }
-    .empty-card { flex-direction: column; text-align:center; }
+    .empty-card { flex-direction: column; text-align:center; padding: 24px 16px; gap: 18px; }
+    html[lang^="zh"] .empty-desc { font-size: .88em; white-space: nowrap; letter-spacing: 0; }
 }
+@media (max-width: 340px) { html[lang^="zh"] .empty-desc { white-space: normal; } }
 @media (max-width: 380px) {
     .stat-grid { grid-template-columns: 1fr; }
     .badge-cat, .badge-id, .badge-live, .badge-name { padding: 5px 9px; font-size: .72em; }
@@ -728,14 +732,14 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:10:34">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 19:16:05">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:10<span class="ub-long">:34</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 19:16<span class="ub-long">:05</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v3.1.0</span>
+            <span class="version-badge" title="Site version / 網站版本">v3.1.1</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -758,7 +762,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:10</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono">09-23 19:16</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
                 </div>
             </div>
@@ -995,7 +999,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="mono ver-line">v3.1.0</p>
+                    <p class="mono ver-line">v3.1.1</p>
                 </div>
             </div>
         </div>
@@ -1045,7 +1049,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <div class="lb-hint" data-i18n="lb.hint">Scroll or pinch to zoom · drag to pan · ←/→ to browse</div>
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:10:34+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T19:16:05+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';
@@ -1205,7 +1209,7 @@ const I18N = {
     'empty.title':      '目前無活躍系統',
     'empty.status':     '狀態',
     'empty.await':      '等待資料中…',
-    'empty.desc':       '目前沒有正在發展的系統。本頁每 30 分鐘自動更新。',
+    'empty.desc':       '目前沒有發展中的系統，每 30 分鐘自動更新',
     'storm.subtitle':   '西北太平洋熱帶氣旋',
     'badge.live':       '即時',
     'catname.TD':       '熱帶性低氣壓',
