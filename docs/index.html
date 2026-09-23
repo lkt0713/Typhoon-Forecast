@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&display=swap">
-    <title>Pillar's Tropical Cyclone Forecast | Forecast</title>
+    <title>Pillar's Tropical Cyclone Forecast | WP252026</title>
     <script>
     // 在第一次繪製前就決定主題與語言，避免先閃一下淺色／英文
     (function () {
@@ -743,11 +743,11 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
-        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
+        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/storm/WP252026" data-route="storm/WP252026"><span class="nav-dot" style="--c:#8A97A6"></span><span class="storm-name">TWENTYFIVE</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-23 20:48:06">
+            <div class="update-badge" id="update-badge" data-full="2026-09-23 21:02:11">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 20:48<span class="ub-long">:06</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-23</span> 21:02<span class="ub-long">:11</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
@@ -761,22 +761,29 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
 
     <section class="view" data-view="overview" data-title-key="nav.overview">
         
-        <div class="hero" style="--flow-rgb:143,211,255">
+        <div class="hero" style="--flow-rgb:179,187,197">
             <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
             <div class="hero-eye" aria-hidden="true"></div>
             <div class="hero-inner">
                 
-                <div class="eyebrow"><span class="calm-dot"></span><span data-i18n="hero.eyebrow.quiet">Western Pacific · Monitoring</span></div>
-                <h2 class="hero-title split" data-i18n="hero.quiet.title">All quiet in the Western Pacific</h2>
-                <p class="hero-sub" data-i18n="hero.quiet.sub">No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.</p>
+                <div class="eyebrow"><span class="live-dot"></span><span data-i18n="hero.eyebrow.live">Now tracking</span></div>
+                <h2 class="hero-title storm-name split" style="--glow:#8A97A6">TWENTYFIVE</h2>
+                <p class="hero-lead">
+                    <span class="cat-pill" style="background:#8A97A6;color:#0D2033">TD</span>
+                    <span data-i18n="catname.TD">TD</span>
+                    <span class="sep">·</span><span class="mono">25 kt</span>
+                    <span class="sep">·</span><span class="mono">16.0°N, 138.4°E</span>
+                </p>
+                <p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="1"
+                   data-i18n-models="6">1 active system(s) · ensemble guidance from 6 models, refreshed every 30 minutes.</p>
                 <div class="hero-cta">
-                    <a class="btn-primary" href="#/genesis"><span data-i18n="hero.cta.genesis">Genesis outlook</span> <span aria-hidden="true">→</span></a>
-                    <a class="btn-ghost" href="#/about" data-i18n="nav.about">About</a>
+                    <a class="btn-primary" href="#/storm/WP252026"><span data-i18n="hero.cta.storm">Open forecast</span> <span aria-hidden="true">→</span></a>
+                    <a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 20:48</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">0</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-23</span> 21:02</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">1</span></div>
                 </div>
             </div>
             <div class="scroll-cue" aria-hidden="true"><span></span></div>
@@ -785,16 +792,29 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.active.kicker">Live</div>
                 <h3 data-i18n="sec.active">Active systems</h3></div>
-                <span class="count-chip mono">0</span>
+                <span class="count-chip mono">1</span>
             </div>
-            
-            <div class="empty-card reveal">
-                <div class="calm-sea" aria-hidden="true"><span></span><span></span><span></span></div>
-                <div>
-                    <div class="empty-title" data-i18n="empty.title">No Active Systems</div>
-                    <p class="empty-desc" data-i18n="empty.desc">Nothing is spinning up right now. This page refreshes automatically every 30 minutes.</p>
-                </div>
-            </div>
+            <div class="storm-grid">
+                <a class="storm-tile reveal tilt" href="#/storm/WP252026" style="--cat:#8A97A6;--cat-text:#0D2033">
+                    <div class="tile-top">
+                        <span class="badge-cat" style="background:#8A97A6;color:#0D2033">TD</span>
+                        <span class="badge-id">WP252026</span>
+                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
+                    </div>
+                    <div class="tile-body">
+                        <div>
+                            <div class="tile-name storm-name">TWENTYFIVE</div>
+                            <div class="tile-catname" data-i18n="catname.TD">TD</div>
+                            <dl class="tile-facts">
+                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">16.0°N, 138.4°E</dd></div>
+                                <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">23 / 06:00 UTC</dd></div>
+                                <div><dt data-i18n="stat.models">Models</dt><dd>WNC3 · WNC2-r2 · WNC2-r1</dd></div>
+                            </dl>
+                        </div>
+                        <div class="gauge" data-kt="25" style="--cat:#8A97A6"></div>
+                    </div>
+                    <span class="tile-cta" data-i18n="tile.open">Open full forecast →</span>
+                </a></div>
             
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
@@ -847,6 +867,202 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </div>
     </section>
 
+    <section class="view" data-view="storm/WP252026" data-title="TWENTYFIVE">
+        <div class="page">
+            
+            <div class="storm-hero reveal" style="--cat:#8A97A6">
+                <div class="swirl" aria-hidden="true"></div>
+                <div class="storm-hero-main">
+                    <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
+                    <h2 class="storm-title storm-name">TWENTYFIVE</h2>
+                    <div class="storm-badges">
+                        <span class="badge-cat" style="background:#8A97A6;color:#0D2033;">TD</span>
+                        <span class="badge-id">WP252026</span>
+                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
+                        <span class="badge-name" data-i18n="catname.TD">TD</span>
+                    </div>
+                </div>
+                <div class="gauge gauge-lg" data-kt="25" style="--cat:#8A97A6"></div>
+            </div>
+            <div class="stat-grid">
+                <div class="stat reveal">
+                    <div class="stat-label"><span aria-hidden="true">⏱</span> <span data-i18n="stat.time">Obs time</span></div>
+                    <div class="stat-value"><span class="mono">23 / 06:00 UTC</span></div>
+                </div>
+                <div class="stat reveal">
+                    <div class="stat-label"><span aria-hidden="true">📍</span> <span data-i18n="stat.pos">Position</span></div>
+                    <div class="stat-value"><span class="mono">16.0°N, 138.4°E</span></div>
+                </div>
+                <div class="stat reveal">
+                    <div class="stat-label"><span aria-hidden="true">💨</span> <span data-i18n="stat.wind">Max wind</span></div>
+                    <div class="stat-value"><span data-count="25">25</span><small>kt</small></div>
+                </div>
+                <div class="stat reveal">
+                    <div class="stat-label"><span aria-hidden="true">🧭</span> <span data-i18n="stat.pres">Min pressure</span></div>
+                    <div class="stat-value"><span data-count="1005">1005</span><small>hPa</small></div>
+                </div></div>
+            
+            <div class="panel scale-panel reveal">
+                <div class="scale-head">
+                    <span data-i18n="scale.title">Intensity scale (Saffir–Simpson)</span>
+                    <span class="mono scale-now">25 kt</span>
+                </div>
+                <div class="ss-scale" data-cur="TD" style="--pos:14.71%">
+                    <div class="ss-bar"><span class="ss-seg" data-cat="TD" style="flex:34;--c:#8A97A6"><em>TD</em></span><span class="ss-seg" data-cat="TS" style="flex:30;--c:#2E86C8"><em>TS</em></span><span class="ss-seg" data-cat="Cat1" style="flex:19;--c:#1FA97E"><em>Cat1</em></span><span class="ss-seg" data-cat="Cat2" style="flex:13;--c:#E0AC2B"><em>Cat2</em></span><span class="ss-seg" data-cat="Cat3" style="flex:17;--c:#EE7A22"><em>Cat3</em></span><span class="ss-seg" data-cat="Cat4" style="flex:24;--c:#DC3A4E"><em>Cat4</em></span><span class="ss-seg" data-cat="Cat5" style="flex:33;--c:#A548C8"><em>Cat5</em></span></div>
+                    <div class="ss-marker" style="--cat:#8A97A6"><span></span></div>
+                </div>
+            </div>
+            <nav class="subnav" aria-label="Sections"><button data-target="sec-WP252026-cmp" data-i18n="sub.cmp">Comparison</button><button data-target="sec-WP252026-anim" data-i18n="sub.anim">Animation</button><button data-target="sec-WP252026-maps" data-i18n="sub.maps">Ensemble & JTWC</button></nav>
+            
+            <div class="panel reveal" id="sec-WP252026-cmp">
+                <div class="panel-header">
+                    <span class="panel-icon">📊</span>
+                    <span data-i18n="panel.comparison">Multi-Model Comparison</span>
+                </div>
+                <figure class="zoomable skel" data-caption="WP252026 Multi-Model Comparison"><img src="WP252026_Model_Comparison.png" alt="WP252026 Multi-Model Comparison" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');this.closest('.panel').style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                <p class="map-note" data-i18n="note.comparison">
+                    Ensemble mean tracks and deterministic runs from every model on one map
+                    &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp;
+                    Parentheses in the legend give each model's initialization time (day/hour Z)
+                </p>
+            </div>
+            
+            <div class="panel reveal" id="sec-WP252026-anim">
+                <div class="panel-header">
+                    <span class="panel-icon">🎬</span>
+                    <span data-i18n="panel.anim.generic">Track Evolution Animation</span>
+                    <span class="panel-aside kbd-hint" data-i18n="kbd.hint"><kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek</span>
+                </div>
+                <div class="seg model-tabs " role="tablist"><span class="seg-ind"></span><button class="model-tab-btn active" role="tab" data-track="WP252026" data-model="WNC3">WNC3</button><button class="model-tab-btn" role="tab" data-track="WP252026" data-model="WNC2-r2">WNC2-r2</button><button class="model-tab-btn" role="tab" data-track="WP252026" data-model="WNC2-r1">WNC2-r1</button></div>
+                
+                <div class="model-panel" data-track="WP252026" data-model="WNC3">
+                    <div class="player" data-anim-key="WP252026-WNC3" data-frames-dir="animation_frames_WNC3_WP252026"
+                         data-frames='[&quot;frame_0000.png&quot;, &quot;frame_0001.png&quot;, &quot;frame_0002.png&quot;, &quot;frame_0003.png&quot;, &quot;frame_0004.png&quot;, &quot;frame_0005.png&quot;, &quot;frame_0006.png&quot;, &quot;frame_0007.png&quot;, &quot;frame_0008.png&quot;, &quot;frame_0009.png&quot;, &quot;frame_0010.png&quot;, &quot;frame_0011.png&quot;, &quot;frame_0012.png&quot;, &quot;frame_0013.png&quot;, &quot;frame_0014.png&quot;, &quot;frame_0015.png&quot;, &quot;frame_0016.png&quot;, &quot;frame_0017.png&quot;, &quot;frame_0018.png&quot;, &quot;frame_0019.png&quot;, &quot;frame_0020.png&quot;, &quot;frame_0021.png&quot;, &quot;frame_0022.png&quot;, &quot;frame_0023.png&quot;, &quot;frame_0024.png&quot;, &quot;frame_0025.png&quot;, &quot;frame_0026.png&quot;, &quot;frame_0027.png&quot;, &quot;frame_0028.png&quot;, &quot;frame_0029.png&quot;, &quot;frame_0030.png&quot;, &quot;frame_0031.png&quot;, &quot;frame_0032.png&quot;, &quot;frame_0033.png&quot;, &quot;frame_0034.png&quot;, &quot;frame_0035.png&quot;, &quot;frame_0036.png&quot;, &quot;frame_0037.png&quot;, &quot;frame_0038.png&quot;, &quot;frame_0039.png&quot;, &quot;frame_0040.png&quot;, &quot;frame_0041.png&quot;, &quot;frame_0042.png&quot;, &quot;frame_0043.png&quot;, &quot;frame_0044.png&quot;, &quot;frame_0045.png&quot;, &quot;frame_0046.png&quot;, &quot;frame_0047.png&quot;, &quot;frame_0048.png&quot;, &quot;frame_0049.png&quot;, &quot;frame_0050.png&quot;, &quot;frame_0051.png&quot;, &quot;frame_0052.png&quot;, &quot;frame_0053.png&quot;, &quot;frame_0054.png&quot;, &quot;frame_0055.png&quot;, &quot;frame_0056.png&quot;, &quot;frame_0057.png&quot;, &quot;frame_0058.png&quot;, &quot;frame_0059.png&quot;, &quot;frame_0060.png&quot;]'>
+                        <figure class="zoomable skel frame-stage" data-caption="WNC3 · WP252026">
+                            <img class="frame is-front" src="animation_frames_WNC3_WP252026/frame_0000.png" alt="WNC3 animation frame"
+                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 onerror="this.parentNode.classList.add('loaded','broken')">
+                            <img class="frame" alt="" decoding="async">
+                            <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
+                            <span class="buffer"><span></span></span>
+                        </figure>
+                        <div class="player-controls">
+                            <button class="pc-btn pc-main" data-act="toggle" title="Play">
+                                <span class="ic-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></span><span class="ic-pause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect fill="currentColor" x="6.5" y="5" width="4" height="14" rx="1.2"/><rect fill="currentColor" x="13.5" y="5" width="4" height="14" rx="1.2"/></svg></span>
+                            </button>
+                            <button class="pc-btn" data-act="prev" data-i18n="pl.prev" data-i18n-attr="title" title="Previous frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+                            <button class="pc-btn" data-act="next" data-i18n="pl.next" data-i18n-attr="title" title="Next frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+                            <div class="timeline-wrap">
+                                <input type="range" class="timeline" min="0" max="60" value="0" aria-label="Frame">
+                            </div>
+                            <span class="frame-counter mono">1/61</span>
+                            <div class="speed-seg" role="group">
+                                <button class="speed-btn" data-speed="1">1×</button><button class="speed-btn active" data-speed="2">2×</button><button class="speed-btn" data-speed="4">4×</button><button class="speed-btn" data-speed="8">8×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="model-panel" data-track="WP252026" data-model="WNC2-r2" style="display:none;">
+                    <div class="player" data-anim-key="WP252026-WNC2-r2" data-frames-dir="animation_frames_WP252026"
+                         data-frames='[&quot;frame_0000.png&quot;, &quot;frame_0001.png&quot;, &quot;frame_0002.png&quot;, &quot;frame_0003.png&quot;, &quot;frame_0004.png&quot;, &quot;frame_0005.png&quot;, &quot;frame_0006.png&quot;, &quot;frame_0007.png&quot;, &quot;frame_0008.png&quot;, &quot;frame_0009.png&quot;, &quot;frame_0010.png&quot;, &quot;frame_0011.png&quot;, &quot;frame_0012.png&quot;, &quot;frame_0013.png&quot;, &quot;frame_0014.png&quot;, &quot;frame_0015.png&quot;, &quot;frame_0016.png&quot;, &quot;frame_0017.png&quot;, &quot;frame_0018.png&quot;, &quot;frame_0019.png&quot;, &quot;frame_0020.png&quot;, &quot;frame_0021.png&quot;, &quot;frame_0022.png&quot;, &quot;frame_0023.png&quot;, &quot;frame_0024.png&quot;, &quot;frame_0025.png&quot;, &quot;frame_0026.png&quot;, &quot;frame_0027.png&quot;, &quot;frame_0028.png&quot;, &quot;frame_0029.png&quot;, &quot;frame_0030.png&quot;, &quot;frame_0031.png&quot;, &quot;frame_0032.png&quot;, &quot;frame_0033.png&quot;, &quot;frame_0034.png&quot;, &quot;frame_0035.png&quot;, &quot;frame_0036.png&quot;, &quot;frame_0037.png&quot;, &quot;frame_0038.png&quot;, &quot;frame_0039.png&quot;, &quot;frame_0040.png&quot;, &quot;frame_0041.png&quot;, &quot;frame_0042.png&quot;, &quot;frame_0043.png&quot;, &quot;frame_0044.png&quot;, &quot;frame_0045.png&quot;, &quot;frame_0046.png&quot;, &quot;frame_0047.png&quot;, &quot;frame_0048.png&quot;, &quot;frame_0049.png&quot;, &quot;frame_0050.png&quot;, &quot;frame_0051.png&quot;, &quot;frame_0052.png&quot;, &quot;frame_0053.png&quot;, &quot;frame_0054.png&quot;, &quot;frame_0055.png&quot;, &quot;frame_0056.png&quot;, &quot;frame_0057.png&quot;, &quot;frame_0058.png&quot;, &quot;frame_0059.png&quot;, &quot;frame_0060.png&quot;]'>
+                        <figure class="zoomable skel frame-stage" data-caption="WNC2-r2 · WP252026">
+                            <img class="frame is-front" src="animation_frames_WP252026/frame_0000.png" alt="WNC2-r2 animation frame"
+                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 onerror="this.parentNode.classList.add('loaded','broken')">
+                            <img class="frame" alt="" decoding="async">
+                            <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
+                            <span class="buffer"><span></span></span>
+                        </figure>
+                        <div class="player-controls">
+                            <button class="pc-btn pc-main" data-act="toggle" title="Play">
+                                <span class="ic-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></span><span class="ic-pause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect fill="currentColor" x="6.5" y="5" width="4" height="14" rx="1.2"/><rect fill="currentColor" x="13.5" y="5" width="4" height="14" rx="1.2"/></svg></span>
+                            </button>
+                            <button class="pc-btn" data-act="prev" data-i18n="pl.prev" data-i18n-attr="title" title="Previous frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+                            <button class="pc-btn" data-act="next" data-i18n="pl.next" data-i18n-attr="title" title="Next frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+                            <div class="timeline-wrap">
+                                <input type="range" class="timeline" min="0" max="60" value="0" aria-label="Frame">
+                            </div>
+                            <span class="frame-counter mono">1/61</span>
+                            <div class="speed-seg" role="group">
+                                <button class="speed-btn" data-speed="1">1×</button><button class="speed-btn active" data-speed="2">2×</button><button class="speed-btn" data-speed="4">4×</button><button class="speed-btn" data-speed="8">8×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="model-panel" data-track="WP252026" data-model="WNC2-r1" style="display:none;">
+                    <div class="player" data-anim-key="WP252026-WNC2-r1" data-frames-dir="animation_frames_WNC2-r1_WP252026"
+                         data-frames='[&quot;frame_0000.png&quot;, &quot;frame_0001.png&quot;, &quot;frame_0002.png&quot;, &quot;frame_0003.png&quot;, &quot;frame_0004.png&quot;, &quot;frame_0005.png&quot;, &quot;frame_0006.png&quot;, &quot;frame_0007.png&quot;, &quot;frame_0008.png&quot;, &quot;frame_0009.png&quot;, &quot;frame_0010.png&quot;, &quot;frame_0011.png&quot;, &quot;frame_0012.png&quot;, &quot;frame_0013.png&quot;, &quot;frame_0014.png&quot;, &quot;frame_0015.png&quot;, &quot;frame_0016.png&quot;, &quot;frame_0017.png&quot;, &quot;frame_0018.png&quot;, &quot;frame_0019.png&quot;, &quot;frame_0020.png&quot;, &quot;frame_0021.png&quot;, &quot;frame_0022.png&quot;, &quot;frame_0023.png&quot;, &quot;frame_0024.png&quot;, &quot;frame_0025.png&quot;, &quot;frame_0026.png&quot;, &quot;frame_0027.png&quot;, &quot;frame_0028.png&quot;, &quot;frame_0029.png&quot;, &quot;frame_0030.png&quot;, &quot;frame_0031.png&quot;, &quot;frame_0032.png&quot;, &quot;frame_0033.png&quot;, &quot;frame_0034.png&quot;, &quot;frame_0035.png&quot;, &quot;frame_0036.png&quot;, &quot;frame_0037.png&quot;, &quot;frame_0038.png&quot;, &quot;frame_0039.png&quot;, &quot;frame_0040.png&quot;, &quot;frame_0041.png&quot;, &quot;frame_0042.png&quot;, &quot;frame_0043.png&quot;, &quot;frame_0044.png&quot;, &quot;frame_0045.png&quot;, &quot;frame_0046.png&quot;, &quot;frame_0047.png&quot;, &quot;frame_0048.png&quot;, &quot;frame_0049.png&quot;, &quot;frame_0050.png&quot;, &quot;frame_0051.png&quot;, &quot;frame_0052.png&quot;, &quot;frame_0053.png&quot;, &quot;frame_0054.png&quot;, &quot;frame_0055.png&quot;, &quot;frame_0056.png&quot;, &quot;frame_0057.png&quot;, &quot;frame_0058.png&quot;, &quot;frame_0059.png&quot;, &quot;frame_0060.png&quot;]'>
+                        <figure class="zoomable skel frame-stage" data-caption="WNC2-r1 · WP252026">
+                            <img class="frame is-front" src="animation_frames_WNC2-r1_WP252026/frame_0000.png" alt="WNC2-r1 animation frame"
+                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 onerror="this.parentNode.classList.add('loaded','broken')">
+                            <img class="frame" alt="" decoding="async">
+                            <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
+                            <span class="buffer"><span></span></span>
+                        </figure>
+                        <div class="player-controls">
+                            <button class="pc-btn pc-main" data-act="toggle" title="Play">
+                                <span class="ic-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></span><span class="ic-pause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect fill="currentColor" x="6.5" y="5" width="4" height="14" rx="1.2"/><rect fill="currentColor" x="13.5" y="5" width="4" height="14" rx="1.2"/></svg></span>
+                            </button>
+                            <button class="pc-btn" data-act="prev" data-i18n="pl.prev" data-i18n-attr="title" title="Previous frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+                            <button class="pc-btn" data-act="next" data-i18n="pl.next" data-i18n-attr="title" title="Next frame"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+                            <div class="timeline-wrap">
+                                <input type="range" class="timeline" min="0" max="60" value="0" aria-label="Frame">
+                            </div>
+                            <span class="frame-counter mono">1/61</span>
+                            <div class="speed-seg" role="group">
+                                <button class="speed-btn" data-speed="1">1×</button><button class="speed-btn active" data-speed="2">2×</button><button class="speed-btn" data-speed="4">4×</button><button class="speed-btn" data-speed="8">8×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="maps-grid" id="sec-WP252026-maps">
+                <div class="panel reveal">
+                    <div class="panel-header">
+                        <span class="panel-icon">🗺</span>
+                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>
+                    </div>
+                    <div class="seg model-tabs " role="tablist"><span class="seg-ind"></span><button class="model-tab-btn active" role="tab" data-track="WP252026" data-model="WNC3">WNC3</button><button class="model-tab-btn" role="tab" data-track="WP252026" data-model="WNC2-r2">WNC2-r2</button><button class="model-tab-btn" role="tab" data-track="WP252026" data-model="WNC2-r1">WNC2-r1</button></div>
+                    
+                <div class="model-panel" data-track="WP252026" data-model="WNC3">
+                    <figure class="zoomable skel" data-caption="WP252026 WNC3 Forecast Map"><img src="WNC3_WP252026_Forecast_Map.png" alt="WP252026 WNC3 Forecast Map" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <p class="map-note" data-i18n="note.ensemble" data-i18n-model="WNC3">
+                        WNC3 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
+                    </p>
+                </div>
+                <div class="model-panel" data-track="WP252026" data-model="WNC2-r2" style="display:none;">
+                    <figure class="zoomable skel" data-caption="WP252026 WNC2-r2 Forecast Map"><img src="WP252026_Forecast_Map.png" alt="WP252026 WNC2-r2 Forecast Map" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <p class="map-note" data-i18n="note.ensemble" data-i18n-model="WNC2-r2">
+                        WNC2-r2 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
+                    </p>
+                </div>
+                <div class="model-panel" data-track="WP252026" data-model="WNC2-r1" style="display:none;">
+                    <figure class="zoomable skel" data-caption="WP252026 WNC2-r1 Forecast Map"><img src="WNC2-r1_WP252026_Forecast_Map.png" alt="WP252026 WNC2-r1 Forecast Map" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <p class="map-note" data-i18n="note.ensemble" data-i18n-model="WNC2-r1">
+                        WNC2-r1 &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
+                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
+                    </p>
+                </div>
+                </div>
+
+                <div class="panel reveal">
+                    <div class="panel-header">
+                        <span class="panel-icon">🛰</span>
+                        <span data-i18n="panel.jtwc">JTWC Official Forecast</span>
+                    </div>
+                    <figure class="zoomable skel" data-caption="JTWC Forecast"><img src="jtwc_WP252026.gif" alt="JTWC Forecast" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');this.closest('.panel').style.display='none';"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                    <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <section class="view" data-view="genesis" data-title-key="nav.genesis">
         <div class="page">
@@ -1002,7 +1218,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
                 <div class="panel reveal about-keys">
                     <div class="panel-header"><span class="panel-icon">⌨️</span><span data-i18n="about.keys">Keyboard shortcuts</span></div>
                     <div class="keys-list">
-                        <div><span><kbd>1</kbd>–<kbd>3</kbd></span><span data-i18n="key.views">Switch pages</span></div>
+                        <div><span><kbd>1</kbd>–<kbd>4</kbd></span><span data-i18n="key.views">Switch pages</span></div>
                         <div><span><kbd>Space</kbd></span><span data-i18n="key.play">Play / pause the animation</span></div>
                         <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step animation frames</span></div>
                         <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the enlarged image</span></div>
@@ -1039,7 +1255,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         </div>
     </footer>
 
-    <nav class="bottom-nav" aria-label="Pages"><a href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
+    <nav class="bottom-nav" aria-label="Pages"><a href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a href="#/storm/WP252026" data-route-prefix="storm/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.4"/><path d="M19.5 7.5C17.6 4.3 13.4 3 10 4.2M4.5 16.5C6.4 19.7 10.6 21 14 19.8M7.2 4.9C4.2 6.9 3.1 10.5 4 13.6M16.8 19.1c3-2 4.1-5.6 3.2-8.7"/></svg><span data-i18n="nav.storms">Storms</span></a><a href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
 
     <!-- Lightbox：點圖放大，點任意處或按 Esc 關閉（與 v2 相同的簡單版） -->
     <div class="lightbox" id="lightbox">
@@ -1048,7 +1264,7 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "genesis", "about"], "updatedIso": "2026-09-23T20:48:06+08:00", "hero": {"rgb": "143,211,255", "strength": 0.04}, "trackIds": "", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP252026", "genesis", "about"], "updatedIso": "2026-09-23T21:02:11+08:00", "hero": {"rgb": "179,187,197", "strength": 0.15}, "trackIds": "WP252026", "scaleMax": 170, "bands": [["TD", 0, 34, "#8A97A6"], ["TS", 34, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]]}</script>
     <script>
 (function () {
 'use strict';
