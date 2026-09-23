@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.1.1"
+SITE_VERSION = "3.1.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1164,7 +1164,8 @@ html[lang^="zh"] .kicker { letter-spacing:.06em; }
 .page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
 /* 中文標題：行距拉開、字距微開，兩行時不會擠在一起 */
 html[lang^="zh"] .page-title { letter-spacing: .05em; line-height: 1.38; }
-html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title { letter-spacing: .05em; }
+html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
+html[lang^="zh"] .brand-text h1 { letter-spacing: .05em; }
 .page-lead { margin-top: 10px; color: var(--text-2); max-width: 70ch; line-height: 1.7; }
 
 /* ── Storm tiles (overview) ─────────────────────────────────── */
