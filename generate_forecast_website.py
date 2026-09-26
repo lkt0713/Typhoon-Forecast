@@ -6,7 +6,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.3"
+SITE_VERSION = "4.1.4"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3315,7 +3315,7 @@ const Globe = (function () {
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
                 T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
                 T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
-                T.extra += .9 * e1 + 1.6 * e2;
+                T.extra += .2 * e1 + .2 * e2;     // 捲動只微轉（合計約 23°），西北太平洋始終朝前
                 T.tiltX = .25 * e2;
                 if (dark) T.op = 1 - .3 * e1 - .12 * e2;
                 else {
@@ -3326,7 +3326,7 @@ const Globe = (function () {
             } else {
                 const p = reduced() ? 0 : clamp01(scrollY / Math.max(1, docH));
                 T.x = .5 * hw; T.y = .08 * hv; T.z = -1.3;
-                T.extra += .8 * p;
+                T.extra += .3 * p;
                 T.op = dark ? (route.startsWith('storm/') ? .3 : .22) : 0;
             }
             return T;
