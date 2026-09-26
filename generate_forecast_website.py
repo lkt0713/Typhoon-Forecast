@@ -6,7 +6,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.0"
+SITE_VERSION = "4.1.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1777,7 +1777,7 @@ html[lang^="zh"] .nav-link { letter-spacing: .1em; }
 }
 .eyebrow::before { content: ""; width: 42px; height: 1px; background: currentColor; }
 .hero-title {
-    font-weight: 600; font-size: clamp(3.6rem, 13vw, 11.5rem);
+    font-weight: 600; font-size: clamp(2.8rem, 9vw, 7.5rem);
     line-height: .9; letter-spacing: .01em; max-width: none;
     margin: 22px 0 26px; text-shadow: none;
 }
@@ -1971,7 +1971,6 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 @media (max-width: 600px) {
     .page { padding: 20px 16px 48px; gap: 22px; }
     .hero-inner { padding: 48px 16px 36px; }
-    .hero-title { font-size: clamp(3.4rem, 17vw, 6rem); }
     .hero-meta { margin-top: 36px; }
     .hero-chip { flex: 1 1 30%; padding: 14px 10px 2px 0; margin-right: 10px; }
     .chip-v, html[lang^="zh"] .chip-v { font-size: 1.35em; }
