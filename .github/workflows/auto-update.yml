@@ -57,8 +57,10 @@ jobs:
             deepmind_weather_*_2026/
             ecmwf_*_2026/
             ~/.local/share/cartopy
-          key: forecast-data-${{ github.run_id }}
-          restore-keys: forecast-data-
+          # 前綴的 v2 是快取版本：快取內容壞掉時改這裡就能整批作廢（v1 裡有
+          # pandas 3 修正前寫下的「ECMWF 18Z 無颱風」潛勢檔，會讓程式不再重抓 BUFR）
+          key: forecast-data-v2-${{ github.run_id }}
+          restore-keys: forecast-data-v2-
 
       - name: Run forecast
         # 網頁上的「最後更新」用機器本地時間（datetime.now().astimezone()），
