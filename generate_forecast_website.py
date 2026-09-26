@@ -6,7 +6,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.2"
+SITE_VERSION = "4.1.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1854,7 +1854,7 @@ html[lang^="zh"] .section-head h3 { letter-spacing: .08em; line-height: 1.15; }
 .kicker { color: var(--text-3); font-weight: 500; letter-spacing: .3em; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
 .kicker::before { content: ""; width: 32px; height: 1px; background: currentColor; }
 .count-chip { background: none; color: var(--text); font-family: var(--display); font-size: clamp(2.1rem, 4.8vw, 4rem); font-weight: 200; line-height: .95; padding: 0; }
-.page-title { font-size: clamp(2rem, 4.6vw, 3.8rem); font-weight: 600; line-height: .98; letter-spacing: .01em; max-width: 20ch; }
+.page-title { font-size: clamp(2rem, 4.6vw, 3.8rem); font-weight: 600; line-height: 1.1; letter-spacing: .01em; max-width: 20ch; }
 html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .page-lead { font-weight: 300; font-size: 1.1em; }
 .legend-inline { text-transform: uppercase; letter-spacing: .14em; font-weight: 500; }
