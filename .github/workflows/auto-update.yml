@@ -122,3 +122,39 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # 備援接力：GitHub 的 schedule 常延遲或整輪跳過（本 workflow 加入後連續五輪
+  # 都沒被排程觸發），所以每輪結束時自己排好下一輪：等到本輪開始後約 30 分鐘，
+  # 再用 workflow_dispatch 叫起下一輪（GITHUB_TOKEN 觸發 workflow_dispatch 是
+  # GitHub 允許的例外）。schedule 仍保留，接力斷掉時靠它接回來。
+  chain:
+    needs: [update, deploy]
+    # 本輪失敗也要接力，否則一次下載失敗整條鏈就斷了
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: write
+    steps:
+      - name: Wait, then queue the next run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          started=$(gh run view ${{ github.run_id }} --json createdAt -q .createdAt)
+          wait=$(( $(date -d "$started" +%s) + 1800 - $(date +%s) ))
+          if [ "$wait" -gt 0 ]; then
+            echo "[INFO] Sleeping ${wait}s until the next slot"
+            sleep "$wait"
+          fi
+          # 已經有別輪在排隊或執行（排程恢復了、或有人手動觸發）就不再加一輪，
+          # 避免同時跑出兩條接力鏈
+          others=$(gh run list --workflow auto-update.yml --limit 20 \
+            --json databaseId,status \
+            -q "[.[] | select(.databaseId != ${{ github.run_id }}) | select(.status != \"completed\")] | length")
+          if [ "$others" -gt 0 ]; then
+            echo "[INFO] Another run is already queued or running, not chaining"
+            exit 0
+          fi
+          gh workflow run auto-update.yml --ref main
+          echo "[INFO] Queued the next run"
