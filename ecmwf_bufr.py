@@ -46,6 +46,8 @@ MATCH_RADIUS_KM = 250.0
 # 提早結束（實測 WP222026 成員到 120h、mean 只到 102h），這裡跟上同樣的行為。
 MEAN_MIN_MEMBER_FRACTION = 0.5
 
+_EPOCH = pd.Timestamp(0, tz="UTC")
+
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CopilotDownloader/1.0)"}
 
 # fetch_cycle 的三種結果。「這期沒有颱風」與「這期還沒上架」必須分得開：
@@ -208,10 +210,13 @@ def _reference_positions(ref_mean_dir: str, ref_prefix: str,
         g = g.dropna(subset=["valid_time", "lat", "lon"]).sort_values("valid_time")
         if g.empty:
             continue
-        t = g["valid_time"].astype("int64").to_numpy()
+        # 一律換成「秒」再比：pandas 3 的 datetime 預設是微秒，astype("int64") 出來
+        # 的單位跟 Timestamp.value（永遠是奈秒）差 1000 倍，內插會夾到路徑終點而配對失敗
+        t = (g["valid_time"] - _EPOCH).dt.total_seconds().to_numpy()
+        t0 = (target - _EPOCH).total_seconds()
         # 目標時刻落在路徑之外時 np.interp 會夾到端點，正是我們要的行為
-        lat = float(np.interp(target.value, t, g["lat"].to_numpy()))
-        lon = float(np.interp(target.value, t, g["lon"].to_numpy()))
+        lat = float(np.interp(t0, t, g["lat"].to_numpy()))
+        lon = float(np.interp(t0, t, g["lon"].to_numpy()))
         out[tid] = (lat, lon)
     return out
 
