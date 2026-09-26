@@ -1,11 +1,12 @@
 import os
 import json
 import html
+import re
 import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.0.0"
+SITE_VERSION = "4.1.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -99,6 +100,33 @@ def _hex_rgb(hex_color: str, mix_white: float = 0.0) -> str:
     r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
     r, g, b = (round(c + (255 - c) * mix_white) for c in (r, g, b))
     return f"{r},{g},{b}"
+
+
+def _coord(s):
+    """JTWC 的 '18.2°N' / '131.5E' → 帶正負號的度數（S、W 為負）；解析不了回傳 None。"""
+    m = re.match(r'\s*([0-9.]+)\s*°?\s*([NSEW])', str(s or ''), re.IGNORECASE)
+    if not m:
+        return None
+    v = float(m.group(1))
+    return -v if m.group(2).upper() in 'SW' else v
+
+
+def _globe_track(models: list[dict]) -> list:
+    """給 3D 地球畫預報路徑：取第一個有系集平均的模式，回傳 [[lat, lon, kt], ...]。"""
+    for m in models:
+        df = m.get('mean_df') if isinstance(m, dict) else None
+        if not isinstance(df, pd.DataFrame) or df.empty or not {'lat', 'lon'} <= set(df.columns):
+            continue
+        df = df.sort_values('valid_time') if 'valid_time' in df.columns else df
+        pts = []
+        for _, row in df.iterrows():
+            la, lo, kt = _num(row.get('lat')), _num(row.get('lon')), _num(row.get('wind'))
+            if la is None or lo is None:
+                continue
+            pts.append([round(la, 2), round((lo + 180) % 360 - 180, 2), round(kt) if kt is not None else None])
+        if len(pts) >= 2:
+            return pts[:80]
+    return []
 
 
 def _fmt_obs_time(raw: str) -> str:
@@ -226,6 +254,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
             'models': [m.get('model', 'WNC2-r2') for m in models if isinstance(m, dict)],
+            # 3D 地球用：颱風位置同樣只用 JTWC；路徑是模式的系集平均
+            'lat': _coord(jtwc_data.get('latitude')),
+            'lon': _coord(jtwc_data.get('longitude')),
+            'track': _globe_track(models),
         }
 
     def _title(info):
@@ -777,6 +809,17 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         'trackIds': joined_ids,
         'scaleMax': SCALE_MAX_KT,
         'bands': [[c, lo, hi, CAT_COLOR_MAP[c]] for c, lo, hi in CAT_RANGES],
+        # 3D 地球：各颱風位置／強度色／預報路徑，land 是壓縮過的陸地遮罩
+        'globe': {
+            'land': _LAND_MASK_B64,
+            'focus': lead['id'] if lead else None,
+            'storms': [
+                {'id': i['id'], 'name': _title(i), 'lat': i['lat'], 'lon': i['lon'],
+                 'kt': i['wind'], 'color': i['color'], 'track': i['track']}
+                for i in infos.values()
+                if (i['lat'] is not None and i['lon'] is not None) or i['track']
+            ],
+        },
     }
     site_json = json.dumps(site_data, ensure_ascii=False).replace('</', '<\\/')
 
@@ -803,6 +846,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <style>{_CSS}</style>
 </head>
 <body>
+    <canvas id="globe" aria-hidden="true"></canvas>
     <a class="skip-link" href="#views">Skip to content</a>
     <header id="site-header">
         <a class="header-brand" href="#/overview">
@@ -883,6 +927,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 #  刻意寫成一般字串（不是 f-string），CSS／JS 的大括號不必再成對跳脫；
 #  動態資料一律透過頁面上的 #site-data JSON 與 data-* 屬性傳進來。
 # ═════════════════════════════════════════════════════════════════════════
+# 3D 地球的陸地遮罩：Natural Earth 50m 陸地柵格化成 0.5° 格點（720×360，由北往南、
+# 由 180°W 往東），np.packbits 後 zlib 壓縮再 base64；前端用 DecompressionStream 解開。
+_LAND_MASK_B64 = "eNrtndFvJMlZwKumZ92jnM9taSOtUYx70IGOJ9YQBBtktgeCFB4i7g8Asj6BlAeEYsiLIxx3+7yw9xDhvBHEKb53EFqJl5WI4l7tRXu83AZ4IA9R3Msm7ALh3Bsf2fa6XUVVdfVMdfdX1dVjjxDIJe2td9zzm6+/+r6vvu+rmj6ELsfluByX4//OeG2f0vQCeb0tSvcj9oP7kNKLRHt7nJehP/ZfLX64qBFyHCXOES0G2cJN+Pw0EjvHlEEzh5bjmJL6RXisIceeHNw/pD4lLlVGUr1k7pvu4+NIXm4/C/RsP2CzFijgb46n9j3xGU78o++ML4/tyfTRMT2NHIW8WvzG/eg4aGj8EbXDujHC9IzSCKnakGL1SN7UqpsvWxrGsksPmGI9BZzL3/UbCi/eYqcPdy/6D2Z2O+r8ZSP5y5/KbzTfgfNBO/ZqipZRhl4wr/NV9NvlBZkfT+ciEZpjfy0GP2bTr5LfLW+oqYwhQn7SBsZ0iYGd3OeRQp3AZ+NLVIm98h9BXvkgYPjxRx76w8zJuV85ZH9MJtD1n5TWhu8rN6Ubn6S7mZ+iHBVCTHwlAma6fFFEmbviM/yDSGcXLERE6UmJGhseuQvEgFgNX4Wmg9NHOuE9fsUNSg+KWFOSzwBRpC5eKa6Q4UQ/gfUXytG82MnGt8mXBnkDI23AYGHXyYNkq1e+IMYp0dwdG78rrvgrOcVrOpnJBvpbnIa7x2dE0SF9CijDZ38W2BUvhMjMTTGfG406HHr09CvZT+RfdJ9KIQ8L8hEQgbf5hL3Vk59ND4uwtaqzjD3KghlZ9Z7kL2JFZroKk8O3PDVurTPZAtD5MWEGvI22Njx2i+/zV/5EvicFruXkr9MfqOvOCNNHJTmrLGQbzMwIC134RIZkaVInwOJ9i2tv3ztVyXz1JOrieDCeen5vTBxhx99l/14u1LGpkHt/sF7GJsy0d0Ybg6iOR0tj/HIxyT6bkRP2yieKaz9QZH31MC+9wmHk0yZ5YvyBTFaO/vUGF/aHS9vIxbuUsg8KbtXDxhyl/1WoErOsYZ9SkPy0eId0fMJ169HD1L/2npv9dChCQVBZrOQLL/mU8DWK7lF47FISK2FH+ER+Y+DfOXIy7JNJtJuYhrsvw89odSHMg4eHEPdQKqFCjvE7aMUn1xP8kH6b3XFYs7mPy3tI3f/kPzw8otoRKWGHS5PRJ38XUj917/M57h9UdVFGvygpbuahHsyttvqCkPIg6yH+O6+eiUox4qT42zOQH0XVRbogk5RLlxUiqg4orn1E42LWPwj04AOaek7z5R9xxn4iTP0FM6BVLJ32uvioYIG2jn2ahM1Xjz/k/sO8zDkolPGlMjUKaRYyxYft5IjUlFGMPS7tg2J2CyVkpTkn/Od2MGUZkX8M3EriHYokY6+IAvtS2eyTmIrzrVbu2Tcq6+hk+FnPEWKGwuGYjURliIlbTKLMBEEySYMVvnQJMilihAyd3HGtBnvDCqDopI+W0Paa0GteXYJzz46cg8ogIuC8/p6YurTqJ2lgR/7eOGGofd5o77uieHInmfhQ+EniW8grLcoDtb9H5ZSpCWxgRU62pN+6wl/VkU7yQVwnx+3kKJFLBU8Ztv167edK39jrLjPalUvhp9iUhfeb5BORgc1N8oc+J594SdBmFd73B+WCnbPQFlZLNCaz28gErovZDdss+eYkFeCZZFAle4zcyOaun/KV3YgdjNN6Nga/zVW6UK1KfPrjZhXlP2HLmZHMJx+fTJbNYyU7lP7jTgpXOV5nVe0OjQZGZYhmi7Ig/zn/719Ukhynkc25wghvm9Vcq7RWRN38LxUybpBZZYSW6NvLYUu0UMlFwfvzlcCBG00enuRvhnHQGjsnQQwXzvAzlZt6s0Hm5WseoKBtAtEkZfRkxhaqvuJUkkpZkqP0rpkcCz2OtfgLapFUzjGPU6Ri0J9mt/CF22YyqpDLBb+nBr20nnaxZWUToS+yOTRN4GJBxvU6TA0dYb0t5WWsMlmLzZ79rf6kBJ0U9z01ihVLx02VnAZljaYfT28r5LHk+EqDrJau7nNeCrSNH6oyj8efqulXk5yC6VRtfFhWVQgtTt47Ut6Y+vXmg//YhsydZLNZ3KvLd0BrBr3g0Lh9cf2gKDTgRquS7D6pNjSetJN5bFtvlqWNSulBtXfm25GhXkgtCLxR0VXfwjRYEgu2dtdqQSB+Va8tPRls9VRjAlr17tWaTK3jK3CHyqkoOici2E/GZyzImkY6rijylKAgA5tKhqFpkOJKRfqClSP/1lHNRNd6Paz702fhWHiqdcF5be+rUmv0UB8mP9Tl0dmCcbdDcin5fL2BJTs0fG8BXmnTgZXM9FtNMtdXusakh1etpBLiNOQjmuZNMreeJDigBLaUeAlFFjI/jZvkXfF2n+YOnHzN9yy0kS80G737uyJoOzSHHRKtDC3I6XyDTNxYtkQIKDPz2ljTFzXsJ/FW3pLLjY0bEaznTV3HHzfynSo5R6+kniD7BPJIMkQUdSdjTn6T77+JvB0isyjzZzb2nAAyr4fsA9A2I0dvgPliZEHOmzfE3unvUHqfO2Dsgn4ynI4co8R9TH9LxI/k9UZHipMTCz2njbY3M7d15x9O7yiJX2Wh4tlJaiEzQJ5jC/6ObEM0almywnvdFmTybtNPeCoRb2vI+eKKgazcIVGNblT4Nv8xWiu8L/Ya0+ePCxNgW0cRIW5oQ5Rc0dU7MDlFQTTO8ptpgSKzapl9QebWsoV+x4XJ+ciNkaMj+1BLfSwz0+HiMlouLChrkDMn4Zu4rTI3A4A/dA7zPi+rX3JQY01JWMEYRtOQB7x1KVLuDTjqu8mQGjbx9DuCAzx2TDjqs1JUu6nuGPSMFu4IMn6GVuGo7yZhHqFW9ybg9BavrsN1RB+dfq3leAW8n+SPX8Wa1sZr+5H+fIUu7stPzY3kj3/JsD+vn0A8Ca2ajGDgj2zI9XMzEpfyZoij6RO8YdiVdvQT6MrXcx050e7vVjSYa8lMNlfTNVkxkR+obRtociNKvD2NzMbxpI2c6lu4NuR/9zKj54Oj5WTBH/Fr/jnrbxmjFRt34O6UfohiM/5FYEdcid1/z/64XcnL0ktWGiFUicenFNqiaNHzZ8PC4lYanhJWdxZ3AE8Zmsg/5xd2cdMQYOljSoFeR2SW2Zdk32QaqShWOpKdvYLstZHTnwwamzBGNr6jIfu1NmGKGmRsFvqObGybyFnA9yb3dTvzmnG/kLlnSJ9ERvASR7/idiInMmYstpCJG1WjabbaQt6QScXAUJITrhpxpk1V/noLeSmAz0NWbtyV3lxxwbYTWgMfDgBNcm3PJmo9++UJMo0WDQWdI6fMnbRRctR6hs3lZLyXmErFXbkIB4HcDeTxaNRO5noeZvqwQekDKbMfijMs8FEoYPnO+PG2lVYy07MnIqOhM4WrMue84vdM2rgvl8p+QIsNe5vjhgU5UjefmomtCKEfFf6TFf/RjLhWnTEyctcNDYpAriEhD/j8BKHuXGdU1SivkpCTt5BTuTEryJt2J1xFuYGJoY0QyGw14AGfreqJFTmgR8yGVrx/uqElZ75cQ0SHxi3k37SYQmmdPT3Zk1EzkJ6Ywe395lpK2tpibrkVyJmuuiVhPo4KkHGDnIxPjLi3xBssyP6hJM9ryY5cqn0+j54v1Ldh4d8uoWaZiWwc8H5SsUZG2nZMXdN1g3fqZCJDrkwmYzsybqYltQTxgcziVPLQzlliZIp19Im8wFXIv29D9hoy10rA/yaoQf7ryEYdRTehr5X5NCnJYlM+4Mp500bmZp+iRi7P6Tpc5lFBttKzCHaxQRsEKWTkulwbr63bkFmAxpFhzyqXmsKFzA4nD6yEZmuVt2Jo1BMkSyQh85wgv2olM0vaQlLZTak1/vxcIS8IpXzMSs8eI4fPv68nl+UzKWyIRaOe3Vc+rsQorCZ4LkzeigSZLRL9fmSFTlJaPfLlQucpENoWp3X44eRBb9HOoP8SPnRZJ2/EZemxiG5YkRf8WrnkwBXralLMN5ocPG8zDr/WTMKaWpiTi7n7mB25OHKR6HfLyl+JY0Jc5uHgGbITul6khxTcE0lLwdetQn9JzqoGnYZNclLik05kVejanmAlXm2KExDDLmSivvAN1RFVs4m3GslaK1lZaXkL3webyDjdZtdnHcmRrt5UX+UnaDzrr3M5YHv0FlgLb91EkZ90lDnWtKkqyfVNFsoDa7JnJleOBfgr6sGp1vUKbDt5YDvK2yt2LpphtK/ftEk1XY7KvbhP0FV2JbaTuYVcefU1Xl9lw1+zC/1wE84H2yRXOTmlO53Iz2BytYmMX/Kz3FbaWB+H46/D5JrDEUZ+jHCvnTwak0kM+mBaJ/v0cc/ZeW7vgvQstSD3w8ij9+8hJ+1Arn0fyocnNvyqR3fS0SD9jj2ZwuSqjnAQe3SXCTzatreNurfBeyL+CSPfRegeTTqQK4HU1ZBTdOjcm9/8MjMabKuNqtAOTGbBeW7nXr9/3aLr48Bddgx3KnmbBb8j3hXjkVV4bniF5mQAJ39VpA4JjqxlrihaWnn9ck6+LWwndey1UTExzd6TTEN/06PZdn86cgh3hGWnbMCq5qWetdXZkP3irMmAb7e3mV0IkwOYXH7PVGzkDy+SjPYznvUzH72J0G9YrVZ1sq8hO0ScKVgmnvZ7j1OSUe9eyve6tnn+P7LJCur2HBh2C3gY6DvvtykaTg4NZLwTl+4Y2+RIdbJPtd1maW1rltlX3eF8/R7VxEMGliEpBz4Qjjq9yObBCw4c6yT5LfA98+vdyCmoDWj+e3Rk8XwBDJMDE5n5+EIXcgw4fQQ6mkfVjQfcGuxgcgo341a6pAXW5AWfjqYnl69hgBz42hOScEiCyBHUcghCKk9I9u0CB0h2n4Eh3ap4c01kFALf+A752bhEbqNgC7MDyASFTdmuiL3fkty3WK/i5selCEgNPbFDm9rXbRA51pEnHrtkMYVRUxsGsk3LACSH8iXgJJR/AWQCPtnE1xwK0q8qTeVnIDm026qfkAlMjuq7+I7dYQst2Zd33ASoRvrrVuQcImMaYU0E4+ThFGRPHtWg2tUtaTHmCTlrRhOI7KrkvpXVpXZkX38WTUMmCCQTbeZjTc4syb712ZPy2rgrmdqSI4DMbjjXk9+1JEPGlQBbo15XMoHIsTF3jS+YfL0DOehE9s9LxhehDT05MpKT6chIR3Y7kEPQV0ONL3QmZ8CdEHONYElOAXJ+IeS7gHW1kGM7cgSQs9mQPc2RU9yVDNltoiPH5yK7mrdi8W0ru4QjBBcITxPa8fjxM2hqMtGR2Q0dWa1WcGbparZkxNdXnENb8lGTrOuLO+J7MftWazcjP090/ZHm4ELgazZkTKd4KqVbvmf1osm/V/rRUkuDI+9KxiW530ImXcmoJF9pqWHzqcluC7n7c0VDGVWcr5nJ3R+F6stHb5q2kl27akb37tQ4g8nU4MmjGmGZz/FcWNdMPofMTmQsgKYhj2zI+TTCyhNjh4ZLrkxHDgQZmzzhlemMrvhaBE6N5Hx6smOaok9Mp42iTeyZml/OeZ5GHMTGKHoOsjH8XjsHGefmVkE8vQfm5sVy+khnPgL2y+cgG82ZJffTa6OthE1nRL42M3JwnvCM/nf0HFjYxs9ORQ7pjERGt8isyEE+K/L1mZG9XP9N/nPK/HJWMl/53qzIzudmRZ57FM0K/Rnp3b0LJ187a6kApx69WUWky3E5LsfluBznXmVnFaJ7G7MS+er7syLPLONAsyonWmqv84zXnxnLcjUjTkQXrXiir8XYN+Y542JD7FjtkeJ/jhLb5D7OlrmMqT536Hke2h6FQMZvZgXlppbfeBycxVgzlfvyZIBD4e+7mcfNtzS/WC0PayTA47/P3mm35uDbmt9s4fGGXaB7OLFhjE7A8pjPUPCP480v7ZN+TWO+QR5Gw+FtNK+c9Q+1Tyc2WcbN2qmxwToKCc0/FdWeAdAcR+ZpxCSsXLC80ZRwx/RQbO3YptUqFnrioGN8dnVTWPkF3c8FpI38hvEJ040xLM8ThSr5KiQZ7UYO8i/sv43jZx5VQxf0/jNrZSyKGPSr4mmaeeWCns3/rcEk8hq6oT5lKlXIQRdyzaATRF3xhJXxBYp3e13AJ1VwOd9eBn1dy+9CrvguNs9DJy1XQpJzBD02bkpwhfxLblPgaDpVVG7WSz/tGiR2OoIp6U9kemH64K4iU9o3vPcgKRe8zlpm428kdx14725SfAPaz6YgfzgOxMCbGXAzFncT49TrSB7Pff1JR6WbrJYd3XfdbmRkdjEWoNyoeBqGN63RwYYVsSVfqNnmidK6tcoxRSy3u2lEbZEsm9KaVe/WPPhvjj/gKexOzltjZOLQ6UYhdJBpA0MWTEkmU4XILsF/JmhSPAKLXo7LcTn+343/AT4JsPo="
+
+
 _CSS = r"""
 /* ── Design Tokens ─────────────────────────────────────────── */
 /* 色票與地圖同源：海軍藍 #16324F = 平均路徑、海洋藍 #2E86C8 = TS、
@@ -1933,6 +1982,18 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 }
 @media (max-width: 370px) { .chip-v, html[lang^="zh"] .chip-v { font-size: 1.15em; } }
 
+/* ── 3D 地球（v4.1）：固定在整個頁面最底層，WebGL 載好才加 html.has-globe ──
+   深色主題時地球一路跟著捲動（usta 那種背景 3D）；淺色主題只在總覽的黑色主視覺裡出現，
+   由 JS 用 clip-path 裁到 hero 的範圍。 */
+#globe {
+    position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1;
+    pointer-events: none; opacity: 0;
+}
+[data-theme="light"] #globe { background: #000; }
+html.has-globe .hero { background: transparent; }
+html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
+html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
+
 /* 使用者要求減少動態時：停掉所有非必要的動畫與轉場 */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; }
@@ -2381,7 +2442,8 @@ function onViewShown(view) {
     requestAnimationFrame(updateIndicators);
     refreshSubnavs();
     scrollSpy();
-    Hero.setActive(view.dataset.view === 'overview');
+    Hero.setActive(view.dataset.view === 'overview' && !Globe.ready);
+    Globe.route(view.dataset.view);
     updateWords();
 }
 
@@ -2920,6 +2982,411 @@ const Hero = (function () {
         if (on && !wasActive) { resize(); if (reduced()) still(); }
         schedule();
     };
+    return api;
+})();
+
+// ═════════════════════════════════════════════════════════════════
+//  3D 地球（v4.1，參考 usta.agency 的 WebGL 背景）
+//  點陣陸地＋即時晨昏線、颱風雲系 shader、系集平均預報路徑、繞行的衛星。
+//  固定在頁面最底層，跟著捲動換位置／旋轉、跟著滑鼠微微偏轉。
+//  Three.js 等頁面載完才從 CDN 載入；載入失敗或不支援 WebGL 就保留 2D 流線主視覺。
+// ═════════════════════════════════════════════════════════════════
+const Globe = (function () {
+    const cv = $('#globe');
+    const G = SITE.globe;
+    const api = { ready: false, route() {} };
+    if (!cv || !G) return api;
+    try {
+        const c = document.createElement('canvas');
+        if (!(c.getContext('webgl2') || c.getContext('webgl'))) return api;
+    } catch (e) { return api; }
+
+    const D2R = Math.PI / 180;
+    const WPAC = [20, 140];                  // 沒有颱風時看西太平洋
+    let route = 'overview', ctl = null;
+    api.route = r => { route = r; if (ctl) ctl.kick(); };
+
+    function start() {
+        import('https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js')
+            .then(THREE => decodeLand(G.land).then(land => {
+                ctl = build(THREE, land);
+                api.ready = true;
+                root.classList.add('has-globe');
+                Hero.setActive(false);
+                ctl.kick();
+            }))
+            .catch(err => console.warn('[globe]', err));
+    }
+    if (document.readyState === 'complete') setTimeout(start, 50);
+    else window.addEventListener('load', () => setTimeout(start, 50));
+
+    async function decodeLand(b64) {
+        if (!b64 || typeof DecompressionStream === 'undefined') return null;
+        try {
+            const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const out = new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate')));
+            return new Uint8Array(await out.arrayBuffer());
+        } catch (e) { return null; }
+    }
+    function catColor(kt) {
+        if (kt == null) return '#ffffff';
+        for (const [, lo, hi, col] of SITE.bands) if (kt < hi) return col;
+        return SITE.bands[SITE.bands.length - 1][3];
+    }
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const ease = v => v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
+    const mix = (a, b, f) => a + (b - a) * f;
+
+    function build(THREE, land) {
+        const geo = (lat, lon, r) => {
+            const la = lat * D2R, lo = lon * D2R;
+            return new THREE.Vector3(r * Math.cos(la) * Math.sin(lo), r * Math.sin(la), r * Math.cos(la) * Math.cos(lo));
+        };
+        const narrow = innerWidth < 760;
+        const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !narrow, alpha: true, powerPreference: 'high-performance' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, narrow ? 1.5 : 1.75));
+        renderer.setClearColor(0x000000, 0);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+        camera.position.set(0, 0, 6);
+
+        // 太陽直射點（赤緯＋時角，忽略均時差）→ 給陸地點與海洋畫晨昏
+        const now = new Date();
+        const doy = (now - Date.UTC(now.getUTCFullYear(), 0, 0)) / 864e5;
+        const decl = -23.44 * Math.cos(2 * Math.PI / 365 * (doy + 10));
+        const sunLon = (12 - now.getUTCHours() - now.getUTCMinutes() / 60) * 15;
+        const uni = {
+            uTime: { value: 0 },
+            uSun:  { value: geo(decl, sunLon, 1) },
+            uPR:   { value: renderer.getPixelRatio() },
+        };
+
+        // 階層：anchor（畫面上的位置、捲動位移）→ tilt（緯度）→ spin（經度）→ 地球本體
+        const anchor = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group();
+        anchor.add(tilt); tilt.add(spin); scene.add(anchor);
+
+        // 海洋：近黑球體，白天那側帶一點灰，邊緣淡淡的 fresnel
+        spin.add(new THREE.Mesh(new THREE.SphereGeometry(0.995, 96, 64), new THREE.ShaderMaterial({
+            uniforms: uni,
+            vertexShader: `varying vec3 vG; varying vec3 vN; varying vec3 vV;
+                void main(){ vG = normal; vN = normalize(normalMatrix * normal);
+                vec4 mv = modelViewMatrix * vec4(position, 1.); vV = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv; }`,
+            fragmentShader: `uniform vec3 uSun; varying vec3 vG; varying vec3 vN; varying vec3 vV;
+                void main(){ float day = smoothstep(-.2, .35, dot(normalize(vG), uSun));
+                float rim = pow(1. - max(dot(vN, vV), 0.), 3.);
+                vec3 c = mix(vec3(.006, .007, .01), vec3(.04, .045, .055), day) + rim * vec3(.05, .06, .085);
+                gl_FragColor = vec4(c, 1.); }`,
+        })));
+
+        // 陸地：費氏球面均勻撒點，落在陸地遮罩上的才留；夜側壓暗、背光面淡出
+        if (land) {
+            const N = narrow ? 42000 : 80000, GA = Math.PI * (3 - Math.sqrt(5));
+            const pos = [], rnd = [];
+            for (let i = 0; i < N; i++) {
+                const y = 1 - (i + .5) / N * 2, r = Math.sqrt(1 - y * y), th = GA * i;
+                const x = r * Math.cos(th), z = r * Math.sin(th);
+                const lat = Math.asin(y) / D2R, lon = Math.atan2(x, z) / D2R;
+                const k = Math.min(359, Math.floor((90 - lat) * 2)) * 720 + Math.min(719, Math.floor((lon + 180) * 2));
+                if (!(land[k >> 3] & (128 >> (k & 7)))) continue;
+                pos.push(x * 1.001, y * 1.001, z * 1.001); rnd.push(Math.random());
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('aRand', new THREE.Float32BufferAttribute(rnd, 1));
+            spin.add(new THREE.Points(g, new THREE.ShaderMaterial({
+                uniforms: Object.assign({ uSize: { value: narrow ? 1.9 : 1.6 } }, uni),
+                vertexShader: `uniform float uSize, uPR; uniform vec3 uSun; attribute float aRand; varying float vA;
+                    void main(){ vec3 n = normalize(position);
+                    vec4 mv = modelViewMatrix * vec4(position, 1.);
+                    float facing = dot(normalize(normalMatrix * n), normalize(-mv.xyz));
+                    float day = smoothstep(-.15, .3, dot(n, uSun));
+                    vA = smoothstep(0., .35, facing) * mix(.3, 1., day) * (.65 + .35 * aRand);
+                    gl_PointSize = uSize * uPR * (6. / -mv.z);
+                    gl_Position = projectionMatrix * mv; }`,
+                fragmentShader: `varying float vA;
+                    void main(){ vec2 c = gl_PointCoord - .5; if (dot(c, c) > .25) discard;
+                    gl_FragColor = vec4(vec3(1.), vA * .9); }`,
+                transparent: true, depthWrite: false,
+            })));
+        }
+
+        // 經緯網格：30° 一條，極淡
+        const grat = [];
+        const seg = (a, b) => grat.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        for (let la = -60; la <= 60; la += 30) for (let lo = -180; lo < 180; lo += 3) seg(geo(la, lo, 1.002), geo(la, lo + 3, 1.002));
+        for (let lo = -180; lo < 180; lo += 30) for (let la = -84; la < 84; la += 3) seg(geo(la, lo, 1.002), geo(la + 3, lo, 1.002));
+        const gg = new THREE.BufferGeometry();
+        gg.setAttribute('position', new THREE.Float32BufferAttribute(grat, 3));
+        spin.add(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .07, depthWrite: false })));
+
+        // 大氣光暈：背面球殼，越靠近地球邊緣越亮
+        const atmo = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), new THREE.ShaderMaterial({
+            vertexShader: `varying vec3 vN; varying vec3 vV;
+                void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.);
+                vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv; }`,
+            fragmentShader: `varying vec3 vN; varying vec3 vV;
+                void main(){ float i = pow(smoothstep(0., .45, -dot(vN, vV)), 3.);
+                gl_FragColor = vec4(vec3(.72, .82, 1.) * i * .3, 1.); }`,
+            side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+        }));
+        atmo.scale.setScalar(1.1);
+        tilt.add(atmo);
+
+        // ── 颱風：螺旋雲帶 shader（北半球逆時針、南半球順時針），強度越強眼越清楚 ──
+        const vortexFS = `uniform float uTime, uDir, uStr; uniform vec3 uColor; varying vec2 vUv;
+            float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+            float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+                return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+            void main(){
+                vec2 p = (vUv - .5) * 2.; float r = length(p); if (r > 1.) discard;
+                float lr = log(r + .02), spd = .35 + .5 * uStr;
+                float a = atan(p.y, p.x) * uDir - uTime * spd;
+                float band = pow(.5 + .5 * sin(2. * a + 5.5 * lr), 2.2);
+                float th = uDir * (uTime * spd - 2.75 * lr);
+                vec2 q = mat2(cos(th), -sin(th), sin(th), cos(th)) * p;
+                float tex = .45 + .55 * (n(q * 5.) * .65 + n(q * 11.) * .35);
+                float fall = smoothstep(1., .3, r), core = smoothstep(.42, .1, r);
+                float eyeOn = smoothstep(.35, .7, uStr);
+                float eye = mix(1., smoothstep(.035, .1, r), eyeOn);
+                float wall = exp(-pow((r - .12) / .05, 2.)) * eyeOn;
+                float d = (band * .8 * fall * tex + core * .85 * tex + wall * .6) * eye;
+                vec3 col = mix(uColor, vec3(1.), smoothstep(.25, .9, d));
+                gl_FragColor = vec4(col, clamp(d, 0., 1.) * .92);
+            }`;
+        const plainVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
+        const dotVS = `uniform float uPR, uProg; attribute vec3 aCol; attribute float aT; varying vec3 vC; varying float vA;
+            void main(){ vC = aCol; vA = step(aT, uProg); gl_PointSize = 5. * uPR;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
+        const dotFS = `varying vec3 vC; varying float vA;
+            void main(){ vec2 c = gl_PointCoord - .5; if (dot(c, c) > .25 || vA < .5) discard; gl_FragColor = vec4(vC, 1.); }`;
+
+        const storms = [], byId = {};
+        (G.storms || []).forEach((s, idx) => {
+            const tr = s.track || [];
+            const lat = s.lat != null ? s.lat : tr[0][0], lon = s.lon != null ? s.lon : tr[0][1];
+            const str = clamp01(((s.kt || 30) - 25) / 100);
+            const col = new THREE.Color(s.color || '#ffffff');
+            const out = geo(lat, lon, 2);
+            const size = .2 + .16 * str;
+            const vortex = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({
+                uniforms: Object.assign({ uDir: { value: lat >= 0 ? 1 : -1 }, uStr: { value: str }, uColor: { value: col } }, uni),
+                vertexShader: plainVS, fragmentShader: vortexFS, transparent: true, depthWrite: false,
+            }));
+            vortex.position.copy(geo(lat, lon, 1.006)); vortex.lookAt(out);
+            spin.add(vortex);
+            // 擴散的強度色圓圈，像雷達掃到的回波
+            const ring = new THREE.Mesh(new THREE.RingGeometry(.47, .5, 64), new THREE.MeshBasicMaterial({
+                color: col, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+            ring.position.copy(geo(lat, lon, 1.004)); ring.lookAt(out);
+            spin.add(ring);
+            // 名稱標籤（跟頁面一樣用 Oswald 大寫）
+            const lab = label(s);
+            const off = size * .45 / D2R;
+            lab.position.copy(geo(lat + off * .6, lon + off, 1.03));
+            spin.add(lab);
+
+            // 預報路徑：點與點之間走大圓，依強度上色；每 24 小時一個點
+            let line = null, dots = null, total = 0;
+            if (tr.length > 1) {
+                const P = [], C = [], DP = [], DC = [], DT = [], tc = new THREE.Color();
+                const put = (v, kt) => { P.push(v.x, v.y, v.z); tc.set(catColor(kt)); C.push(tc.r, tc.g, tc.b); };
+                for (let k = 0; k < tr.length - 1; k++) {
+                    const a = geo(tr[k][0], tr[k][1], 1), b = geo(tr[k + 1][0], tr[k + 1][1], 1);
+                    const ang = a.angleTo(b), steps = Math.max(2, Math.ceil(ang / .01));
+                    for (let j = 0; j < steps; j++) {
+                        const f = j / steps, kt = tr[k][2] == null ? null : mix(tr[k][2], tr[k + 1][2] ?? tr[k][2], f);
+                        const v = ang < 1e-4 ? a.clone() : a.clone().multiplyScalar(Math.sin((1 - f) * ang))
+                            .addScaledVector(b, Math.sin(f * ang)).divideScalar(Math.sin(ang));
+                        put(v.multiplyScalar(1.004), kt);
+                    }
+                    if (k % 4 === 0) { const v = a.multiplyScalar(1.005); DP.push(v.x, v.y, v.z); tc.set(catColor(tr[k][2])); DC.push(tc.r, tc.g, tc.b); DT.push(k / (tr.length - 1)); }
+                }
+                const last = tr[tr.length - 1];
+                put(geo(last[0], last[1], 1.004), last[2]);
+                total = P.length / 3;
+                const lg = new THREE.BufferGeometry();
+                lg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+                lg.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+                line = new THREE.Line(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: .95, depthWrite: false }));
+                spin.add(line);
+                const dg = new THREE.BufferGeometry();
+                dg.setAttribute('position', new THREE.Float32BufferAttribute(DP, 3));
+                dg.setAttribute('aCol', new THREE.Float32BufferAttribute(DC, 3));
+                dg.setAttribute('aT', new THREE.Float32BufferAttribute(DT, 1));
+                dots = new THREE.Points(dg, new THREE.ShaderMaterial({
+                    uniforms: { uPR: uni.uPR, uProg: { value: 0 } }, vertexShader: dotVS, fragmentShader: dotFS, transparent: true }));
+                spin.add(dots);
+            }
+            const S = { id: s.id, lat, lon, size, ring, line, dots, total, phase: idx * .37 };
+            storms.push(S); byId[s.id] = S;
+        });
+
+        function label(s) {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+            const x = c.getContext('2d');
+            const tex = new THREE.CanvasTexture(c);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const name = String(s.name || s.id).toUpperCase();
+            const sub = (name === s.id ? '' : s.id) + (s.kt != null ? (name === s.id ? '' : ' · ') + Math.round(s.kt) + ' KT' : '');
+            const draw = () => {
+                x.clearRect(0, 0, 512, 128);
+                x.fillStyle = s.color || '#fff'; x.fillRect(0, 16, 5, 96);
+                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, 22, 70);
+                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, 24, 110);
+                tex.needsUpdate = true;
+            };
+            draw();
+            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            sp.center.set(0, .5);
+            sp.scale.set(.52, .13, 1);
+            return sp;
+        }
+
+        // ── 衛星：沿傾斜軌道繞行，碟形天線永遠朝地心 ──
+        const metal = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, metalness: .7, roughness: .3 });
+        const panelM = new THREE.MeshStandardMaterial({ color: 0x1c2b4a, metalness: .4, roughness: .45, emissive: 0x05080f });
+        const sat = new THREE.Group();
+        sat.add(new THREE.Mesh(new THREE.BoxGeometry(.045, .045, .07), metal));
+        for (const sx of [-1, 1]) {
+            const pn = new THREE.Mesh(new THREE.BoxGeometry(.16, .003, .05), panelM); pn.position.x = sx * .115; sat.add(pn);
+            const arm = new THREE.Mesh(new THREE.CylinderGeometry(.003, .003, .04, 6), metal);
+            arm.rotation.z = Math.PI / 2; arm.position.x = sx * .03; sat.add(arm);
+        }
+        const dish = new THREE.Mesh(new THREE.ConeGeometry(.022, .018, 20, 1, true), metal);
+        dish.rotation.x = -Math.PI / 2; dish.position.z = .045; sat.add(dish);
+        const ORBIT_R = 1.42;
+        const orbit = new THREE.Group();
+        orbit.rotation.set(.35, 0, .5);
+        orbit.add(sat);
+        const og = new THREE.BufferGeometry().setFromPoints(
+            Array.from({ length: 181 }, (_, i) => new THREE.Vector3(ORBIT_R * Math.cos(i / 90 * Math.PI), 0, ORBIT_R * Math.sin(i / 90 * Math.PI))));
+        orbit.add(new THREE.Line(og, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .08, depthWrite: false })));
+        anchor.add(orbit);
+        scene.add(new THREE.AmbientLight(0xffffff, .35));
+        const light = new THREE.DirectionalLight(0xffffff, 2.2);
+        light.position.set(-3, 2, 4);
+        scene.add(light);
+
+        // ── 背景星點 ──
+        const sp = [];
+        for (let i = 0; i < 1400; i++) {
+            const v = new THREE.Vector3().randomDirection().multiplyScalar(18 + Math.random() * 22);
+            sp.push(v.x, v.y, v.z);
+        }
+        const sg = new THREE.BufferGeometry();
+        sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+        const sky = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: .45, depthWrite: false }));
+        scene.add(sky);
+
+        // ── 狀態：cur 每格往 tgt 靠（像 GSAP 的 scrub），一開場從遠處轉進來 ──
+        const cur = { x: 0, y: 0, z: -7, lat: 0, lon: 0, extra: -1.8, tiltX: 0, op: 0 };
+        let mx = 0, my = 0, pmx = 0, pmy = 0, raf = 0, last = 0, t0 = 0, prog = reduced() ? 1 : 0, first = true;
+        window.addEventListener('pointermove', e => { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; }, { passive: true });
+
+        function focusOf() {
+            const s = route.startsWith('storm/') ? byId[route.slice(6)] : (route === 'overview' && G.focus ? byId[G.focus] : null);
+            return s ? [s.lat, s.lon] : WPAC;
+        }
+        function targets(W, H) {
+            const asp = W / H, portrait = asp < .8;
+            const hv = portrait ? 1 / (.78 * asp) : asp < 1.2 ? 1.9 : 1.6;   // 可視半高（世界單位）＝決定地球多大
+            const camZ = hv / Math.tan(17.5 * D2R);
+            const hw = hv * asp;
+            const dark = root.getAttribute('data-theme') !== 'light';
+            const docH = document.documentElement.scrollHeight - H;
+            const [fl, fo] = focusOf();
+            const T = { camZ, lat: fl, lon: fo, extra: -.25, tiltX: 0, clip: 'none' };
+            if (route === 'overview') {
+                const hero = $('.view.active .hero');
+                const hr = hero ? hero.getBoundingClientRect() : { top: 0, bottom: H, height: H };
+                const hp = reduced() ? 0 : clamp01(scrollY / Math.max(1, hr.height));
+                const pp = reduced() ? 0 : clamp01((scrollY - hr.height) / Math.max(1, docH - hr.height));
+                const K = portrait
+                    ? [[0, .3, 0], [.42, .12, -2], [-.4, -.2, -3]]
+                    : [[.42, .02, 0], [-.5, -.12, -1.5], [.55, .25, -3]];
+                const e1 = ease(hp), e2 = ease(pp);
+                T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
+                T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
+                T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
+                T.extra += .9 * e1 + 1.6 * e2;
+                T.tiltX = .25 * e2;
+                if (dark) T.op = 1 - .3 * e1 - .12 * e2;
+                else {
+                    // 淺色主題：只畫在黑色 hero 裡，捲出去就淡掉
+                    T.op = 1 - hp;
+                    T.clip = `inset(${Math.max(0, hr.top).toFixed(0)}px 0 ${Math.max(0, H - hr.bottom).toFixed(0)}px 0)`;
+                }
+            } else {
+                const p = reduced() ? 0 : clamp01(scrollY / Math.max(1, docH));
+                T.x = .5 * hw; T.y = .08 * hv; T.z = -1.3;
+                T.extra += .8 * p;
+                T.op = dark ? (route.startsWith('storm/') ? .3 : .22) : 0;
+            }
+            return T;
+        }
+
+        function frame(ts) {
+            raf = 0;
+            const dt = Math.min(.05, last ? (ts - last) / 1000 : .016);
+            last = ts;
+            if (!t0) t0 = ts;
+            const t = (ts - t0) / 1000;
+            const W = cv.clientWidth, H = cv.clientHeight;
+            if (!W || !H) return;
+            const sz = renderer.getSize(new THREE.Vector2());
+            if (sz.x !== W || sz.y !== H) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); }
+
+            const T = targets(W, H);
+            const k = reduced() || (first && route !== 'overview') ? 1 : 1 - Math.pow(.02, dt * 1.6);
+            first = false;
+            camera.position.z = T.camZ;
+            pmx += (mx - pmx) * Math.min(1, dt * 3); pmy += (my - pmy) * Math.min(1, dt * 3);
+            cur.x += (T.x - cur.x) * k; cur.y += (T.y - cur.y) * k; cur.z += (T.z - cur.z) * k;
+            cur.lat += (T.lat - cur.lat) * k;
+            cur.lon += ((((T.lon - cur.lon) % 360) + 540) % 360 - 180) * k;     // 走最短的經度差，跨換日線不會繞一圈
+            cur.extra += (T.extra - cur.extra) * k;
+            cur.tiltX += (T.tiltX - cur.tiltX) * k;
+            cur.op += (T.op - cur.op) * (reduced() ? 1 : Math.min(1, dt * 2.5));
+
+            const idle = reduced() ? 0 : Math.sin(t * .15) * .06;
+            anchor.position.set(cur.x + pmx * .08, cur.y - pmy * .06, cur.z);
+            spin.rotation.y = -cur.lon * D2R + cur.extra + idle + pmx * .22;
+            tilt.rotation.x = cur.lat * D2R * .9 + cur.tiltX + pmy * .12;
+            sky.rotation.y = cur.extra * .08 + pmx * .03;
+            sky.rotation.x = scrollY * .00004 + pmy * .02;
+
+            const at = reduced() ? 0 : t;
+            uni.uTime.value = at;
+            if (!reduced() && t > .8) prog = Math.min(1, prog + dt / 2.6);
+            for (const S of storms) {
+                const ph = reduced() ? .35 : (at * .45 + S.phase) % 1;
+                S.ring.scale.setScalar(S.size * (.5 + ph * 1.3));
+                S.ring.material.opacity = (1 - ph) * .7;
+                if (S.line) { S.line.geometry.setDrawRange(0, Math.ceil(S.total * ease(prog))); S.dots.material.uniforms.uProg.value = ease(prog); }
+            }
+            const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * .12);
+            sat.position.set(ORBIT_R * Math.cos(th), 0, ORBIT_R * Math.sin(th));
+            sat.lookAt(anchor.position);
+            sat.rotateZ(.4);
+
+            cv.style.opacity = cur.op.toFixed(3);
+            cv.style.clipPath = T.clip;
+            if (cur.op > .004) renderer.render(scene, camera);
+            // 減少動態或淡到看不見、分頁在背景時就不跑迴圈，改成事件驅動
+            const settled = Math.abs(T.op - cur.op) < .003 && Math.abs(T.x - cur.x) < .002 && Math.abs(T.z - cur.z) < .002;
+            if (!document.hidden && !(reduced() && settled) && !(T.op === 0 && settled)) raf = requestAnimationFrame(frame);
+        }
+        const kick = () => { if (!raf && !document.hidden) raf = requestAnimationFrame(frame); };
+        window.addEventListener('scroll', kick, { passive: true });
+        window.addEventListener('resize', kick);
+        window.addEventListener('pointermove', kick, { passive: true });
+        document.addEventListener('visibilitychange', () => { last = 0; kick(); });
+        new MutationObserver(kick).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+        return { kick };
+    }
     return api;
 })();
 
