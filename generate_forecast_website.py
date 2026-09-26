@@ -5,7 +5,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "3.3.5"
+SITE_VERSION = "4.0.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -148,6 +148,20 @@ ICONS = {
     'next': f'<svg {_ICON_ATTR}><path d="M9 6l6 6-6 6"/></svg>',
     'compare': f'<svg {_ICON_ATTR}><path d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>',
 }
+
+
+def _marquee(items: list[tuple], reverse: bool = False) -> str:
+    """跑馬燈大字列：items 為 (文字, 是否描邊, 顏色或 None)。內容重複兩次，
+    CSS 平移 -50% 即可無縫循環；太短時先補到至少 6 個字塊，寬螢幕才不會露出空白。"""
+    seq = list(items)
+    while items and len(seq) < 6:
+        seq += items
+    spans = []
+    for text, outline, color in seq:
+        style = f' style="--c:{color}"' if color else ''
+        spans.append(f'<span class="mq{" o" if outline else ""}"{style}>{_esc(text)}</span>')
+    run = "".join(spans)
+    return f'<div class="strip{" reverse" if reverse else ""}">{run}{run}</div>'
 
 
 def generate_forecast_html(storms: list[dict], output_path: str,
@@ -360,9 +374,31 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="model-desc">{_esc(desc)}</div>
                 </div>""" for name, org, desc in KNOWN_MODELS)
 
+    if infos:
+        mq_top = []
+        for info in infos.values():
+            mq_top += [(_title(info), False, info['color']), ('Typhoon Forecast', True, None)]
+    else:
+        mq_top = [('All Quiet', False, None), ('Western Pacific', True, None)]
+    mq_bottom = [(name, i % 2 == 0, None) for i, (name, _, _) in enumerate(KNOWN_MODELS)]
+    marquee_html = f"""
+        <div class="marquee" aria-hidden="true">
+            {_marquee(mq_top)}
+            {_marquee(mq_bottom, reverse=True)}
+        </div>"""
+
+    statement_html = """
+        <div class="statement">
+            <p class="words" data-i18n="statement">We track tropical cyclones at the intersection between
+            <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member,
+            every 30 minutes, side by side with the official forecast.</p>
+        </div>"""
+
     overview_view = f"""
     <section class="view" data-view="overview" data-title-key="nav.overview">
         {hero_html}
+        {marquee_html}
+        {statement_html}
         <div class="page">
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.active.kicker">Live</div>
@@ -752,14 +788,16 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <meta name="color-scheme" content="light dark">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Noto+Sans+TC:wght@400..900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200..800&family=Oswald:wght@300..700&family=Noto+Sans+TC:wght@300..900&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | {_esc(title_track_ids)}</title>
     <script>
-    // 在第一次繪製前就決定主題與語言，避免先閃一下淺色／英文
+    // 在第一次繪製前就決定主題（預設黑底，使用者切過就沿用上次的選擇），避免閃一下
     (function () {{
-        var d = document.documentElement, h = new Date().getHours();
+        var d = document.documentElement;
         d.classList.add('js');
-        d.setAttribute('data-theme', (h >= 18 || h < 6) ? 'dark' : 'light');
+        var saved = null;
+        try {{ saved = localStorage.getItem('theme'); }} catch (e) {{}}
+        d.setAttribute('data-theme', (saved === 'light' || saved === 'dark') ? saved : 'dark');
     }})();
     </script>
     <style>{_CSS}</style>
@@ -796,6 +834,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     </main>
 
     <footer>
+        <div class="marquee footer-marquee" aria-hidden="true">
+            {_marquee([("Pillar's", False, None), ("Tropical Cyclone", True, None), ("Forecast", False, None), ("Western Pacific", True, None)])}
+        </div>
         <div class="footer-inner">
             <div class="footer-brand">
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
@@ -1600,6 +1641,7 @@ const I18N = {
     'hero.now':         'Current time',
     'hero.updated':     'Data updated',
     'hero.active':      'Active systems',
+    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 30 minutes, side by side with the official forecast.',
     'sec.active.kicker':'Live',
     'sec.active':       'Active systems',
     'sec.genesis.kicker':'Outlook',
@@ -1700,6 +1742,7 @@ const I18N = {
     'hero.now':         '現在時間',
     'hero.updated':     '資料更新',
     'hero.active':      '活躍系統',
+    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 30 分鐘更新，與官方預報並列呈現。',
     'sec.active.kicker':'即時',
     'sec.active':       '活躍系統',
     'sec.genesis.kicker':'展望',
@@ -1817,6 +1860,8 @@ function applyLang(lang, save = true) {
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
     applyTheme(root.getAttribute('data-theme') || 'light', false);
     $$('.split').forEach(splitText);
+    $$('.words').forEach(splitWords);
+    updateWords();
     $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
     updateTitle();
     requestAnimationFrame(updateIndicators);   // 字寬變了，指示塊要重新量
@@ -1869,6 +1914,33 @@ function splitText(el) {
     }
     el.innerHTML = out;
 }
+
+// 標語逐字點亮：拆成字詞 span（中文一字一組），保留 <strong> 強調；
+// 捲動時 updateWords() 依段落在畫面中的位置，由左至右把字點亮。
+function splitWords(el) {
+    const wrap = s => (s.match(/[⺀-鿿豈-﫿＀-￯]|[^\s⺀-鿿豈-﫿＀-￯]+|\s+/g) || [])
+        .map(tok => /^\s+$/.test(tok) ? ' ' : `<span class="wd">${tok.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`).join('');
+    let out = '';
+    el.childNodes.forEach(n => {
+        if (n.nodeType === 3) out += wrap(n.textContent);
+        else if (n.nodeType === 1) out += `<${n.tagName.toLowerCase()}>${wrap(n.textContent)}</${n.tagName.toLowerCase()}>`;
+    });
+    el.innerHTML = out;
+}
+function updateWords() {
+    $$('.view.active .words').forEach(el => {
+        const ws = el.querySelectorAll('.wd');
+        const r = el.getBoundingClientRect();
+        const p = reduced() ? 1 : (innerHeight * 0.82 - r.top) / (r.height + innerHeight * 0.3);
+        const lit = Math.round(Math.max(0, Math.min(1, p)) * ws.length);
+        ws.forEach((w, i) => w.classList.toggle('lit', i < lit));
+    });
+}
+let wordsRaf = 0;
+window.addEventListener('scroll', () => {
+    if (!wordsRaf) wordsRaf = requestAnimationFrame(() => { wordsRaf = 0; updateWords(); });
+}, { passive: true });
+window.addEventListener('resize', updateWords, { passive: true });
 
 // 頁首按鈕拆成「圖示＋文字」：窄螢幕只顯示圖示（或短字），頁首才能擠成一排
 function btnHTML(label, short) {
@@ -1972,6 +2044,7 @@ function onViewShown(view) {
     refreshSubnavs();
     scrollSpy();
     Hero.setActive(view.dataset.view === 'overview');
+    updateWords();
 }
 
 window.addEventListener('hashchange', () => show(parseHash(), false));
@@ -2162,6 +2235,34 @@ if (canHover) {
         card.classList.add('tilting');
         card.style.transform = `perspective(1000px) rotateX(${(-py * 5).toFixed(2)}deg) rotateY(${(px * 6).toFixed(2)}deg) translateY(-4px)`;
     }, { passive: true });
+}
+
+// ── 自訂游標：白點以 difference 混色反白底下的內容，移到可點的東西上會放大 ──
+if (canHover && !reduced()) {
+    const cur = document.createElement('div');
+    cur.id = 'cursor';
+    cur.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(cur);
+    root.classList.add('has-cursor');
+    let x = 0, y = 0, cx = 0, cy = 0, raf = 0, shown = false;
+    const follow = () => {
+        cx += (x - cx) * 0.24; cy += (y - cy) * 0.24;
+        cur.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(1)}px,0)`;
+        raf = (Math.abs(x - cx) + Math.abs(y - cy) > 0.2) ? requestAnimationFrame(follow) : 0;
+    };
+    document.addEventListener('pointermove', e => {
+        if (e.pointerType !== 'mouse') return;
+        x = e.clientX; y = e.clientY;
+        if (!shown) { cx = x; cy = y; shown = true; cur.classList.add('on'); }
+        const hit = e.target.closest && e.target.closest('a, button, select, label, input, [role="slider"], .zoomable, .lightbox');
+        const zoom = !!hit && hit.matches('.zoomable:not(.broken)');
+        cur.classList.toggle('zoom', zoom);
+        cur.classList.toggle('big', !!hit && !zoom);
+        if (!raf) raf = requestAnimationFrame(follow);
+    }, { passive: true });
+    document.documentElement.addEventListener('mouseleave', () => { cur.classList.remove('on'); shown = false; });
+    document.addEventListener('pointerdown', () => cur.classList.add('press'));
+    document.addEventListener('pointerup', () => cur.classList.remove('press'));
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────
