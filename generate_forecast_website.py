@@ -6,7 +6,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.1"
+SITE_VERSION = "4.1.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1777,11 +1777,11 @@ html[lang^="zh"] .nav-link { letter-spacing: .1em; }
 }
 .eyebrow::before { content: ""; width: 42px; height: 1px; background: currentColor; }
 .hero-title {
-    font-weight: 600; font-size: clamp(2.8rem, 9vw, 7.5rem);
+    font-weight: 600; font-size: clamp(2.4rem, 6.5vw, 5.2rem);
     line-height: .9; letter-spacing: .01em; max-width: none;
     margin: 22px 0 26px; text-shadow: none;
 }
-html[lang^="zh"] .hero-title { font-size: clamp(2.8rem, 9vw, 7.5rem); line-height: 1.12; letter-spacing: .06em; }
+html[lang^="zh"] .hero-title { font-size: clamp(2.4rem, 6.5vw, 5.2rem); line-height: 1.12; letter-spacing: .06em; }
 .hero-title.storm-name, .storm-title.storm-name { letter-spacing: .02em !important; }
 .hero-lead { font-weight: 300; font-size: clamp(1.05rem, 1.8vw, 1.5rem); color: rgba(255,255,255,.86); }
 .hero-sub { font-weight: 300; color: rgba(255,255,255,.62); }
@@ -1849,12 +1849,12 @@ html[lang^="zh"] .words { font-weight: 300; line-height: 1.5; letter-spacing: .0
     align-items: flex-end;
 }
 .section-head:first-child { margin-top: 10px; }
-.section-head h3 { font-size: clamp(2.6rem, 6.5vw, 5.6rem); font-weight: 600; line-height: .95; letter-spacing: .01em; }
+.section-head h3 { font-size: clamp(2.1rem, 4.8vw, 4rem); font-weight: 600; line-height: .95; letter-spacing: .01em; }
 html[lang^="zh"] .section-head h3 { letter-spacing: .08em; line-height: 1.15; }
 .kicker { color: var(--text-3); font-weight: 500; letter-spacing: .3em; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
 .kicker::before { content: ""; width: 32px; height: 1px; background: currentColor; }
-.count-chip { background: none; color: var(--text); font-family: var(--display); font-size: clamp(2.6rem, 6.5vw, 5.6rem); font-weight: 200; line-height: .95; padding: 0; }
-.page-title { font-size: clamp(2.4rem, 6vw, 5.2rem); font-weight: 600; line-height: .98; letter-spacing: .01em; max-width: 20ch; }
+.count-chip { background: none; color: var(--text); font-family: var(--display); font-size: clamp(2.1rem, 4.8vw, 4rem); font-weight: 200; line-height: .95; padding: 0; }
+.page-title { font-size: clamp(2rem, 4.6vw, 3.8rem); font-weight: 600; line-height: .98; letter-spacing: .01em; max-width: 20ch; }
 html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .page-lead { font-weight: 300; font-size: 1.1em; }
 .legend-inline { text-transform: uppercase; letter-spacing: .14em; font-weight: 500; }
@@ -1868,7 +1868,7 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .storm-tile::before { height: 2px; }
 .storm-tile::after { opacity: .1; }
 .storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
-.tile-name { font-size: clamp(2.6rem, 5vw, 4.4rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
+.tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
 .tile-catname { font-weight: 400; letter-spacing: .06em; }
 .tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }
 .tile-facts dd { font-weight: 500; }
@@ -1894,7 +1894,7 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 }
 .storm-hero .swirl { opacity: .14; }
 .storm-subtitle { font-weight: 500; letter-spacing: .3em; }
-.storm-title { font-size: clamp(3.4rem, 10vw, 9rem); font-weight: 600; line-height: .9; text-shadow: none; margin: 16px 0 24px; }
+.storm-title { font-size: clamp(2.8rem, 7vw, 6rem); font-weight: 600; line-height: .9; text-shadow: none; margin: 16px 0 24px; }
 .badge-cat, .badge-name, .badge-live, .badge-id { font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
 .badge-id { font-family: var(--display); }
 .gauge-val b { font-weight: 400; }
@@ -1972,6 +1972,11 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
     .page { padding: 20px 16px 48px; gap: 22px; }
     .hero-inner { padding: 48px 16px 36px; }
     .hero-meta { margin-top: 36px; }
+    /* 兩顆按鈕固定一排：英文字較長會換行，文字貼底時會把標題往上推到地球上 */
+    .hero-cta { flex-wrap: nowrap; gap: 10px; }
+    .btn-primary, .btn-ghost { flex: 1 1 auto; justify-content: center; padding: 14px 10px; letter-spacing: .06em; font-size: .8em; white-space: nowrap; }
+    .hero-lead { font-size: .95rem; gap: 7px; }
+    .chip-k { letter-spacing: .12em; }
     .hero-chip { flex: 1 1 30%; padding: 14px 10px 2px 0; margin-right: 10px; }
     .chip-v, html[lang^="zh"] .chip-v { font-size: 1.35em; }
     .statement { padding: 72px 16px; }
