@@ -1,0 +1,118 @@
+name: Auto update forecast
+
+# 在 GitHub 的雲端機器上每 30 分鐘跑一次 forecast.py，取代本機的
+# run_forecast.bat + 工作排程器，電腦關機時網站照樣更新。
+#
+# 注意：用 GITHUB_TOKEN 推送的 commit 不會觸發其他 workflow（GitHub 刻意
+# 防止無限迴圈），所以 deploy-pages.yml 不會被這裡的 push 叫起來，
+# 部署改在本 workflow 的 deploy job 直接做。
+
+on:
+  schedule:
+    # 避開整點與半點：GitHub 排程在 :00 最壅塞，常延遲甚至被丟掉
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# 上一輪還沒跑完時，新的一輪排隊等，不要兩輪同時改 docs/
+concurrency:
+  group: auto-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          # 只抓最新一個 commit，不拉數 GB 的圖檔歷史
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes
+
+      # 下載目錄在 .gitignore 裡不進 repo；用 cache 在各輪之間保留，
+      # _resolve_cycle 回溯舊 cycle 與潛勢圖的退路才有檔案可用。
+      # 每輪存一份新 key，還原時取最新一份。
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deepmind_weather_*_2026/
+            ecmwf_*_2026/
+            ~/.local/share/cartopy
+          key: forecast-data-${{ github.run_id }}
+          restore-keys: forecast-data-
+
+      - name: Run forecast
+        run: python forecast.py
+
+      - name: Commit and push docs
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if git diff --cached --quiet; then
+            echo "[INFO] No changes in docs/, skipping push"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -q -m "Auto update: $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # 有人在這輪期間推了新 commit：多抓一點歷史讓 rebase 找得到共同祖先
+            git fetch --depth=20 origin main
+            git rebase origin/main || { git rebase --abort; echo "[ERROR] rebase conflict"; exit 1; }
+            sleep $((i * 10))
+          done
+          echo "[ERROR] push failed after retries"
+          exit 1
+
+  deploy:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
