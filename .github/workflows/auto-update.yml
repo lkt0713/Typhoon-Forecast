@@ -61,6 +61,10 @@ jobs:
           restore-keys: forecast-data-
 
       - name: Run forecast
+        # 網頁上的「最後更新」用機器本地時間（datetime.now().astimezone()），
+        # runner 預設 UTC，設成台北時間才跟本機版顯示的一樣
+        env:
+          TZ: Asia/Taipei
         run: python forecast.py
 
       - name: Commit and push docs
