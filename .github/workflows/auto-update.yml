@@ -10,7 +10,7 @@ name: Auto update forecast
 on:
   schedule:
     # 避開整點與半點：GitHub 排程在 :00 最壅塞，常延遲甚至被丟掉
-    - cron: '7,37 * * * *'
+    - cron: '13,43 * * * *'
   workflow_dispatch:
 
 permissions:
