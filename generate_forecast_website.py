@@ -3315,8 +3315,15 @@ const Globe = (function () {
                 const hr = hero ? hero.getBoundingClientRect() : { top: 0, bottom: H, height: H };
                 const hp = reduced() ? 0 : clamp01(scrollY / Math.max(1, hr.height));
                 const pp = reduced() ? 0 : clamp01((scrollY - hr.height) / Math.max(1, docH - hr.height));
+                // 直式平板：起始位置置中在封面（未捲動時）看得到的範圍內，扣掉頁首與底部導覽列
+                let y0 = .18;
+                if (portrait && W >= 600) {
+                    const bn = $('.bottom-nav'), nb = bn ? bn.offsetHeight : 0;
+                    const top = Math.max(hr.top + scrollY, 0), bot = Math.min(hr.bottom + scrollY, H - nb);
+                    if (bot > top) y0 = 1 - (top + bot) / H;
+                }
                 const K = portrait
-                    ? [[0, .18, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
+                    ? [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
                     : [[.42, .02, 0], [-.5, -.12, -1.5], [.55, .25, -3]];
                 const e1 = ease(hp), e2 = ease(pp);
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
