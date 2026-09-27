@@ -3320,7 +3320,7 @@ const Globe = (function () {
                 if (portrait && W >= 600) {
                     const bn = $('.bottom-nav'), nb = bn ? bn.offsetHeight : 0;
                     const top = Math.max(hr.top + scrollY, 0), bot = Math.min(hr.bottom + scrollY, H - nb);
-                    if (bot > top) y0 = 1 - (top + bot) / H;
+                    if (bot > top) y0 = 1 - (top + bot) / H + .08;     // 置中後再略往上一點
                 }
                 const K = portrait
                     ? [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
