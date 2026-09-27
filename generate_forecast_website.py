@@ -899,6 +899,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank" rel="noopener">🛰 JTWC</a>
             </div>
             <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
+            <div class="footer-credit" data-i18n="footer.credit">Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a></div>
         </div>
     </footer>
 
@@ -1952,6 +1953,10 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 .footer-brand p { font-weight: 300; }
 .footer-link { padding: 4px 8px; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; font-size: .74em; }
 .footer-copy { text-transform: uppercase; letter-spacing: .14em; font-size: .68em; }
+/* 設計出處：版面參考 usta.agency */
+.footer-credit { grid-column: 1 / -1; margin-top: -12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .14em; font-size: .68em; }
+.footer-credit a { color: var(--text-2); text-decoration: none; box-shadow: inset 0 -1px 0 currentColor; }
+.footer-credit a:hover { color: var(--text); }
 
 /* ── Lightbox ── */
 .lightbox { background: rgba(0,0,0,.96); }
@@ -2114,6 +2119,7 @@ const I18N = {
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
+    'footer.credit':    'Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a>',
     'lb.close':         'Close',
     'img.broken':       'Image unavailable',
     'rel.now':          'just now',
@@ -2215,6 +2221,7 @@ const I18N = {
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
+    'footer.credit':    '設計參考 <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency（usta.agency）</a>',
     'lb.close':         '關閉',
     'img.broken':       '圖片暫時無法載入',
     'rel.now':          '剛剛',
