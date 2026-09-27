@@ -3316,7 +3316,7 @@ const Globe = (function () {
                 const hp = reduced() ? 0 : clamp01(scrollY / Math.max(1, hr.height));
                 const pp = reduced() ? 0 : clamp01((scrollY - hr.height) / Math.max(1, docH - hr.height));
                 const K = portrait
-                    ? [[0, .3, 0], [.42, .12, -2], [-.4, -.2, -3]]
+                    ? [[0, .18, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
                     : [[.42, .02, 0], [-.5, -.12, -1.5], [.55, .25, -3]];
                 const e1 = ease(hp), e2 = ease(pp);
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
