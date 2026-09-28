@@ -1160,7 +1160,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v4.2.0</span>
+            <span class="version-badge" title="Site version / 網站版本">v4.2.1</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -3157,29 +3157,43 @@ const Globe = (function () {
         });
 
 
-        // ── 衛星：沿傾斜軌道繞行，碟形天線永遠朝地心 ──
+        // ── 衛星：太陽同步極軌道氣象衛星（參考 NOAA-20／JPSS：高度約 824 km、傾角 98.7°、
+        //    升交點地方時 13:30）。軌道固定在地球座標上、依即時太陽位置擺放，白天那側往北飛；
+        //    姿態對地（碟形天線朝地心、機身順著飛行方向），太陽能板繞俯仰軸追太陽，
+        //    光照來自真實太陽方向，進入地影就變暗。實際週期約 101 分鐘，動畫快轉 100 倍。
+        //    （衛星本體放大很多才看得到；地球在這裡不自轉，所以星下點軌跡不會逐圈西移） ──
         const metal = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, metalness: .7, roughness: .3 });
         const panelM = new THREE.MeshStandardMaterial({ color: 0x1c2b4a, metalness: .4, roughness: .45, emissive: 0x05080f });
-        const sat = new THREE.Group();
+        const sat = new THREE.Group(), wings = [];
         sat.add(new THREE.Mesh(new THREE.BoxGeometry(.045, .045, .07), metal));
         for (const sx of [-1, 1]) {
-            const pn = new THREE.Mesh(new THREE.BoxGeometry(.16, .003, .05), panelM); pn.position.x = sx * .115; sat.add(pn);
+            const w = new THREE.Group();
+            const pn = new THREE.Mesh(new THREE.BoxGeometry(.16, .003, .05), panelM); pn.position.x = sx * .115; w.add(pn);
+            sat.add(w); wings.push(w);
             const arm = new THREE.Mesh(new THREE.CylinderGeometry(.003, .003, .04, 6), metal);
             arm.rotation.z = Math.PI / 2; arm.position.x = sx * .03; sat.add(arm);
         }
         const dish = new THREE.Mesh(new THREE.ConeGeometry(.022, .018, 20, 1, true), metal);
         dish.rotation.x = -Math.PI / 2; dish.position.z = .045; sat.add(dish);
-        const ORBIT_R = 1.42;
+        sat.scale.setScalar(.75);
+        const ORBIT_R = 1 + 824 / 6371, INC = 98.7 * D2R;
+        const SAT_W = 2 * Math.PI / (101.4 * 60) * 100;          // 角速度（rad/s，已快轉 100 倍）
+        // 軌道座標：x＝升交點方向、z＝升交點後 90°（往北、略偏西）、y＝z×x
+        const nodeLon = sunLon + (13.5 - 12) * 15;
+        const N = geo(0, nodeLon, 1), E = geo(0, nodeLon + 90, 1);
+        const M = E.clone().multiplyScalar(Math.cos(INC)).add(new THREE.Vector3(0, Math.sin(INC), 0));
         const orbit = new THREE.Group();
-        orbit.rotation.set(.35, 0, .5);
+        orbit.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(N, M.clone().cross(N), M));
         orbit.add(sat);
         const og = new THREE.BufferGeometry().setFromPoints(
             Array.from({ length: 181 }, (_, i) => new THREE.Vector3(ORBIT_R * Math.cos(i / 90 * Math.PI), 0, ORBIT_R * Math.sin(i / 90 * Math.PI))));
         orbit.add(new THREE.Line(og, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .08, depthWrite: false })));
-        anchor.add(orbit);
+        spin.add(orbit);
+        const sunOrb = uni.uSun.value.clone().applyQuaternion(orbit.quaternion.clone().invert());
+        const satBasis = new THREE.Matrix4(), bX = new THREE.Vector3(0, 1, 0), bY = new THREE.Vector3(), bZ = new THREE.Vector3();
+        const sunW = new THREE.Vector3(), spinQ = new THREE.Quaternion();
         scene.add(new THREE.AmbientLight(0xffffff, .35));
         const light = new THREE.DirectionalLight(0xffffff, 2.2);
-        light.position.set(-3, 2, 4);
         scene.add(light);
 
         // ── 背景星點 ──
@@ -3286,10 +3300,20 @@ const Globe = (function () {
                 S.ring.material.opacity = (1 - ph) * .7;
                 if (S.line) { S.line.geometry.setDrawRange(0, Math.ceil(S.total * ease(prog))); S.dots.material.uniforms.uProg.value = ease(prog); }
             }
-            const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * .12);
-            sat.position.set(ORBIT_R * Math.cos(th), 0, ORBIT_R * Math.sin(th));
-            sat.lookAt(anchor.position);
-            sat.rotateZ(.4);
+            const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * SAT_W);
+            const c = Math.cos(th), s = Math.sin(th);
+            sat.position.set(ORBIT_R * c, 0, ORBIT_R * s);
+            // 機身：z 朝地心、x 沿軌道法向（太陽能板伸展方向）、-y 為飛行方向
+            bY.set(s, 0, -c); bZ.set(-c, 0, -s);
+            sat.quaternion.setFromRotationMatrix(satBasis.makeBasis(bX, bY, bZ));
+            const pitch = Math.atan2(sunOrb.dot(bZ), sunOrb.dot(bY));
+            for (const w of wings) w.rotation.x = pitch;
+            // 太陽光方向跟著地球轉；衛星在地球背日面的圓柱陰影內就只剩環境光
+            spin.getWorldQuaternion(spinQ);
+            light.position.copy(sunW.copy(uni.uSun.value).applyQuaternion(spinQ)).multiplyScalar(5);
+            const along = -ORBIT_R * (sunOrb.x * c + sunOrb.z * s);   // 衛星位置在「背日」方向的投影
+            const perp = Math.sqrt(Math.max(0, ORBIT_R * ORBIT_R - along * along));
+            light.intensity = 2.2 * (along > 0 ? THREE.MathUtils.smoothstep(perp, .96, 1.04) : 1);
 
             cv.style.opacity = cur.op.toFixed(3);
             cv.style.clipPath = T.clip;
