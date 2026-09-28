@@ -842,6 +842,48 @@ html[lang^="zh"] .nav-link { letter-spacing: .1em; }
 .nav-indicator { background: none; border: 0; box-shadow: inset 0 -2px 0 var(--text); }
 .nav-dot { box-shadow: none; }
 
+/* 颱風下拉選單：.collapsed 時隱藏各颱風連結、改顯示「颱風 ▾」。
+   .nav-drop 刻意不設定位，讓按鈕的 offsetParent 仍是 .top-nav，滑動指示塊才對得準；
+   選單改以 .top-nav 為定位基準，左緣由 JS 對齊按鈕。 */
+.top-nav.measuring .nav-link { flex-shrink: 0; }
+header.compact .header-actions { gap: 6px; }
+header.compact .ub-long { display: none; }
+header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
+header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
+header.compact #lang-btn .bt { display: none; }
+header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
+header.mini .brand-text { display: none; }
+.top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
+.top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
+.nav-drop { display: none; }
+.nav-drop-btn { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+.top-nav.collapsed .nav-storm { display: none; }
+.top-nav.collapsed .nav-drop { display: flex; }
+.nd-count { font-style: normal; font-size: .82em; line-height: 1; padding: 3px 6px; border: 1px solid currentColor; opacity: .8; }
+.nd-caret { width: 13px !important; height: 13px !important; transition: transform .3s var(--ease-out); }
+.nav-drop.open .nd-caret { transform: rotate(180deg); }
+.nav-menu {
+    position: absolute; top: calc(100% + 12px); left: 0; z-index: 300; min-width: 300px;
+    display: flex; flex-direction: column; padding: 6px;
+    background: rgba(0,0,0,.86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    opacity: 0; visibility: hidden; transform: translateY(-6px);
+    transition: opacity .25s, transform .3s var(--ease-out), visibility 0s .3s;
+}
+[data-theme="light"] .nav-menu { background: rgba(255,255,255,.94); }
+.nav-drop.open .nav-menu { opacity: 1; visibility: visible; transform: none; transition: opacity .25s, transform .3s var(--ease-out); }
+.nav-menu-item {
+    display: grid; grid-template-columns: 9px 1fr auto 56px; align-items: center; gap: 12px;
+    padding: 11px 14px; color: var(--text-2); text-decoration: none; white-space: nowrap;
+    font-size: .8em; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    transition: background .2s, color .2s;
+}
+.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--text); color: var(--bg); outline: none; }
+.nav-menu-item.active { color: var(--text); box-shadow: inset 2px 0 0 var(--text); }
+.nav-menu-item.active:hover { color: var(--bg); }
+.nm-cat { font-size: .82em; font-weight: 700; padding: 3px 7px; letter-spacing: .06em; }
+.nm-kt { text-align: right; opacity: .75; }
+
 .update-badge, .theme-btn { background: transparent; border-color: var(--border); color: var(--text-2); }
 .theme-btn:hover { background: transparent; border-color: var(--text); }
 .version-badge, [data-theme="dark"] .version-badge { background: var(--text); color: var(--bg); border-color: var(--text); font-family: var(--display); letter-spacing: .08em; }
@@ -954,6 +996,9 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .storm-tile::before { height: 2px; }
 .storm-tile::after { opacity: .1; }
 .storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
+/* 兩欄時顆數為奇數，最後一張會單獨佔半邊、右邊空一格 → 讓它橫跨整排（一欄時本來就滿版，不受影響） */
+.storm-grid > .storm-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
 .tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
 .tile-catname { font-weight: 400; letter-spacing: .06em; }
 .tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }
@@ -1106,16 +1151,16 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
-        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link" href="#/storm/WP252026" data-route="storm/WP252026"><span class="nav-dot" style="--c:#DC3A4E"></span><span class="storm-name">SURIGAE</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
+        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link nav-storm" href="#/storm/WP252026" data-route="storm/WP252026"><span class="nav-dot" style="--c:#DC3A4E"></span><span class="storm-name">SURIGAE</span></a><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-09-28 12:14:51">
+            <div class="update-badge" id="update-badge" data-full="2026-09-28 12:20:22">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-28</span> 12:14<span class="ub-long">:51</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-09-28</span> 12:20<span class="ub-long">:22</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v4.1.6</span>
+            <span class="version-badge" title="Site version / 網站版本">v4.2.0</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -1145,7 +1190,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-28</span> 12:14</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">09-28</span> 12:20</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">1</span></div>
                 </div>
             </div>
@@ -1747,7 +1792,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP252026", "genesis", "about"], "updatedIso": "2026-09-28T12:14:51+08:00", "hero": {"rgb": "232,127,140", "strength": 0.833}, "trackIds": "WP252026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "eNrtndFvJMlZwKumZ92jnM9taSOtUYx70IGOJ9YQBBtktgeCFB4i7g8Asj6BlAeEYsiLIxx3+7yw9xDhvBHEKb53EFqJl5WI4l7tRXu83AZ4IA9R3Msm7ALh3Bsf2fa6XUVVdfVMdfdX1dVjjxDIJe2td9zzm6+/+r6vvu+rmj6ELsfluByX4//OeG2f0vQCeb0tSvcj9oP7kNKLRHt7nJehP/ZfLX64qBFyHCXOES0G2cJN+Pw0EjvHlEEzh5bjmJL6RXisIceeHNw/pD4lLlVGUr1k7pvu4+NIXm4/C/RsP2CzFijgb46n9j3xGU78o++ML4/tyfTRMT2NHIW8WvzG/eg4aGj8EbXDujHC9IzSCKnakGL1SN7UqpsvWxrGsksPmGI9BZzL3/UbCi/eYqcPdy/6D2Z2O+r8ZSP5y5/KbzTfgfNBO/ZqipZRhl4wr/NV9NvlBZkfT+ciEZpjfy0GP2bTr5LfLW+oqYwhQn7SBsZ0iYGd3OeRQp3AZ+NLVIm98h9BXvkgYPjxRx76w8zJuV85ZH9MJtD1n5TWhu8rN6Ubn6S7mZ+iHBVCTHwlAma6fFFEmbviM/yDSGcXLERE6UmJGhseuQvEgFgNX4Wmg9NHOuE9fsUNSg+KWFOSzwBRpC5eKa6Q4UQ/gfUXytG82MnGt8mXBnkDI23AYGHXyYNkq1e+IMYp0dwdG78rrvgrOcVrOpnJBvpbnIa7x2dE0SF9CijDZ38W2BUvhMjMTTGfG406HHr09CvZT+RfdJ9KIQ8L8hEQgbf5hL3Vk59ND4uwtaqzjD3KghlZ9Z7kL2JFZroKk8O3PDVurTPZAtD5MWEGvI22Njx2i+/zV/5EvicFruXkr9MfqOvOCNNHJTmrLGQbzMwIC134RIZkaVInwOJ9i2tv3ztVyXz1JOrieDCeen5vTBxhx99l/14u1LGpkHt/sF7GJsy0d0Ybg6iOR0tj/HIxyT6bkRP2yieKaz9QZH31MC+9wmHk0yZ5YvyBTFaO/vUGF/aHS9vIxbuUsg8KbtXDxhyl/1WoErOsYZ9SkPy0eId0fMJ169HD1L/2npv9dChCQVBZrOQLL/mU8DWK7lF47FISK2FH+ER+Y+DfOXIy7JNJtJuYhrsvw89odSHMg4eHEPdQKqFCjvE7aMUn1xP8kH6b3XFYs7mPy3tI3f/kPzw8otoRKWGHS5PRJ38XUj917/M57h9UdVFGvygpbuahHsyttvqCkPIg6yH+O6+eiUox4qT42zOQH0XVRbogk5RLlxUiqg4orn1E42LWPwj04AOaek7z5R9xxn4iTP0FM6BVLJ32uvioYIG2jn2ahM1Xjz/k/sO8zDkolPGlMjUKaRYyxYft5IjUlFGMPS7tg2J2CyVkpTkn/Od2MGUZkX8M3EriHYokY6+IAvtS2eyTmIrzrVbu2Tcq6+hk+FnPEWKGwuGYjURliIlbTKLMBEEySYMVvnQJMilihAyd3HGtBnvDCqDopI+W0Paa0GteXYJzz46cg8ogIuC8/p6YurTqJ2lgR/7eOGGofd5o77uieHInmfhQ+EniW8grLcoDtb9H5ZSpCWxgRU62pN+6wl/VkU7yQVwnx+3kKJFLBU8Ztv167edK39jrLjPalUvhp9iUhfeb5BORgc1N8oc+J594SdBmFd73B+WCnbPQFlZLNCaz28gErovZDdss+eYkFeCZZFAle4zcyOaun/KV3YgdjNN6Nga/zVW6UK1KfPrjZhXlP2HLmZHMJx+fTJbNYyU7lP7jTgpXOV5nVe0OjQZGZYhmi7Ig/zn/719Ukhynkc25wghvm9Vcq7RWRN38LxUybpBZZYSW6NvLYUu0UMlFwfvzlcCBG00enuRvhnHQGjsnQQwXzvAzlZt6s0Hm5WseoKBtAtEkZfRkxhaqvuJUkkpZkqP0rpkcCz2OtfgLapFUzjGPU6Ri0J9mt/CF22YyqpDLBb+nBr20nnaxZWUToS+yOTRN4GJBxvU6TA0dYb0t5WWsMlmLzZ79rf6kBJ0U9z01ihVLx02VnAZljaYfT28r5LHk+EqDrJau7nNeCrSNH6oyj8efqulXk5yC6VRtfFhWVQgtTt47Ut6Y+vXmg//YhsydZLNZ3KvLd0BrBr3g0Lh9cf2gKDTgRquS7D6pNjSetJN5bFtvlqWNSulBtXfm25GhXkgtCLxR0VXfwjRYEgu2dtdqQSB+Va8tPRls9VRjAlr17tWaTK3jK3CHyqkoOici2E/GZyzImkY6rijylKAgA5tKhqFpkOJKRfqClSP/1lHNRNd6Paz702fhWHiqdcF5be+rUmv0UB8mP9Tl0dmCcbdDcin5fL2BJTs0fG8BXmnTgZXM9FtNMtdXusakh1etpBLiNOQjmuZNMreeJDigBLaUeAlFFjI/jZvkXfF2n+YOnHzN9yy0kS80G737uyJoOzSHHRKtDC3I6XyDTNxYtkQIKDPz2ljTFzXsJ/FW3pLLjY0bEaznTV3HHzfynSo5R6+kniD7BPJIMkQUdSdjTn6T77+JvB0isyjzZzb2nAAyr4fsA9A2I0dvgPliZEHOmzfE3unvUHqfO2Dsgn4ynI4co8R9TH9LxI/k9UZHipMTCz2njbY3M7d15x9O7yiJX2Wh4tlJaiEzQJ5jC/6ObEM0almywnvdFmTybtNPeCoRb2vI+eKKgazcIVGNblT4Nv8xWiu8L/Ya0+ePCxNgW0cRIW5oQ5Rc0dU7MDlFQTTO8ptpgSKzapl9QebWsoV+x4XJ+ciNkaMj+1BLfSwz0+HiMlouLChrkDMn4Zu4rTI3A4A/dA7zPi+rX3JQY01JWMEYRtOQB7x1KVLuDTjqu8mQGjbx9DuCAzx2TDjqs1JUu6nuGPSMFu4IMn6GVuGo7yZhHqFW9ybg9BavrsN1RB+dfq3leAW8n+SPX8Wa1sZr+5H+fIUu7stPzY3kj3/JsD+vn0A8Ca2ajGDgj2zI9XMzEpfyZoij6RO8YdiVdvQT6MrXcx050e7vVjSYa8lMNlfTNVkxkR+obRtociNKvD2NzMbxpI2c6lu4NuR/9zKj54Oj5WTBH/Fr/jnrbxmjFRt34O6UfohiM/5FYEdcid1/z/64XcnL0ktWGiFUicenFNqiaNHzZ8PC4lYanhJWdxZ3AE8Zmsg/5xd2cdMQYOljSoFeR2SW2Zdk32QaqShWOpKdvYLstZHTnwwamzBGNr6jIfu1NmGKGmRsFvqObGybyFnA9yb3dTvzmnG/kLlnSJ9ERvASR7/idiInMmYstpCJG1WjabbaQt6QScXAUJITrhpxpk1V/noLeSmAz0NWbtyV3lxxwbYTWgMfDgBNcm3PJmo9++UJMo0WDQWdI6fMnbRRctR6hs3lZLyXmErFXbkIB4HcDeTxaNRO5noeZvqwQekDKbMfijMs8FEoYPnO+PG2lVYy07MnIqOhM4WrMue84vdM2rgvl8p+QIsNe5vjhgU5UjefmomtCKEfFf6TFf/RjLhWnTEyctcNDYpAriEhD/j8BKHuXGdU1SivkpCTt5BTuTEryJt2J1xFuYGJoY0QyGw14AGfreqJFTmgR8yGVrx/uqElZ75cQ0SHxi3k37SYQmmdPT3Zk1EzkJ6Ywe395lpK2tpibrkVyJmuuiVhPo4KkHGDnIxPjLi3xBssyP6hJM9ryY5cqn0+j54v1Ldh4d8uoWaZiWwc8H5SsUZG2nZMXdN1g3fqZCJDrkwmYzsybqYltQTxgcziVPLQzlliZIp19Im8wFXIv29D9hoy10rA/yaoQf7ryEYdRTehr5X5NCnJYlM+4Mp500bmZp+iRi7P6Tpc5lFBttKzCHaxQRsEKWTkulwbr63bkFmAxpFhzyqXmsKFzA4nD6yEZmuVt2Jo1BMkSyQh85wgv2olM0vaQlLZTak1/vxcIS8IpXzMSs8eI4fPv68nl+UzKWyIRaOe3Vc+rsQorCZ4LkzeigSZLRL9fmSFTlJaPfLlQucpENoWp3X44eRBb9HOoP8SPnRZJ2/EZemxiG5YkRf8WrnkwBXralLMN5ocPG8zDr/WTMKaWpiTi7n7mB25OHKR6HfLyl+JY0Jc5uHgGbITul6khxTcE0lLwdetQn9JzqoGnYZNclLik05kVejanmAlXm2KExDDLmSivvAN1RFVs4m3GslaK1lZaXkL3webyDjdZtdnHcmRrt5UX+UnaDzrr3M5YHv0FlgLb91EkZ90lDnWtKkqyfVNFsoDa7JnJleOBfgr6sGp1vUKbDt5YDvK2yt2LpphtK/ftEk1XY7KvbhP0FV2JbaTuYVcefU1Xl9lw1+zC/1wE84H2yRXOTmlO53Iz2BytYmMX/Kz3FbaWB+H46/D5JrDEUZ+jHCvnTwak0kM+mBaJ/v0cc/ZeW7vgvQstSD3w8ij9+8hJ+1Arn0fyocnNvyqR3fS0SD9jj2ZwuSqjnAQe3SXCTzatreNurfBeyL+CSPfRegeTTqQK4HU1ZBTdOjcm9/8MjMabKuNqtAOTGbBeW7nXr9/3aLr48Bddgx3KnmbBb8j3hXjkVV4bniF5mQAJ39VpA4JjqxlrihaWnn9ck6+LWwndey1UTExzd6TTEN/06PZdn86cgh3hGWnbMCq5qWetdXZkP3irMmAb7e3mV0IkwOYXH7PVGzkDy+SjPYznvUzH72J0G9YrVZ1sq8hO0ScKVgmnvZ7j1OSUe9eyve6tnn+P7LJCur2HBh2C3gY6DvvtykaTg4NZLwTl+4Y2+RIdbJPtd1maW1rltlX3eF8/R7VxEMGliEpBz4Qjjq9yObBCw4c6yT5LfA98+vdyCmoDWj+e3Rk8XwBDJMDE5n5+EIXcgw4fQQ6mkfVjQfcGuxgcgo341a6pAXW5AWfjqYnl69hgBz42hOScEiCyBHUcghCKk9I9u0CB0h2n4Eh3ap4c01kFALf+A752bhEbqNgC7MDyASFTdmuiL3fkty3WK/i5selCEgNPbFDm9rXbRA51pEnHrtkMYVRUxsGsk3LACSH8iXgJJR/AWQCPtnE1xwK0q8qTeVnIDm026qfkAlMjuq7+I7dYQst2Zd33ASoRvrrVuQcImMaYU0E4+ThFGRPHtWg2tUtaTHmCTlrRhOI7KrkvpXVpXZkX38WTUMmCCQTbeZjTc4syb712ZPy2rgrmdqSI4DMbjjXk9+1JEPGlQBbo15XMoHIsTF3jS+YfL0DOehE9s9LxhehDT05MpKT6chIR3Y7kEPQV0ONL3QmZ8CdEHONYElOAXJ+IeS7gHW1kGM7cgSQs9mQPc2RU9yVDNltoiPH5yK7mrdi8W0ru4QjBBcITxPa8fjxM2hqMtGR2Q0dWa1WcGbparZkxNdXnENb8lGTrOuLO+J7MftWazcjP090/ZHm4ELgazZkTKd4KqVbvmf1osm/V/rRUkuDI+9KxiW530ImXcmoJF9pqWHzqcluC7n7c0VDGVWcr5nJ3R+F6stHb5q2kl27akb37tQ4g8nU4MmjGmGZz/FcWNdMPofMTmQsgKYhj2zI+TTCyhNjh4ZLrkxHDgQZmzzhlemMrvhaBE6N5Hx6smOaok9Mp42iTeyZml/OeZ5GHMTGKHoOsjH8XjsHGefmVkE8vQfm5sVy+khnPgL2y+cgG82ZJffTa6OthE1nRL42M3JwnvCM/nf0HFjYxs9ORQ7pjERGt8isyEE+K/L1mZG9XP9N/nPK/HJWMl/53qzIzudmRZ57FM0K/Rnp3b0LJ187a6kApx69WUWky3E5LsfluBznXmVnFaJ7G7MS+er7syLPLONAsyonWmqv84zXnxnLcjUjTkQXrXiir8XYN+Y542JD7FjtkeJ/jhLb5D7OlrmMqT536Hke2h6FQMZvZgXlppbfeBycxVgzlfvyZIBD4e+7mcfNtzS/WC0PayTA47/P3mm35uDbmt9s4fGGXaB7OLFhjE7A8pjPUPCP480v7ZN+TWO+QR5Gw+FtNK+c9Q+1Tyc2WcbN2qmxwToKCc0/FdWeAdAcR+ZpxCSsXLC80ZRwx/RQbO3YptUqFnrioGN8dnVTWPkF3c8FpI38hvEJ040xLM8ThSr5KiQZ7UYO8i/sv43jZx5VQxf0/jNrZSyKGPSr4mmaeeWCns3/rcEk8hq6oT5lKlXIQRdyzaATRF3xhJXxBYp3e13AJ1VwOd9eBn1dy+9CrvguNs9DJy1XQpJzBD02bkpwhfxLblPgaDpVVG7WSz/tGiR2OoIp6U9kemH64K4iU9o3vPcgKRe8zlpm428kdx14725SfAPaz6YgfzgOxMCbGXAzFncT49TrSB7Pff1JR6WbrJYd3XfdbmRkdjEWoNyoeBqGN63RwYYVsSVfqNnmidK6tcoxRSy3u2lEbZEsm9KaVe/WPPhvjj/gKexOzltjZOLQ6UYhdJBpA0MWTEkmU4XILsF/JmhSPAKLXo7LcTn+343/AT4JsPo=", "focus": "WP252026", "storms": [{"id": "WP252026", "name": "SURIGAE", "lat": 26.6, "lon": 130.9, "kt": 120.0, "color": "#DC3A4E", "track": [[26.6, 130.9, 120, 0], [27.5, 132.6, 100, 12], [28.4, 134.2, 85, 24], [29.2, 136.0, 75, 36], [30.2, 137.6, 70, 48], [31.5, 139.3, 65, 60], [33.3, 141.4, 60, 72], [39.1, 151.4, 50, 96]]}]}}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP252026", "genesis", "about"], "updatedIso": "2026-09-28T12:20:22+08:00", "hero": {"rgb": "232,127,140", "strength": 0.833}, "trackIds": "WP252026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "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", "focus": "WP252026", "storms": [{"id": "WP252026", "name": "SURIGAE", "lat": 26.6, "lon": 130.9, "kt": 120.0, "color": "#DC3A4E", "track": [[26.6, 130.9, 120, 0], [27.5, 132.6, 100, 12], [28.4, 134.2, 85, 24], [29.2, 136.0, 75, 36], [30.2, 137.6, 70, 48], [31.5, 139.3, 65, 60], [33.3, 141.4, 60, 72], [39.1, 151.4, 50, 96]]}]}}</script>
     <script>
 (function () {
 'use strict';
@@ -1759,6 +1804,63 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const RM = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = () => RM.matches;
 const canHover = window.matchMedia('(hover: hover)').matches;
+
+// ── 頂部導覽列的「颱風 ▾」下拉選單 ────────────────────────────────
+// 伺服器端在颱風超過 NAV_COLLAPSE_AT 顆時直接輸出 .collapsed；顆數少時由 fit()
+// 在排不下（例如窄筆電）才收合。選單以 .top-nav 定位，打開時左緣對齊按鈕。
+const NavDrop = (() => {
+    const nav = document.querySelector('.top-nav');
+    const drop = nav && nav.querySelector('.nav-drop');
+    const forced = !!nav && nav.classList.contains('collapsed');
+    // 排不下時依序退讓，每一步後重量一次，放得下就停：
+    //   1. 各颱風連結收進「颱風 ▾」（.collapsed）
+    //   2. 頁首右側按鈕改精簡版：更新時間只留時分、主題／語言鈕只留圖示與短字（header.compact，同手機版）
+    //   3. 導覽連結拿掉圖示、縮小間距（.tight）
+    //   4. 最後才藏品牌文字，只留圖示（header.mini）
+    // 量的時候暫時禁止連結縮小（.measuring），才量得出真正需要的寬度。
+    const header = nav && nav.closest('header');
+    const fit = () => {
+        if (!nav) return;
+        header.classList.remove('compact', 'mini');
+        nav.classList.remove('tight');
+        if (drop && !forced) nav.classList.remove('collapsed');
+        if (!nav.offsetParent) return;          // 手機版導覽列隱藏，改用底部分頁列
+        nav.classList.add('measuring');
+        const over = () => nav.scrollWidth > nav.clientWidth + 1;
+        const steps = [
+            () => drop && !forced && nav.classList.add('collapsed'),
+            () => header.classList.add('compact'),
+            () => nav.classList.add('tight'),
+            () => header.classList.add('mini'),
+        ];
+        for (const step of steps) { if (!over()) break; step(); }
+        nav.classList.remove('measuring');
+        // 版面動了，滑動指示塊要重新對位（updateIndicators 是函式宣告，這裡呼叫得到）
+        requestAnimationFrame(() => updateIndicators());
+    };
+    if (document.fonts) document.fonts.ready.then(() => fit());
+    if (!drop) { fit(); return { fit, close() {} }; }
+    const btn = drop.querySelector('.nav-drop-btn'), menu = drop.querySelector('.nav-menu');
+    let timer = 0;
+    const open = () => {
+        clearTimeout(timer);
+        if (drop.classList.contains('open')) return;
+        menu.style.left = btn.offsetLeft + 'px';
+        drop.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+        const over = menu.getBoundingClientRect().right - (window.innerWidth - 12);
+        if (over > 0) menu.style.left = (btn.offsetLeft - over) + 'px';
+    };
+    const close = () => { clearTimeout(timer); drop.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', e => { e.stopPropagation(); drop.classList.contains('open') ? close() : open(); });
+    if (canHover) {
+        drop.addEventListener('mouseenter', open);
+        drop.addEventListener('mouseleave', () => { timer = setTimeout(close, 180); });
+    }
+    document.addEventListener('click', e => { if (!drop.contains(e.target)) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && drop.classList.contains('open')) { close(); btn.focus(); } });
+    fit();
+    return { fit, close };
+})();
 
 // ── i18n（中／英切換）─────────────────────────────────────────────
 // 版面上所有固定文案都掛 data-i18n="key"，切換語言時由 applyLang() 一次換掉；
@@ -2012,6 +2114,7 @@ function applyLang(lang, save = true) {
     updateWords();
     $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
     updateTitle();
+    NavDrop.fit();                             // 中英文字寬不同，排不排得下要重算
     requestAnimationFrame(updateIndicators);   // 字寬變了，指示塊要重新量
     tickClock();
     if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
@@ -2176,7 +2279,10 @@ function updateTitle() {
 }
 
 function updateNav() {
-    $$('.top-nav .nav-link').forEach(a => a.classList.toggle('active', a.dataset.route === currentRoute));
+    $$('.top-nav .nav-link, .nav-menu-item').forEach(a => a.classList.toggle('active', a.dataset.route === currentRoute));
+    $$('.top-nav [data-route-prefix]').forEach(b =>
+        b.classList.toggle('active', !!(currentRoute && currentRoute.startsWith(b.dataset.routePrefix))));
+    NavDrop.close();
     $$('.bottom-nav a').forEach(a => {
         const on = a.dataset.route ? a.dataset.route === currentRoute
                  : (a.dataset.routePrefix && currentRoute && currentRoute.startsWith(a.dataset.routePrefix));
@@ -2208,14 +2314,15 @@ function placeIndicator(ind, target) {
 }
 function updateIndicators() {
     const nav = $('.top-nav');
-    if (nav) placeIndicator($('.nav-indicator', nav), $('.nav-link.active', nav));
+    // 收合時被隱藏的颱風連結也帶 active，要挑看得見的那個
+    if (nav) placeIndicator($('.nav-indicator', nav), $$('.nav-link.active', nav).find(a => a.offsetParent));
     $$('.seg').forEach(seg => {
         if (!seg.offsetParent) return;
         placeIndicator($('.seg-ind', seg), $('.model-tab-btn.active', seg));
         seg.classList.add('ready');
     });
 }
-window.addEventListener('resize', () => requestAnimationFrame(updateIndicators));
+window.addEventListener('resize', () => requestAnimationFrame(() => { NavDrop.fit(); updateIndicators(); }));
 
 // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
 function switchModelTab(trackId, model) {
@@ -2911,7 +3018,80 @@ const Globe = (function () {
         const dotFS = `varying vec3 vC; varying float vA;
             void main(){ vec2 c = gl_PointCoord - .5; if (dot(c, c) > .25 || vA < .5) discard; gl_FragColor = vec4(vC, 1.); }`;
 
+        const LAB_W = .52, LAB_H = .13;
+        function labelText(s) {
+            const name = String(s.name || s.id).toUpperCase();
+            const sub = (name === s.id ? '' : s.id) + (s.kt != null ? (name === s.id ? '' : ' · ') + Math.round(s.kt) + ' KT' : '');
+            return { name, sub };
+        }
+        // 標籤實際有字的寬度（佔畫布 512px 的比例），給 placeLabels 估算佔多少經度
+        const measureCtx = document.createElement('canvas').getContext('2d');
+        function labelFrac(s) {
+            const { name, sub } = labelText(s);
+            measureCtx.font = '600 60px Oswald, sans-serif'; const a = measureCtx.measureText(name).width;
+            measureCtx.font = '400 30px Oswald, sans-serif'; const b = measureCtx.measureText(sub).width;
+            return Math.min(1, (Math.max(a, b) + 34) / 512);
+        }
+        // 颱風靠得近時名稱會疊在一起：由強到弱依序放，每顆從「右上」開始試幾個候選位置
+        // （右下、左上、左下，再往上／下錯開一兩行），挑第一個不壓到已放好的標籤與其他颱風渦旋的位置；
+        // 都會壓到就挑重疊面積最小的。以經緯度矩形近似，地球只微轉，夠用。
+        function placeLabels(list) {
+            const H = LAB_H / D2R;
+            const info = list.map(s => {
+                const tr = s.track || [];
+                const lat = s.lat != null ? s.lat : tr[0][0], lon = s.lon != null ? s.lon : tr[0][1];
+                const size = .2 + .16 * clamp01(((s.kt || 30) - 25) / 100);
+                const off = size * .45 / D2R, k = 1 / Math.max(.3, Math.cos(lat * D2R));
+                return { lat, lon, off, k, w: LAB_W * labelFrac(s) / D2R * k };
+            });
+            const boxes = info.map(o => [o.lon - o.off * o.k, o.lat - o.off, o.lon + o.off * o.k, o.lat + o.off]);
+            const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+            const res = new Array(list.length);
+            const order = info.map((_, i) => i).sort((i, j) => (list[j].kt || 0) - (list[i].kt || 0));
+            for (const i of order) {
+                const o = info[i], cands = [];
+                for (const step of [0, 1, 2])
+                    for (const [side, vy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]])
+                        cands.push({ step, side, dLat: vy * (o.off * .6 + step * H), dLon: side * o.off * o.k });
+                let best = null, bestCost = Infinity;
+                for (const c of cands) {
+                    const x0 = o.lon + c.dLon, y = o.lat + c.dLat;
+                    const box = c.side > 0 ? [x0, y - H / 2, x0 + o.w, y + H / 2] : [x0 - o.w, y - H / 2, x0, y + H / 2];
+                    let cost = 0;
+                    boxes.forEach((b, j) => { if (j !== i) cost += overlap(box, b); });
+                    if (cost < bestCost - 1e-9) { best = { ...c, box }; bestCost = cost; }
+                    if (cost === 0) break;
+                }
+                res[i] = best;
+                boxes.push(best.box);
+            }
+            return res;
+        }
+        function label(s, side = 1) {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+            const x = c.getContext('2d');
+            const tex = new THREE.CanvasTexture(c);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const { name, sub } = labelText(s);
+            // 放在颱風左側時整個鏡像：色條在右、文字靠右對齊，貼近颱風那一側
+            const draw = () => {
+                x.clearRect(0, 0, 512, 128);
+                x.textAlign = side > 0 ? 'left' : 'right';
+                x.fillStyle = s.color || '#fff'; x.fillRect(side > 0 ? 0 : 507, 16, 5, 96);
+                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, side > 0 ? 22 : 490, 70);
+                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, side > 0 ? 24 : 488, 110);
+                tex.needsUpdate = true;
+            };
+            draw();
+            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            sp.center.set(side > 0 ? 0 : 1, .5);
+            sp.scale.set(LAB_W, LAB_H, 1);
+            return sp;
+        }
+
         const storms = [], byId = {};
+        const places = placeLabels(G.storms || []);
         (G.storms || []).forEach((s, idx) => {
             const tr = s.track || [];
             const lat = s.lat != null ? s.lat : tr[0][0], lon = s.lon != null ? s.lon : tr[0][1];
@@ -2931,10 +3111,14 @@ const Globe = (function () {
             ring.position.copy(geo(lat, lon, 1.004)); ring.lookAt(out);
             spin.add(ring);
             // 名稱標籤（跟頁面一樣用 Oswald 大寫）
-            const lab = label(s);
-            const off = size * .45 / D2R;
-            lab.position.copy(geo(lat + off * .6, lon + off, 1.03));
+            const pl = places[idx];
+            const lab = label(s, pl.side);
+            lab.position.copy(geo(lat + pl.dLat, lon + pl.dLon, 1.03));
             spin.add(lab);
+            // 標籤被擠離颱風一兩行時，拉一條細引線，才看得出是哪一顆的
+            if (pl.step > 0) spin.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([geo(lat, lon, 1.012), lab.position.clone()]),
+                new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: .55, depthWrite: false })));
 
             // 預報路徑：點與點之間走大圓，依強度上色；每 24 小時一個點
             let line = null, dots = null, total = 0;
@@ -2972,27 +3156,6 @@ const Globe = (function () {
             storms.push(S); byId[s.id] = S;
         });
 
-        function label(s) {
-            const c = document.createElement('canvas'); c.width = 512; c.height = 128;
-            const x = c.getContext('2d');
-            const tex = new THREE.CanvasTexture(c);
-            tex.colorSpace = THREE.SRGBColorSpace;
-            const name = String(s.name || s.id).toUpperCase();
-            const sub = (name === s.id ? '' : s.id) + (s.kt != null ? (name === s.id ? '' : ' · ') + Math.round(s.kt) + ' KT' : '');
-            const draw = () => {
-                x.clearRect(0, 0, 512, 128);
-                x.fillStyle = s.color || '#fff'; x.fillRect(0, 16, 5, 96);
-                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, 22, 70);
-                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, 24, 110);
-                tex.needsUpdate = true;
-            };
-            draw();
-            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-            sp.center.set(0, .5);
-            sp.scale.set(.52, .13, 1);
-            return sp;
-        }
 
         // ── 衛星：沿傾斜軌道繞行，碟形天線永遠朝地心 ──
         const metal = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, metalness: .7, roughness: .3 });
