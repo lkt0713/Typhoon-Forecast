@@ -698,7 +698,7 @@ def ss_category(kt):
         kt = float(kt)
     except Exception:
         return 'Unknown'
-    if kt < 34: return 'TD'
+    if kt < 35: return 'TD'
     elif kt < 64: return 'TS'
     elif kt < 83: return 'Cat1'
     elif kt < 96: return 'Cat2'

@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.5"
+SITE_VERSION = "4.1.6"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -37,7 +37,7 @@ CAT_TEXT_MAP = {
 # 各級距的風速區間（kt），與 ss_category 的門檻一致；網頁的強度色帶、
 # 儀表與說明頁的分級表都從這裡取值。最後一格的上限 170 只是色帶畫到哪裡為止。
 CAT_RANGES = [
-    ('TD', 0, 34), ('TS', 34, 64), ('Cat1', 64, 83), ('Cat2', 83, 96),
+    ('TD', 0, 35), ('TS', 35, 64), ('Cat1', 64, 83), ('Cat2', 83, 96),
     ('Cat3', 96, 113), ('Cat4', 113, 137), ('Cat5', 137, 170),
 ]
 SCALE_MAX_KT = 170
@@ -62,7 +62,7 @@ def ss_category(kt):
         kt = float(kt)
     except Exception:
         return 'Unknown'
-    if kt < 34: return 'TD'
+    if kt < 35: return 'TD'
     elif kt < 64: return 'TS'
     elif kt < 83: return 'Cat1'
     elif kt < 96: return 'Cat2'
@@ -638,7 +638,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <p class="map-note" data-i18n="note.ensemble" data-i18n-model="{_esc(model_name)}">
                         {_esc(model_name)} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
                         Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
-                        Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position
+                        Dots = 6-hr intensity (filled ≥ 35 kt) &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>""")
 
@@ -764,7 +764,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     # ═════════════════════════════════════════════════════════════════
     def _range_txt(lo, hi, idx):
         if idx == 0:
-            return f"&lt; {hi} kt"
+            return f"≤ {hi - 1} kt"
         if idx == len(CAT_RANGES) - 1:
             return f"≥ {lo} kt"
         return f"{lo}–{hi - 1} kt"
@@ -2135,7 +2135,7 @@ const I18N = {
     'pl.next':          'Next frame',
     'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
     'panel.ensemble':   'Ensemble Track Forecast',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 34 kt) &nbsp;·&nbsp; ★ = initial position',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 35 kt) &nbsp;·&nbsp; ★ = initial position',
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
     'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
@@ -2237,7 +2237,7 @@ const I18N = {
     'pl.next':          '下一格',
     'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
     'panel.ensemble':   '系集路徑預報',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 34 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 35 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
     'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
