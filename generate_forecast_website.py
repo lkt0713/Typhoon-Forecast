@@ -2,11 +2,12 @@ import os
 import json
 import html
 import re
+import math
 import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.4"
+SITE_VERSION = "4.1.5"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -109,6 +110,41 @@ def _coord(s):
         return None
     v = float(m.group(1))
     return -v if m.group(2).upper() in 'SW' else v
+
+
+def _snap_track(pts: list, lat, lon, kt) -> list:
+    """模式起報時間通常比 JTWC 定位早，路徑起點會跟颱風中心錯開。
+    把 JTWC 位置投影到路徑前幾段上，丟掉投影點之前的點，改從 JTWC 位置畫起。"""
+    if lat is None or lon is None or len(pts) < 2:
+        return pts
+    cos = math.cos(math.radians(lat))
+    best = (float('inf'), 0)
+    for k in range(min(len(pts) - 1, 8)):
+        (ay, ax), (by, bx) = pts[k][:2], pts[k + 1][:2]
+        dx, dy = ((bx - ax + 180) % 360 - 180) * cos, by - ay    # 跨換日線時經度差取短邊
+        px, py = ((lon - ax + 180) % 360 - 180) * cos, lat - ay
+        L = dx * dx + dy * dy
+        f = max(0.0, min(1.0, (px * dx + py * dy) / L)) if L else 0.0
+        d = (px - f * dx) ** 2 + (py - f * dy) ** 2
+        if d < best[0]:
+            best = (d, k + 1 if f > 0 else k)
+    k = best[1]
+    if k < len(pts) and abs(pts[k][0] - lat) < 1e-3 and abs(pts[k][1] - lon) < 1e-3:
+        k += 1
+    start_kt = round(kt) if kt is not None else pts[max(k - 1, 0)][2]
+    return [[round(lat, 2), round(lon, 2), start_kt]] + pts[k:]
+
+
+def _jtwc_track(jtwc_data: dict, wind) -> list:
+    """JTWC 官方預報路徑：現在位置 + 公報各時段預報點，回傳 [[lat, lon, kt, 時數], ...]；沒有預報點回傳 []。
+    第 4 欄時數讓地球只在整 24 小時畫點（JTWC 前 72 小時 12 小時一筆，之後 24 小時一筆）。"""
+    lat, lon = _coord(jtwc_data.get('latitude')), _coord(jtwc_data.get('longitude'))
+    fc = jtwc_data.get('forecast_track') or []
+    if lat is None or lon is None or not fc:
+        return []
+    pts = [[round(lat, 2), round(lon, 2), round(wind) if wind is not None else None, 0]]
+    pts += [[round(la, 2), round((lo + 180) % 360 - 180, 2), kt, tau] for la, lo, kt, tau in fc]
+    return pts
 
 
 def _globe_track(models: list[dict]) -> list:
@@ -254,10 +290,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
             'models': [m.get('model', 'WNC2-r2') for m in models if isinstance(m, dict)],
-            # 3D 地球用：颱風位置同樣只用 JTWC；路徑是模式的系集平均
+            # 3D 地球用：颱風位置只用 JTWC；路徑優先用 JTWC 官方預報，沒有才退回模式系集平均
             'lat': _coord(jtwc_data.get('latitude')),
             'lon': _coord(jtwc_data.get('longitude')),
-            'track': _globe_track(models),
+            'track': _jtwc_track(jtwc_data, wind) or _snap_track(
+                _globe_track(models), _coord(jtwc_data.get('latitude')),
+                _coord(jtwc_data.get('longitude')), wind),
         }
 
     def _title(info):
@@ -3212,7 +3250,7 @@ const Globe = (function () {
                             .addScaledVector(b, Math.sin(f * ang)).divideScalar(Math.sin(ang));
                         put(v.multiplyScalar(1.004), kt);
                     }
-                    if (k % 4 === 0) { const v = a.multiplyScalar(1.005); DP.push(v.x, v.y, v.z); tc.set(catColor(tr[k][2])); DC.push(tc.r, tc.g, tc.b); DT.push(k / (tr.length - 1)); }
+                    if (tr[k][3] != null ? tr[k][3] % 24 === 0 : k % 4 === 0) { const v = a.multiplyScalar(1.005); DP.push(v.x, v.y, v.z); tc.set(catColor(tr[k][2])); DC.push(tc.r, tc.g, tc.b); DT.push(k / (tr.length - 1)); }
                 }
                 const last = tr[tr.length - 1];
                 put(geo(last[0], last[1], 1.004), last[2]);

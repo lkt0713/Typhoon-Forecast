@@ -919,6 +919,21 @@ def scrape_jtwc_text_product(track_id: str, jtwc_text_urls: dict | None = None) 
         if m_pres:
             info['pressure_mb'] = int(m_pres.group(1))
 
+        # 官方預報路徑：每段 "12 HRS, VALID AT:\n 281200Z --- 27.5N 132.6E\n MAX SUSTAINED WINDS - 100 KT"
+        # 延伸展望（48～120 小時）格式相同；消散的時段可能沒寫風速，給 None。每點為 [lat, lon, kt, 預報時數]
+        track = []
+        parts = re.split(r"\b(\d+)\s+HRS,\s+VALID\s+AT:", text)
+        for tau, blk in zip(parts[1::2], parts[2::2]):
+            m_p = re.search(r"\d{6}Z\s*---\s*(?:NEAR\s+)?([0-9.]+)([NS])\s+([0-9.]+)([EW])", blk)
+            if not m_p:
+                continue
+            la = float(m_p.group(1)) * (-1 if m_p.group(2).upper() == 'S' else 1)
+            lo = float(m_p.group(3)) * (-1 if m_p.group(4).upper() == 'W' else 1)
+            m_w = re.search(r"MAX\s+SUSTAINED\s+WINDS\s*-\s*(\d+)\s*KT", blk)
+            track.append([la, lo, int(m_w.group(1)) if m_w else None, int(tau)])
+        if track:
+            info['forecast_track'] = track
+
         if info:
             print(f"[JTWC] 解析成功: {info}")
         else:
