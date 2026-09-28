@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.1.6"
+SITE_VERSION = "4.2.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -41,6 +41,9 @@ CAT_RANGES = [
     ('Cat3', 96, 113), ('Cat4', 113, 137), ('Cat5', 137, 170),
 ]
 SCALE_MAX_KT = 170
+
+# 頂部導覽列：颱風超過這個數量就把各颱風連結收進「颱風 ▾」下拉選單
+NAV_COLLAPSE_AT = 3
 
 # 總覽頁「預報模式」一欄的清單（顯示順序即此順序）
 KNOWN_MODELS = [
@@ -821,8 +824,24 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     nav_links = [f'<a class="nav-link" href="#/overview" data-route="overview">{ICONS["overview"]}<span data-i18n="nav.overview">Overview</span></a>']
     for info in infos.values():
         nav_links.append(
-            f'<a class="nav-link" href="#/storm/{_esc(info["id"])}" data-route="storm/{_esc(info["id"])}">'
+            f'<a class="nav-link nav-storm" href="#/storm/{_esc(info["id"])}" data-route="storm/{_esc(info["id"])}">'
             f'<span class="nav-dot" style="--c:{info["color"]}"></span><span class="storm-name">{_esc(_title(info))}</span></a>')
+    # 颱風多時各颱風連結會擠爆頂部導覽列（1440px 放 5 顆就被截字），改收進「颱風 ▾」下拉選單。
+    # 超過 NAV_COLLAPSE_AT 顆一律收合；顆數少但螢幕窄、排不下時由前端偵測溢出再收合。
+    if len(infos) > 1:
+        menu_items = "".join(
+            f'<a class="nav-menu-item" role="menuitem" href="#/storm/{_esc(o["id"])}" data-route="storm/{_esc(o["id"])}">'
+            f'<span class="nav-dot" style="--c:{o["color"]}"></span>'
+            f'<span class="storm-name">{_esc(_title(o))}</span>'
+            f'<span class="nm-cat" style="background:{o["color"]};color:{o["text"]}">{o["cat"]}</span>'
+            f'<span class="nm-kt mono">{f"{o["wind"]:.0f} kt" if o["wind"] is not None else ""}</span></a>'
+            for o in sorted(infos.values(), key=lambda o: -(o['wind'] or 0)))
+        nav_links.append(
+            f'<div class="nav-drop">'
+            f'<button class="nav-link nav-drop-btn" type="button" aria-haspopup="true" aria-expanded="false" data-route-prefix="storm/">'
+            f'{ICONS["storm"]}<span data-i18n="nav.storms">Storms</span><em class="nd-count">{len(infos)}</em>'
+            f'<svg class="nd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+            f'</button><div class="nav-menu" role="menu">{menu_items}</div></div>')
     if _genesis_entries:
         nav_links.append(f'<a class="nav-link" href="#/genesis" data-route="genesis">{ICONS["genesis"]}<span data-i18n="nav.genesis">Genesis</span></a>')
     nav_links.append(f'<a class="nav-link" href="#/about" data-route="about">{ICONS["about"]}<span data-i18n="nav.about">About</span></a>')
@@ -894,7 +913,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
-        <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
+        <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
         <div class="header-actions">
             <div class="update-badge" id="update-badge" data-full="{update_time}">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
@@ -1795,6 +1814,48 @@ html[lang^="zh"] .nav-link { letter-spacing: .1em; }
 .nav-indicator { background: none; border: 0; box-shadow: inset 0 -2px 0 var(--text); }
 .nav-dot { box-shadow: none; }
 
+/* 颱風下拉選單：.collapsed 時隱藏各颱風連結、改顯示「颱風 ▾」。
+   .nav-drop 刻意不設定位，讓按鈕的 offsetParent 仍是 .top-nav，滑動指示塊才對得準；
+   選單改以 .top-nav 為定位基準，左緣由 JS 對齊按鈕。 */
+.top-nav.measuring .nav-link { flex-shrink: 0; }
+header.compact .header-actions { gap: 6px; }
+header.compact .ub-long { display: none; }
+header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
+header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
+header.compact #lang-btn .bt { display: none; }
+header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
+header.mini .brand-text { display: none; }
+.top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
+.top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
+.nav-drop { display: none; }
+.nav-drop-btn { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+.top-nav.collapsed .nav-storm { display: none; }
+.top-nav.collapsed .nav-drop { display: flex; }
+.nd-count { font-style: normal; font-size: .82em; line-height: 1; padding: 3px 6px; border: 1px solid currentColor; opacity: .8; }
+.nd-caret { width: 13px !important; height: 13px !important; transition: transform .3s var(--ease-out); }
+.nav-drop.open .nd-caret { transform: rotate(180deg); }
+.nav-menu {
+    position: absolute; top: calc(100% + 12px); left: 0; z-index: 300; min-width: 300px;
+    display: flex; flex-direction: column; padding: 6px;
+    background: rgba(0,0,0,.86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    opacity: 0; visibility: hidden; transform: translateY(-6px);
+    transition: opacity .25s, transform .3s var(--ease-out), visibility 0s .3s;
+}
+[data-theme="light"] .nav-menu { background: rgba(255,255,255,.94); }
+.nav-drop.open .nav-menu { opacity: 1; visibility: visible; transform: none; transition: opacity .25s, transform .3s var(--ease-out); }
+.nav-menu-item {
+    display: grid; grid-template-columns: 9px 1fr auto 56px; align-items: center; gap: 12px;
+    padding: 11px 14px; color: var(--text-2); text-decoration: none; white-space: nowrap;
+    font-size: .8em; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    transition: background .2s, color .2s;
+}
+.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--text); color: var(--bg); outline: none; }
+.nav-menu-item.active { color: var(--text); box-shadow: inset 2px 0 0 var(--text); }
+.nav-menu-item.active:hover { color: var(--bg); }
+.nm-cat { font-size: .82em; font-weight: 700; padding: 3px 7px; letter-spacing: .06em; }
+.nm-kt { text-align: right; opacity: .75; }
+
 .update-badge, .theme-btn { background: transparent; border-color: var(--border); color: var(--text-2); }
 .theme-btn:hover { background: transparent; border-color: var(--text); }
 .version-badge, [data-theme="dark"] .version-badge { background: var(--text); color: var(--bg); border-color: var(--text); font-family: var(--display); letter-spacing: .08em; }
@@ -1907,6 +1968,9 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .storm-tile::before { height: 2px; }
 .storm-tile::after { opacity: .1; }
 .storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
+/* 兩欄時顆數為奇數，最後一張會單獨佔半邊、右邊空一格 → 讓它橫跨整排（一欄時本來就滿版，不受影響） */
+.storm-grid > .storm-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
 .tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
 .tile-catname { font-weight: 400; letter-spacing: .06em; }
 .tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }
@@ -2059,6 +2123,63 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const RM = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = () => RM.matches;
 const canHover = window.matchMedia('(hover: hover)').matches;
+
+// ── 頂部導覽列的「颱風 ▾」下拉選單 ────────────────────────────────
+// 伺服器端在颱風超過 NAV_COLLAPSE_AT 顆時直接輸出 .collapsed；顆數少時由 fit()
+// 在排不下（例如窄筆電）才收合。選單以 .top-nav 定位，打開時左緣對齊按鈕。
+const NavDrop = (() => {
+    const nav = document.querySelector('.top-nav');
+    const drop = nav && nav.querySelector('.nav-drop');
+    const forced = !!nav && nav.classList.contains('collapsed');
+    // 排不下時依序退讓，每一步後重量一次，放得下就停：
+    //   1. 各颱風連結收進「颱風 ▾」（.collapsed）
+    //   2. 頁首右側按鈕改精簡版：更新時間只留時分、主題／語言鈕只留圖示與短字（header.compact，同手機版）
+    //   3. 導覽連結拿掉圖示、縮小間距（.tight）
+    //   4. 最後才藏品牌文字，只留圖示（header.mini）
+    // 量的時候暫時禁止連結縮小（.measuring），才量得出真正需要的寬度。
+    const header = nav && nav.closest('header');
+    const fit = () => {
+        if (!nav) return;
+        header.classList.remove('compact', 'mini');
+        nav.classList.remove('tight');
+        if (drop && !forced) nav.classList.remove('collapsed');
+        if (!nav.offsetParent) return;          // 手機版導覽列隱藏，改用底部分頁列
+        nav.classList.add('measuring');
+        const over = () => nav.scrollWidth > nav.clientWidth + 1;
+        const steps = [
+            () => drop && !forced && nav.classList.add('collapsed'),
+            () => header.classList.add('compact'),
+            () => nav.classList.add('tight'),
+            () => header.classList.add('mini'),
+        ];
+        for (const step of steps) { if (!over()) break; step(); }
+        nav.classList.remove('measuring');
+        // 版面動了，滑動指示塊要重新對位（updateIndicators 是函式宣告，這裡呼叫得到）
+        requestAnimationFrame(() => updateIndicators());
+    };
+    if (document.fonts) document.fonts.ready.then(() => fit());
+    if (!drop) { fit(); return { fit, close() {} }; }
+    const btn = drop.querySelector('.nav-drop-btn'), menu = drop.querySelector('.nav-menu');
+    let timer = 0;
+    const open = () => {
+        clearTimeout(timer);
+        if (drop.classList.contains('open')) return;
+        menu.style.left = btn.offsetLeft + 'px';
+        drop.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+        const over = menu.getBoundingClientRect().right - (window.innerWidth - 12);
+        if (over > 0) menu.style.left = (btn.offsetLeft - over) + 'px';
+    };
+    const close = () => { clearTimeout(timer); drop.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', e => { e.stopPropagation(); drop.classList.contains('open') ? close() : open(); });
+    if (canHover) {
+        drop.addEventListener('mouseenter', open);
+        drop.addEventListener('mouseleave', () => { timer = setTimeout(close, 180); });
+    }
+    document.addEventListener('click', e => { if (!drop.contains(e.target)) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && drop.classList.contains('open')) { close(); btn.focus(); } });
+    fit();
+    return { fit, close };
+})();
 
 // ── i18n（中／英切換）─────────────────────────────────────────────
 // 版面上所有固定文案都掛 data-i18n="key"，切換語言時由 applyLang() 一次換掉；
@@ -2312,6 +2433,7 @@ function applyLang(lang, save = true) {
     updateWords();
     $$('.player').forEach(el => players[el.dataset.animKey] && setPlayBtn(players[el.dataset.animKey]));
     updateTitle();
+    NavDrop.fit();                             // 中英文字寬不同，排不排得下要重算
     requestAnimationFrame(updateIndicators);   // 字寬變了，指示塊要重新量
     tickClock();
     if (save) { try { localStorage.setItem('lang', currentLang); } catch (e) {} }
@@ -2476,7 +2598,10 @@ function updateTitle() {
 }
 
 function updateNav() {
-    $$('.top-nav .nav-link').forEach(a => a.classList.toggle('active', a.dataset.route === currentRoute));
+    $$('.top-nav .nav-link, .nav-menu-item').forEach(a => a.classList.toggle('active', a.dataset.route === currentRoute));
+    $$('.top-nav [data-route-prefix]').forEach(b =>
+        b.classList.toggle('active', !!(currentRoute && currentRoute.startsWith(b.dataset.routePrefix))));
+    NavDrop.close();
     $$('.bottom-nav a').forEach(a => {
         const on = a.dataset.route ? a.dataset.route === currentRoute
                  : (a.dataset.routePrefix && currentRoute && currentRoute.startsWith(a.dataset.routePrefix));
@@ -2508,14 +2633,15 @@ function placeIndicator(ind, target) {
 }
 function updateIndicators() {
     const nav = $('.top-nav');
-    if (nav) placeIndicator($('.nav-indicator', nav), $('.nav-link.active', nav));
+    // 收合時被隱藏的颱風連結也帶 active，要挑看得見的那個
+    if (nav) placeIndicator($('.nav-indicator', nav), $$('.nav-link.active', nav).find(a => a.offsetParent));
     $$('.seg').forEach(seg => {
         if (!seg.offsetParent) return;
         placeIndicator($('.seg-ind', seg), $('.model-tab-btn.active', seg));
         seg.classList.add('ready');
     });
 }
-window.addEventListener('resize', () => requestAnimationFrame(updateIndicators));
+window.addEventListener('resize', () => requestAnimationFrame(() => { NavDrop.fit(); updateIndicators(); }));
 
 // ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
 function switchModelTab(trackId, model) {
@@ -3211,7 +3337,80 @@ const Globe = (function () {
         const dotFS = `varying vec3 vC; varying float vA;
             void main(){ vec2 c = gl_PointCoord - .5; if (dot(c, c) > .25 || vA < .5) discard; gl_FragColor = vec4(vC, 1.); }`;
 
+        const LAB_W = .52, LAB_H = .13;
+        function labelText(s) {
+            const name = String(s.name || s.id).toUpperCase();
+            const sub = (name === s.id ? '' : s.id) + (s.kt != null ? (name === s.id ? '' : ' · ') + Math.round(s.kt) + ' KT' : '');
+            return { name, sub };
+        }
+        // 標籤實際有字的寬度（佔畫布 512px 的比例），給 placeLabels 估算佔多少經度
+        const measureCtx = document.createElement('canvas').getContext('2d');
+        function labelFrac(s) {
+            const { name, sub } = labelText(s);
+            measureCtx.font = '600 60px Oswald, sans-serif'; const a = measureCtx.measureText(name).width;
+            measureCtx.font = '400 30px Oswald, sans-serif'; const b = measureCtx.measureText(sub).width;
+            return Math.min(1, (Math.max(a, b) + 34) / 512);
+        }
+        // 颱風靠得近時名稱會疊在一起：由強到弱依序放，每顆從「右上」開始試幾個候選位置
+        // （右下、左上、左下，再往上／下錯開一兩行），挑第一個不壓到已放好的標籤與其他颱風渦旋的位置；
+        // 都會壓到就挑重疊面積最小的。以經緯度矩形近似，地球只微轉，夠用。
+        function placeLabels(list) {
+            const H = LAB_H / D2R;
+            const info = list.map(s => {
+                const tr = s.track || [];
+                const lat = s.lat != null ? s.lat : tr[0][0], lon = s.lon != null ? s.lon : tr[0][1];
+                const size = .2 + .16 * clamp01(((s.kt || 30) - 25) / 100);
+                const off = size * .45 / D2R, k = 1 / Math.max(.3, Math.cos(lat * D2R));
+                return { lat, lon, off, k, w: LAB_W * labelFrac(s) / D2R * k };
+            });
+            const boxes = info.map(o => [o.lon - o.off * o.k, o.lat - o.off, o.lon + o.off * o.k, o.lat + o.off]);
+            const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+            const res = new Array(list.length);
+            const order = info.map((_, i) => i).sort((i, j) => (list[j].kt || 0) - (list[i].kt || 0));
+            for (const i of order) {
+                const o = info[i], cands = [];
+                for (const step of [0, 1, 2])
+                    for (const [side, vy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]])
+                        cands.push({ step, side, dLat: vy * (o.off * .6 + step * H), dLon: side * o.off * o.k });
+                let best = null, bestCost = Infinity;
+                for (const c of cands) {
+                    const x0 = o.lon + c.dLon, y = o.lat + c.dLat;
+                    const box = c.side > 0 ? [x0, y - H / 2, x0 + o.w, y + H / 2] : [x0 - o.w, y - H / 2, x0, y + H / 2];
+                    let cost = 0;
+                    boxes.forEach((b, j) => { if (j !== i) cost += overlap(box, b); });
+                    if (cost < bestCost - 1e-9) { best = { ...c, box }; bestCost = cost; }
+                    if (cost === 0) break;
+                }
+                res[i] = best;
+                boxes.push(best.box);
+            }
+            return res;
+        }
+        function label(s, side = 1) {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+            const x = c.getContext('2d');
+            const tex = new THREE.CanvasTexture(c);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const { name, sub } = labelText(s);
+            // 放在颱風左側時整個鏡像：色條在右、文字靠右對齊，貼近颱風那一側
+            const draw = () => {
+                x.clearRect(0, 0, 512, 128);
+                x.textAlign = side > 0 ? 'left' : 'right';
+                x.fillStyle = s.color || '#fff'; x.fillRect(side > 0 ? 0 : 507, 16, 5, 96);
+                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, side > 0 ? 22 : 490, 70);
+                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, side > 0 ? 24 : 488, 110);
+                tex.needsUpdate = true;
+            };
+            draw();
+            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            sp.center.set(side > 0 ? 0 : 1, .5);
+            sp.scale.set(LAB_W, LAB_H, 1);
+            return sp;
+        }
+
         const storms = [], byId = {};
+        const places = placeLabels(G.storms || []);
         (G.storms || []).forEach((s, idx) => {
             const tr = s.track || [];
             const lat = s.lat != null ? s.lat : tr[0][0], lon = s.lon != null ? s.lon : tr[0][1];
@@ -3231,10 +3430,14 @@ const Globe = (function () {
             ring.position.copy(geo(lat, lon, 1.004)); ring.lookAt(out);
             spin.add(ring);
             // 名稱標籤（跟頁面一樣用 Oswald 大寫）
-            const lab = label(s);
-            const off = size * .45 / D2R;
-            lab.position.copy(geo(lat + off * .6, lon + off, 1.03));
+            const pl = places[idx];
+            const lab = label(s, pl.side);
+            lab.position.copy(geo(lat + pl.dLat, lon + pl.dLon, 1.03));
             spin.add(lab);
+            // 標籤被擠離颱風一兩行時，拉一條細引線，才看得出是哪一顆的
+            if (pl.step > 0) spin.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([geo(lat, lon, 1.012), lab.position.clone()]),
+                new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: .55, depthWrite: false })));
 
             // 預報路徑：點與點之間走大圓，依強度上色；每 24 小時一個點
             let line = null, dots = null, total = 0;
@@ -3272,27 +3475,6 @@ const Globe = (function () {
             storms.push(S); byId[s.id] = S;
         });
 
-        function label(s) {
-            const c = document.createElement('canvas'); c.width = 512; c.height = 128;
-            const x = c.getContext('2d');
-            const tex = new THREE.CanvasTexture(c);
-            tex.colorSpace = THREE.SRGBColorSpace;
-            const name = String(s.name || s.id).toUpperCase();
-            const sub = (name === s.id ? '' : s.id) + (s.kt != null ? (name === s.id ? '' : ' · ') + Math.round(s.kt) + ' KT' : '');
-            const draw = () => {
-                x.clearRect(0, 0, 512, 128);
-                x.fillStyle = s.color || '#fff'; x.fillRect(0, 16, 5, 96);
-                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, 22, 70);
-                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, 24, 110);
-                tex.needsUpdate = true;
-            };
-            draw();
-            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-            sp.center.set(0, .5);
-            sp.scale.set(.52, .13, 1);
-            return sp;
-        }
 
         // ── 衛星：沿傾斜軌道繞行，碟形天線永遠朝地心 ──
         const metal = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, metalness: .7, roughness: .3 });
