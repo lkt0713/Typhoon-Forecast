@@ -605,7 +605,16 @@ def _set_map_titles(ax, main: str, right: str = '', main_size: int = 14, right_s
     ax.set_title(main, loc='left', fontsize=main_size, fontweight='bold',
                  color=TEXT_DARK, pad=10)
     if right:
-        ax.set_title(right, loc='right', fontsize=right_size, color=TEXT_MUTED, pad=10)
+        rt = ax.set_title(right, loc='right', fontsize=right_size, color=TEXT_MUTED, pad=10)
+        # 地圖範圍被裁成接近正方形時（例如路徑碰到 180°E），軸寬不夠放兩段標題，
+        # 右標題會壓在主標題上。量一下實際寬度，撞到就把「 · 」分段改成換行。
+        if '·' in right:
+            fig = ax.figure
+            renderer = fig.canvas.get_renderer()
+            main_bb = ax.title.get_window_extent(renderer)
+            right_bb = rt.get_window_extent(renderer)
+            if right_bb.x0 < main_bb.x1 + 12:
+                rt.set_text('\n'.join(s.strip() for s in right.split('·')))
 
 
 def _watermark(ax, side: str = 'right') -> None:
