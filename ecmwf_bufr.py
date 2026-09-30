@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 import warnings
 from datetime import datetime, timedelta, timezone
 
@@ -49,6 +50,9 @@ MEAN_MIN_MEMBER_FRACTION = 0.5
 _EPOCH = pd.Timestamp(0, tz="UTC")
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CopilotDownloader/1.0)"}
+
+# 429／5xx 的重試次數（見 _download_bufr）
+DOWNLOAD_RETRIES = 3
 
 # fetch_cycle 的三種結果。「這期沒有颱風」與「這期還沒上架」必須分得開：
 # 前者是事實，該照實顯示成目前沒有颱風；只有後者才該往前一期找。混為一談的
@@ -340,11 +344,29 @@ def _write_csv(df: pd.DataFrame, path: str, source: str) -> None:
 # ── 對外入口 ───────────────────────────────────────────────────────────────
 
 def _download_bufr(url: str, dest: str, label: str) -> bool:
-    """下載 BUFR；404 回傳 False（該 cycle 尚未上架），其餘錯誤照拋。"""
+    """下載 BUFR；404 回傳 False（該 cycle 尚未上架），其餘錯誤照拋。
+
+    429／5xx 會退避重試：00Z 上架後的那一小時 data.ecmwf.int 最擁擠，一輪裡
+    連打四個檔，排在系集後面的決定報最常吃到 429（實測 2026-09-24 00Z AIFS、
+    09-30 00Z IFS），一次失敗就整期少一條決定報線。
+    """
     print(f"[{label}] GET {url}")
-    resp = requests.get(url, headers=HEADERS, stream=True, timeout=120)
-    if resp.status_code == 404:
-        return False
+    for attempt in range(DOWNLOAD_RETRIES + 1):
+        resp = requests.get(url, headers=HEADERS, stream=True, timeout=120)
+        if resp.status_code == 404:
+            return False
+        if resp.status_code != 429 and resp.status_code < 500:
+            break
+        if attempt == DOWNLOAD_RETRIES:
+            break
+        try:
+            wait = float(resp.headers.get("Retry-After", ""))
+        except ValueError:
+            wait = 15.0 * (attempt + 1)
+        wait = min(max(wait, 5.0), 60.0)
+        resp.close()
+        print(f"[{label}] HTTP {resp.status_code}，{wait:.0f} 秒後重試（{attempt + 1}/{DOWNLOAD_RETRIES}）")
+        time.sleep(wait)
     resp.raise_for_status()
     tmp = dest + ".part"
     try:
@@ -371,7 +393,6 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     prefix = cfg["local_prefix"]
     ens_path = os.path.join(cfg["ensemble_dir"], f"{prefix}_{stamp}_paired.csv")
     mean_path = os.path.join(cfg["mean_dir"], f"{prefix}_{stamp}_paired.csv")
-    det_path = os.path.join(cfg["det_dir"], f"{prefix}_{stamp}_deterministic.csv")
     cyc_path = os.path.join(cfg["cyc_dir"], f"{prefix}_{stamp}_cyclogenesis.csv")
 
     os.makedirs(scratch_dir, exist_ok=True)
@@ -419,17 +440,39 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     _write_csv(_to_paired(tracks, cycle), ens_path, f"{model} ensemble")
     _write_csv(_to_paired(_ensemble_mean(tracks), cycle), mean_path, f"{model} ensemble mean")
 
-    # 決定報：同一 cycle 的 oper 檔，沿用系集算出的編號對應
+    # 決定報：同一 cycle 的 oper 檔，以系集的分析位置對應編號
+    _fetch_deterministic(model, cycle, cfg, _analysis_positions(tracks), scratch_dir)
+    return FETCH_OK
+
+
+def _analysis_positions(tracks: pd.DataFrame) -> dict[str, tuple[float, float]]:
+    """系集各 track_id 在 step 0 的平均位置，給決定報對應編號用。"""
+    t0 = tracks[tracks["step"] == 0].groupby("track_id")[["lat", "lon"]].mean()
+    return {tid: (r.lat, r.lon) for tid, r in t0.iterrows()}
+
+
+def _fetch_deterministic(model: str, cycle: datetime, cfg: dict,
+                         ref_pos: dict[str, tuple[float, float]], scratch_dir: str) -> None:
+    """下載並寫出決定報 CSV；失敗只少一條線，不往外拋。
+
+    對應基準是同期系集的分析位置而非 WNC 參考檔，這樣決定報跟系集的
+    track_id 一定一致。解得開就一律寫檔（對不到颱風就寫空檔），檔案在
+    就代表這期處理過，retry_missing_deterministic 不會再重抓。
+    """
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    prefix = cfg["local_prefix"]
+    det_path = os.path.join(cfg["det_dir"], f"{prefix}_{stamp}_deterministic.csv")
     det_src, det_stream = PRODUCTS[model]["det"]
+    os.makedirs(scratch_dir, exist_ok=True)
     raw_det = os.path.join(scratch_dir, f"{prefix}_{stamp}_det.bufr")
     try:
         if _download_bufr(_url(model, cycle, det_src, det_stream), raw_det, f"{model}-DET"):
             det = _decode(raw_det)
-            if not det.empty:
-                det["track_id"] = det["storm_id"].map(mapping)
-                det = det.dropna(subset=["track_id"]).copy()
-                det["member"] = 0        # 決定報只有一條，成員編號無意義
-                _write_csv(_to_paired(det, cycle), det_path, f"{model} deterministic")
+            mapping = _match_track_ids(det, ref_pos)
+            det["track_id"] = det["storm_id"].map(mapping) if not det.empty else None
+            det = det.dropna(subset=["track_id"]).copy()
+            det["member"] = 0        # 決定報只有一條，成員編號無意義
+            _write_csv(_to_paired(det, cycle), det_path, f"{model} deterministic")
         else:
             print(f"[{model}-DET] 決定報尚未上架，僅輸出系集")
     except Exception as e:
@@ -438,4 +481,26 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
         if os.path.exists(raw_det):
             os.remove(raw_det)
 
-    return FETCH_OK
+
+def retry_missing_deterministic(model: str, cycle: datetime, cfg: dict,
+                                ens_path: str, scratch_dir: str) -> None:
+    """系集檔已在、決定報檔卻不在時補抓。
+
+    以前決定報只在系集第一次寫出的那輪抓一次，那次吃到 429 之後，
+    _resolve_cycle_ecmwf 看到系集檔在就直接返回，整期都不會再有決定報。
+    """
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    det_path = os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
+    if os.path.exists(det_path):
+        return
+    try:
+        ens = pd.read_csv(ens_path, comment="#")
+    except Exception as e:
+        print(f"[{model}-DET] 讀不到系集檔，略過補抓: {e}")
+        return
+    t0 = ens[ens["lead_time_hours"] == 0].groupby("track_id")[["lat", "lon"]].mean()
+    ref_pos = {tid: (r.lat, r.lon) for tid, r in t0.iterrows()}
+    if not ref_pos:
+        return
+    print(f"[{model}-DET] {stamp} 缺決定報，補抓")
+    _fetch_deterministic(model, cycle, cfg, ref_pos, scratch_dir)

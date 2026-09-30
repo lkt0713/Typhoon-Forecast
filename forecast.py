@@ -1910,6 +1910,8 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str | None] | tuple[None,
         stamp = _cycle_stamp(cycle)
         path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
         if os.path.exists(path):
+            ecmwf_bufr.retry_missing_deterministic(cfg["ecmwf_model"], cycle, cfg, path,
+                                                   ECMWF_SCRATCH_DIR)
             return cycle, path
         # 潛勢檔在、系集檔不在 ⇒ 這期先前解過且沒有颱風。BUFR 是靜態的，重下
         # 也是同樣結果，直接認定「目前無颱風」，不必再花一次 1 MB 下載。
