@@ -920,7 +920,8 @@ html[lang^="zh"] .hero-title { font-size: clamp(2.4rem, 6.5vw, 5.2rem); line-hei
 .btn-ghost { color: #fff; border: 1px solid rgba(255,255,255,.4); background: transparent; }
 .btn-ghost::before { background: #fff; }
 .btn-ghost:hover { color: #000 !important; background: transparent; transform: none; }
-.hero-meta { gap: 0; margin-top: 56px; border-top: 1px solid rgba(255,255,255,.2); }
+/* 上框線只延伸到最後一格（活躍系統）為止，不橫跨整個畫面 */
+.hero-meta { gap: 0; margin-top: 56px; border-top: 1px solid rgba(255,255,255,.2); width: fit-content; max-width: 100%; }
 .hero-chip {
     background: none; border: 0; border-right: 1px solid rgba(255,255,255,.2);
     -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -1106,7 +1107,7 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 @media (max-width: 600px) {
     .page { padding: 20px 16px 48px; gap: 22px; }
     .hero-inner { padding: 48px 16px 36px; }
-    .hero-meta { margin-top: 36px; }
+    .hero-meta { margin-top: 36px; width: auto; }
     /* 兩顆按鈕固定一排：英文字較長會換行，文字貼底時會把標題往上推到地球上 */
     .hero-cta { flex-wrap: nowrap; gap: 10px; }
     .btn-primary, .btn-ghost { flex: 1 1 auto; justify-content: center; padding: 14px 10px; letter-spacing: .06em; font-size: .8em; white-space: nowrap; }
@@ -1160,7 +1161,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v4.2.4</span>
+            <span class="version-badge" title="Site version / 網站版本">v4.2.5</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>

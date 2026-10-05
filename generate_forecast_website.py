@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.2.4"
+SITE_VERSION = "4.2.5"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1892,7 +1892,8 @@ html[lang^="zh"] .hero-title { font-size: clamp(2.4rem, 6.5vw, 5.2rem); line-hei
 .btn-ghost { color: #fff; border: 1px solid rgba(255,255,255,.4); background: transparent; }
 .btn-ghost::before { background: #fff; }
 .btn-ghost:hover { color: #000 !important; background: transparent; transform: none; }
-.hero-meta { gap: 0; margin-top: 56px; border-top: 1px solid rgba(255,255,255,.2); }
+/* 上框線只延伸到最後一格（活躍系統）為止，不橫跨整個畫面 */
+.hero-meta { gap: 0; margin-top: 56px; border-top: 1px solid rgba(255,255,255,.2); width: fit-content; max-width: 100%; }
 .hero-chip {
     background: none; border: 0; border-right: 1px solid rgba(255,255,255,.2);
     -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -2078,7 +2079,7 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 @media (max-width: 600px) {
     .page { padding: 20px 16px 48px; gap: 22px; }
     .hero-inner { padding: 48px 16px 36px; }
-    .hero-meta { margin-top: 36px; }
+    .hero-meta { margin-top: 36px; width: auto; }
     /* 兩顆按鈕固定一排：英文字較長會換行，文字貼底時會把標題往上推到地球上 */
     .hero-cta { flex-wrap: nowrap; gap: 10px; }
     .btn-primary, .btn-ghost { flex: 1 1 auto; justify-content: center; padding: 14px 10px; letter-spacing: .06em; font-size: .8em; white-space: nowrap; }
