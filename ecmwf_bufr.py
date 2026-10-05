@@ -209,7 +209,7 @@ def _reference_positions(ref_mean_dir: str, ref_prefix: str,
     out: dict[str, tuple[float, float]] = {}
     for tid, g in df.groupby("track_id"):
         tid = str(tid)
-        if not re.match(r"^WP[0-8]\d20\d{2}$", tid):
+        if not re.match(r"^(?:WP|CP|EP)[0-8]\d20\d{2}$", tid):  # CP/EP：跨換日線進西太的颱風
             continue
         g = g.dropna(subset=["valid_time", "lat", "lon"]).sort_values("valid_time")
         if g.empty:

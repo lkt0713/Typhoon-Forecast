@@ -217,10 +217,26 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 open(os.path.join(OUTPUT_DIR, ".nojekyll"), "w").close()
 
 
+# 颱風編號：WP 之外也收 CP/EP（跨換日線進來的颱風沿用原編號）；[0-8] 排除 9X 擾動。
+STORM_ID_RE = re.compile(r'^(?:WP|CP|EP)[0-8]\d20\d{2}$')
+
+
+def _starts_in_wpac(g: pd.DataFrame) -> bool:
+    """路徑第一點（起報位置）是否在西北太平洋（赤道以北、100°E–180°）。"""
+    g = g.dropna(subset=["lat", "lon"])
+    if g.empty:
+        return False
+    if "lead_time_hours" in g.columns:
+        g = g.sort_values("lead_time_hours")
+    lat, lon = float(g["lat"].iloc[0]), float(g["lon"].iloc[0]) % 360.0
+    return lat >= 0 and 100.0 <= lon <= 180.0
+
+
 def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC2-r2") -> list[str]:
     """從 MEAN_DIR 內最新的 CSV 自動偵測有效颱風 TRACK_ID。
     若提供 preferred_path 且檔案存在，優先使用該檔案（當前 cycle）。
-    只保留 WP[0-8]X20XX，排除 WP9X（擾動）。
+    只保留 WP[0-8]X20XX，排除 WP9X（擾動）；CP/EP 颱風跨換日線進來時編號不變
+    （例：2026 NOLO 在西太平洋仍是 EP152026），故 CP/EP 改看起報位置是否已在西太。
     """
     def _read_ids(path: str) -> list[str]:
         print(f"[AUTO-DETECT] 讀取: {os.path.basename(path)}")
@@ -233,7 +249,9 @@ def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, mod
                 print("[AUTO-DETECT] 找不到 track_id 欄位")
                 return []
             ids = df[col].dropna().astype(str).unique().tolist()
-            valid = sorted(tid for tid in ids if re.match(r'^WP[0-8]\d20\d{2}$', tid))
+            valid = sorted(tid for tid in ids
+                           if STORM_ID_RE.match(tid)
+                           and (tid.startswith("WP") or _starts_in_wpac(df[df[col] == tid])))
             print(f"[AUTO-DETECT] 偵測到颱風: {valid}")
             return valid
         except Exception as e:
@@ -258,11 +276,11 @@ def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, mod
 
 
 def _jtwc_url_key(track_id: str) -> str:
-    """WP062026 → 'wp0626'"""
-    m = re.match(r'^WP(\d{2})(\d{4})$', track_id)
+    """WP062026 → 'wp0626'；EP152026 → 'ep1526'"""
+    m = re.match(r'^([A-Z]{2})(\d{2})(\d{4})$', track_id)
     if not m:
         return track_id.lower()
-    return f"wp{m.group(1)}{m.group(2)[2:]}"
+    return f"{m.group(1).lower()}{m.group(2)}{m.group(3)[2:]}"
 
 
 def _build_jtwc_urls(track_ids: list[str]) -> tuple[dict, dict]:
@@ -2037,8 +2055,8 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
         return
     keep = set(keep_ids)
     p = re.escape(prefix)
-    file_re = re.compile(rf"^{p}(WP\d{{6}})_Forecast_(?:Map\.png|Animation\.gif)$")
-    dir_re = re.compile(rf"^animation_frames_{p}(WP\d{{6}})$")
+    file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_Forecast_(?:Map\.png|Animation\.gif)$")
+    dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
     try:
@@ -2069,7 +2087,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     """
     if not os.path.isdir(OUTPUT_DIR):
         return
-    jtwc_re = re.compile(r"^jtwc_(WP\d{6})\.gif$|^(WP\d{6})_Model_Comparison\.png$")
+    jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
@@ -2122,9 +2140,9 @@ def _cleanup_legacy_names() -> None:
     if not os.path.isdir(OUTPUT_DIR):
         return
     p_alt = "|".join(re.escape(x) for x in LEGACY_PREFIXES)
-    out_re = re.compile(rf"^(?:{p_alt})_WP\d{{6}}_Forecast_(?:Map\.png|Animation\.gif)$"
+    out_re = re.compile(rf"^(?:{p_alt})_(?:WP|CP|EP)\d{{6}}_Forecast_(?:Map\.png|Animation\.gif)$"
                         rf"|^WP_Genesis_Potential_(?:{p_alt})\.png$")
-    dir_re = re.compile(rf"^animation_frames_(?:{p_alt})_WP\d{{6}}$")
+    dir_re = re.compile(rf"^animation_frames_(?:{p_alt})_(?:WP|CP|EP)\d{{6}}$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
