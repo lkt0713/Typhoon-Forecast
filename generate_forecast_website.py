@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.2.5"
+SITE_VERSION = "4.2.6"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1971,7 +1971,12 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
 /* 兩欄時顆數為奇數，最後一張會單獨佔半邊、右邊空一格 → 讓它橫跨整排（一欄時本來就滿版，不受影響） */
 .storm-grid > .storm-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
+/* 只有真的排成兩欄（容器 ≥ 2×520+24）時，橫跨整排的那張才加寬儀表；單欄時每張都一樣，
+   也讓手機版 .tile-body 單欄規則生效 */
+.storm-grid { container-type: inline-size; }
+@container (min-width: 1064px) {
+    .storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
+}
 .tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
 .tile-catname { font-weight: 400; letter-spacing: .06em; }
 .tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }

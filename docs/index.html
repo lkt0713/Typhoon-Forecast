@@ -999,7 +999,12 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
 /* 兩欄時顆數為奇數，最後一張會單獨佔半邊、右邊空一格 → 讓它橫跨整排（一欄時本來就滿版，不受影響） */
 .storm-grid > .storm-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
+/* 只有真的排成兩欄（容器 ≥ 2×520+24）時，橫跨整排的那張才加寬儀表；單欄時每張都一樣，
+   也讓手機版 .tile-body 單欄規則生效 */
+.storm-grid { container-type: inline-size; }
+@container (min-width: 1064px) {
+    .storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
+}
 .tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
 .tile-catname { font-weight: 400; letter-spacing: .06em; }
 .tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }
@@ -1161,7 +1166,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v4.2.5</span>
+            <span class="version-badge" title="Site version / 網站版本">v4.2.6</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
