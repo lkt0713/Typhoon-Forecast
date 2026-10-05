@@ -1928,6 +1928,14 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str | None] | tuple[None,
         stamp = _cycle_stamp(cycle)
         path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
         if os.path.exists(path):
+            if ecmwf_bufr.has_unmatched_reference(path, cycle, MEAN_DIR, "WNC2-r2"):
+                try:
+                    ecmwf_bufr.fetch_cycle(cfg["ecmwf_model"], cycle, cfg,
+                                           ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
+                                           scratch_dir=ECMWF_SCRATCH_DIR)
+                except Exception as e:
+                    # 失敗就沿用舊檔；檔頭沒更新，下一輪會再試
+                    print(f"[{cfg['display']}-DL] cycle {stamp} 重抓失敗，沿用舊檔: {e}")
             ecmwf_bufr.retry_missing_deterministic(cfg["ecmwf_model"], cycle, cfg, path,
                                                    ECMWF_SCRATCH_DIR)
             return cycle, path

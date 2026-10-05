@@ -41,6 +41,8 @@ PRODUCTS = {
 # 「TROPICAL DEPRESSION 22W (KROVANH)」在 ECMWF 是 28W，但同一份檔案裡的
 # 23W 又剛好對上 WP232026。編號不可信，只能用位置對應（見 _match_track_ids）。
 MATCH_RADIUS_KM = 250.0
+# 參考路徑起點晚於 ECMWF cycle 時，最多往回外推這麼久（見 _reference_positions）
+BACK_EXTRAP_S = 12 * 3600
 
 # 平均路徑截止門檻：與 forecast.py 的 _compute_cone_stop_fh 同樣取「半數成員」。
 # 成員掉到一半以下後的平均會被少數殘存路徑拉走，DeepMind 自家的 mean 檔也是
@@ -218,9 +220,19 @@ def _reference_positions(ref_mean_dir: str, ref_prefix: str,
         # 的單位跟 Timestamp.value（永遠是奈秒）差 1000 倍，內插會夾到路徑終點而配對失敗
         t = (g["valid_time"] - _EPOCH).dt.total_seconds().to_numpy()
         t0 = (target - _EPOCH).total_seconds()
-        # 目標時刻落在路徑之外時 np.interp 會夾到端點，正是我們要的行為
-        lat = float(np.interp(t0, t, g["lat"].to_numpy()))
-        lon = float(np.interp(t0, t, g["lon"].to_numpy()))
+        # unwrap：跨換日線的路徑（179.9°E → -179.9°）內插時不會繞地球一圈
+        lats, lons = g["lat"].to_numpy(), np.unwrap(g["lon"].to_numpy(), period=360.0)
+        if t[0] - BACK_EXTRAP_S <= t0 < t[0] and len(t) >= 2:
+            # 參考檔只比 ECMWF 晚一兩期時（CI 快取剛清、本機少跑）目標早於路徑
+            # 起點，夾到起點等於拿六小時後的位置比；快速移動的颱風（2026 NOLO
+            # 一期走 345 km）會超過配對半徑，故用前兩點往回線性外推。
+            k = (t0 - t[0]) / (t[1] - t[0])
+            lat = float(lats[0] + k * (lats[1] - lats[0]))
+            lon = float(lons[0] + k * (lons[1] - lons[0]))
+        else:
+            # 其餘落在路徑之外的情況 np.interp 會夾到端點
+            lat = float(np.interp(t0, t, lats))
+            lon = float(np.interp(t0, t, lons))
         out[tid] = (lat, lon)
     return out
 
@@ -330,12 +342,18 @@ def _ensemble_mean(tracks: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(keep, ignore_index=True)
 
 
-def _write_csv(df: pd.DataFrame, path: str, source: str) -> None:
+_REF_IDS_TAG = "# Matched against: "
+
+
+def _write_csv(df: pd.DataFrame, path: str, source: str,
+               ref_ids: list[str] | None = None) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".part"
     with open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write(f"# Source: ECMWF Open Data ({source})\n")
         f.write("# Licence: https://apps.ecmwf.int/datasets/licences/general (CC BY 4.0)\n")
+        if ref_ids is not None:
+            f.write(_REF_IDS_TAG + " ".join(sorted(ref_ids)) + "\n")
         df.to_csv(f, index=False)
     os.replace(tmp, path)
     print(f"[ECMWF] 已寫出 {os.path.basename(path)}（{len(df)} 列）")
@@ -437,7 +455,7 @@ def fetch_cycle(model: str, cycle: datetime, cfg: dict,
     tracks["track_id"] = tracks["storm_id"].map(mapping)
     tracks = tracks.dropna(subset=["track_id"]).copy()
 
-    _write_csv(_to_paired(tracks, cycle), ens_path, f"{model} ensemble")
+    _write_csv(_to_paired(tracks, cycle), ens_path, f"{model} ensemble", ref_ids=list(ref_pos))
     _write_csv(_to_paired(_ensemble_mean(tracks), cycle), mean_path, f"{model} ensemble mean")
 
     # 決定報：同一 cycle 的 oper 檔，以系集的分析位置對應編號
@@ -480,6 +498,33 @@ def _fetch_deterministic(model: str, cycle: datetime, cfg: dict,
     finally:
         if os.path.exists(raw_det):
             os.remove(raw_det)
+
+
+def has_unmatched_reference(ens_path: str, cycle: datetime,
+                            ref_mean_dir: str, ref_prefix: str) -> bool:
+    """WNC 參考檔裡是否有這期系集檔「當時沒拿來配對過」的颱風。
+
+    系集檔寫出後整期不再重抓，所以寫出之後才出現在 WNC 的颱風（新生成、
+    或 2026 NOLO 這種跨換日線後才被納入的 EP 颱風）會整期缺 ECMWF。檔頭記
+    著當時配對過的編號；舊檔沒有這行，就以檔內已有的 track_id 代替。每顆
+    新颱風最多觸發一次重抓：重抓後它就記進檔頭，ECMWF 真的沒追也不會再抓。
+    """
+    tried: set[str] | None = None
+    try:
+        with open(ens_path, encoding="utf-8") as f:
+            for line in f:
+                if not line.startswith("#"):
+                    break
+                if line.startswith(_REF_IDS_TAG):
+                    tried = set(line[len(_REF_IDS_TAG):].split())
+        if tried is None:
+            tried = set(pd.read_csv(ens_path, comment="#")["track_id"].astype(str))
+    except Exception:
+        return False
+    new = set(_reference_positions(ref_mean_dir, ref_prefix, cycle)) - tried
+    if new:
+        print(f"[ECMWF] {os.path.basename(ens_path)} 未配對過: {sorted(new)}，重抓本期")
+    return bool(new)
 
 
 def retry_missing_deterministic(model: str, cycle: datetime, cfg: dict,
