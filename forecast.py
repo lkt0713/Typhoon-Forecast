@@ -232,11 +232,14 @@ def _starts_in_wpac(g: pd.DataFrame) -> bool:
     return lat >= 0 and 100.0 <= lon <= 180.0
 
 
-def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC2-r2") -> list[str]:
+def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, model_prefix: str = "WNC2-r2",
+                           known_ids: set[str] | None = None) -> list[str]:
     """從 MEAN_DIR 內最新的 CSV 自動偵測有效颱風 TRACK_ID。
     若提供 preferred_path 且檔案存在，優先使用該檔案（當前 cycle）。
     只保留 WP[0-8]X20XX，排除 WP9X（擾動）；CP/EP 颱風跨換日線進來時編號不變
     （例：2026 NOLO 在西太平洋仍是 EP152026），故 CP/EP 改看起報位置是否已在西太。
+    known_ids：已由別的模式判定在西太的 CP/EP，直接收。ECMWF 比 WNC 晚一兩期，
+    起報時颱風可能還在換日線以東（NOLO 在 ECMWF 00Z 是 179.2°W、WNC 06Z 已 177.7°E）。
     """
     def _read_ids(path: str) -> list[str]:
         print(f"[AUTO-DETECT] 讀取: {os.path.basename(path)}")
@@ -251,7 +254,8 @@ def _auto_detect_track_ids(mean_dir: str, preferred_path: str | None = None, mod
             ids = df[col].dropna().astype(str).unique().tolist()
             valid = sorted(tid for tid in ids
                            if STORM_ID_RE.match(tid)
-                           and (tid.startswith("WP") or _starts_in_wpac(df[df[col] == tid])))
+                           and (tid.startswith("WP") or tid in (known_ids or ())
+                                or _starts_in_wpac(df[df[col] == tid])))
             print(f"[AUTO-DETECT] 偵測到颱風: {valid}")
             return valid
         except Exception as e:
@@ -2215,8 +2219,11 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
     # 用當前 cycle 的 mean CSV 偵測颱風，確保不會抓到舊資料。
     # csv_path 是 None 代表這期根本沒有系集檔，此時不能讓 _auto_detect_track_ids
     # 退去讀目錄裡的舊檔，否則會拿早就消散的颱風重畫一次路徑圖。
+    # ECMWF 的 CP/EP 颱風以 WNC2-r2（配對基準，排在前面已下載）判定的為準
+    known_ids = (set(_auto_detect_track_ids(MEAN_DIR)) if cfg.get("fetcher") == "ecmwf" and csv_path
+                 else None)
     track_ids = (_auto_detect_track_ids(cfg["mean_dir"], preferred_path=mean_csv_path,
-                                        model_prefix=cfg["local_prefix"])
+                                        model_prefix=cfg["local_prefix"], known_ids=known_ids)
                  if csv_path else [])
     jtwc_forecast_urls, jtwc_text_urls = _build_jtwc_urls(track_ids)
 
