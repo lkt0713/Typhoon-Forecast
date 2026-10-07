@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.2.8"
+SITE_VERSION = "4.2.9"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3409,7 +3409,10 @@ const Globe = (function () {
             };
             draw();
             if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            // 不做深度測試：標籤是面向鏡頭的平板，颱風靠近地球邊緣時平板會斜插進球面，
+            // 下半（ID・風速那行）被球體擋掉；改成永遠畫在最上層，背面時由 frame() 淡出
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));
+            sp.renderOrder = 10;
             sp.center.set(side > 0 ? 0 : 1, .5);
             sp.scale.set(LAB_W, LAB_H, 1);
             return sp;
@@ -3477,7 +3480,7 @@ const Globe = (function () {
                     uniforms: { uPR: uni.uPR, uProg: { value: 0 } }, vertexShader: dotVS, fragmentShader: dotFS, transparent: true }));
                 spin.add(dots);
             }
-            const S = { id: s.id, lat, lon, size, ring, line, dots, total, phase: idx * .37 };
+            const S = { id: s.id, lat, lon, size, ring, line, dots, total, lab, phase: idx * .37 };
             storms.push(S); byId[s.id] = S;
         });
 
@@ -3515,6 +3518,7 @@ const Globe = (function () {
         orbit.add(new THREE.Line(og, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .08, depthWrite: false })));
         spin.add(orbit);
         const sunOrb = uni.uSun.value.clone().applyQuaternion(orbit.quaternion.clone().invert());
+        const labW = new THREE.Vector3(), labC = new THREE.Vector3(), labN = new THREE.Vector3(), labV = new THREE.Vector3();
         const satBasis = new THREE.Matrix4(), bX = new THREE.Vector3(0, 1, 0), bY = new THREE.Vector3(), bZ = new THREE.Vector3();
         const sunW = new THREE.Vector3(), spinQ = new THREE.Quaternion();
         scene.add(new THREE.AmbientLight(0xffffff, .35));
@@ -3624,6 +3628,11 @@ const Globe = (function () {
                 S.ring.scale.setScalar(S.size * (.5 + ph * 1.3));
                 S.ring.material.opacity = (1 - ph) * .7;
                 if (S.line) { S.line.geometry.setDrawRange(0, Math.ceil(S.total * ease(prog))); S.dots.material.uniforms.uProg.value = ease(prog); }
+                // 標籤不吃深度了，轉到地球背面時要自己藏起來：看標籤錨點的球面法線朝不朝鏡頭
+                S.lab.getWorldPosition(labW); anchor.getWorldPosition(labC);
+                labN.subVectors(labW, labC).normalize();
+                const facing = labN.dot(labV.subVectors(camera.position, labW).normalize());
+                S.lab.material.opacity = Math.min(1, Math.max(0, (facing - .02) / .15));
             }
             const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * SAT_W);
             const c = Math.cos(th), s = Math.sin(th);
