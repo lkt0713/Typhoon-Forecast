@@ -156,5 +156,15 @@ jobs:
             echo "[INFO] Another run is already queued or running, not chaining"
             exit 0
           fi
-          gh workflow run auto-update.yml --ref main
-          echo "[INFO] Queued the next run"
+          # GitHub API 偶爾回 5xx（10-07 一次 HTTP 500 就讓整條鏈斷了一天），
+          # 失敗就退避重試
+          for i in 1 2 3 4 5 6; do
+            if gh workflow run auto-update.yml --ref main; then
+              echo "[INFO] Queued the next run"
+              exit 0
+            fi
+            echo "[WARN] dispatch failed (attempt $i), retrying"
+            sleep $((i * 30))
+          done
+          echo "[ERROR] could not queue the next run"
+          exit 1
