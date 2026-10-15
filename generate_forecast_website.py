@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.2.0"
+SITE_VERSION = "5.2.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -202,7 +202,7 @@ def _model_tabs(track: str, labels: list[str], extra_cls: str = "") -> str:
     return f'<div class="seg model-tabs {extra_cls}" role="tablist"><span class="seg-ind"></span>{buttons}</div>'
 
 
-# 城市侵襲機率表：台灣城市一律列出，其餘只在任一模式 ≥ 1% 時列出。
+# 城市侵襲機率表：臺灣城市一律列出，其餘只在任一模式 ≥ 1% 時列出。
 # 色階與 forecast.py 的 STRIKE_LEVELS／STRIKE_COLORS 一致（同一份侵襲機率的配色）。
 CITY_ALWAYS = {'tw_landfall', 'taipei', 'taichung', 'kaohsiung', 'hualien', 'hengchun'}
 CITY_LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90]
@@ -2703,7 +2703,7 @@ const I18N = {
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
-    'city.tw_landfall': '登陸台灣',
+    'city.tw_landfall': '登陸臺灣',
     'sub.trend':        '趨勢',
     'panel.trend':      '預報趨勢',
     'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
@@ -2713,9 +2713,9 @@ const I18N = {
     'sub.cities':     '城市',
     'panel.cities':   '城市侵襲機率',
     'cities.city':    '城市',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 台灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
-    'city.taipei':       '台北',
-    'city.taichung':     '台中',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
+    'city.taipei':       '臺北',
+    'city.taichung':     '臺中',
     'city.kaohsiung':    '高雄',
     'city.hualien':      '花蓮',
     'city.hengchun':     '恆春',

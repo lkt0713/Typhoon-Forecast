@@ -430,7 +430,7 @@ def _draw_member_track(ax, g, use_360: bool, kw, lw: float = 1.0,
                        alpha: float = 0.75, zorder: float = 0.9) -> None:
     """單一成員路徑：依強度逐段著色的細線。
 
-    早期是「灰線 + 每 6h 空心圈」，64 個成員在台灣附近疊成一整片色塊，連陸地
+    早期是「灰線 + 每 6h 空心圈」，64 個成員在臺灣附近疊成一整片色塊，連陸地
     與海岸線都被蓋掉。改成細的彩色線段後強度仍讀得出來，線與線之間還留得下
     底圖；每段顏色取起點強度。經度跳超過 180° 的段（換日線）直接略過。
     """
@@ -631,7 +631,7 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
     （原本的順序）會讓半透明海面蓋住陸地，整張圖發灰。
 
     海岸線 zorder 2.5：壓在所有成員線與成員圈（路徑圖 0.9～1.15、潛勢圖 1～2）
-    之上、平均路徑（3.9）之下，成員再密集，台灣等島嶼的輪廓也不會消失。
+    之上、平均路徑（3.9）之下，成員再密集，臺灣等島嶼的輪廓也不會消失。
     """
     ax.set_extent(extent, crs=ccrs.PlateCarree())
     ax.add_feature(cfeature.OCEAN, facecolor=BASEMAP['ocean'])
@@ -1519,7 +1519,7 @@ def plot_strike_probability(tracks: list, init_time, track_id: str, save_path: s
     return save_path
 
 
-# 城市侵襲機率表的城市：(key, 緯度, 經度, 是否一律列出)。台灣城市一律列出，
+# 城市侵襲機率表的城市：(key, 緯度, 經度, 是否一律列出)。臺灣城市一律列出，
 # 其餘只在任一模式 ≥ 1% 時列出（由網頁端判斷）。中英文名稱在網頁的 i18n 表。
 STRIKE_CITIES = [
     ('taipei', 25.04, 121.56, True), ('taichung', 24.15, 120.67, True),
@@ -1532,7 +1532,7 @@ STRIKE_CITIES = [
 ]
 
 
-# 台灣本島簡化輪廓（經度, 緯度）：data/taiwan_main_island.json 讀不到時的備援
+# 臺灣本島簡化輪廓（經度, 緯度）：data/taiwan_main_island.json 讀不到時的備援
 # （與實際海岸線最大偏差約 12 km）。離島（澎湖、金馬、蘭嶼）不算本島登陸。
 TAIWAN_OUTLINE = [
     (121.54, 25.30), (121.93, 25.02), (121.87, 24.60), (121.60, 24.00), (121.50, 23.50),
@@ -1546,7 +1546,7 @@ _TAIWAN_PATH = None
 
 
 def _taiwan_path():
-    """台灣本島輪廓的 matplotlib Path。
+    """臺灣本島輪廓的 matplotlib Path。
 
     優先讀 data/taiwan_main_island.json（Natural Earth 1:10m 本島，簡化到 0.01°，
     與原始海岸線最大偏差約 1 km）；檔案讀不到才退回上面的 18 點簡化輪廓（偏差約 12 km）。
@@ -1561,13 +1561,13 @@ def _taiwan_path():
             with open(p, encoding='utf-8') as fh:
                 pts = [tuple(xy) for xy in json.load(fh)['lonlat']]
         except Exception as e:
-            print(f"[LANDFALL] 讀不到台灣輪廓檔，改用簡化輪廓: {e}")
+            print(f"[LANDFALL] 讀不到臺灣輪廓檔，改用簡化輪廓: {e}")
         _TAIWAN_PATH = _MplPath(pts)
     return _TAIWAN_PATH
 
 
 def taiwan_landfall_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
-    """路徑中心進入台灣本島的成員比例與首次登陸時間中位數（格式同 city_strike_stats）。"""
+    """路徑中心進入臺灣本島的成員比例與首次登陸時間中位數（格式同 city_strike_stats）。"""
     poly = _taiwan_path()
     first = []
     for x, y, h in tracks:
@@ -1595,7 +1595,7 @@ def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> di
     """
     init = pd.to_datetime(init_time)
     dense = [_densify_track(x, y, h) for x, y, h in tracks]
-    # 第一列放「登陸台灣」（網頁依 dict 順序排列）
+    # 第一列放「登陸臺灣」（網頁依 dict 順序排列）
     out = {'tw_landfall': taiwan_landfall_stats(tracks, init_time, n_total=n_total)}
     for key, clat, clon, _ in STRIKE_CITIES:
         first = []
