@@ -168,6 +168,7 @@ MODEL_CONFIGS = [
         "mean_dir": AIFS_MEAN_DIR,
         "det_dir": AIFS_DET_DIR,
         "det_label": "AIFS-single (deterministic)",
+        "det_name": "AIFS-single",     # 短名稱：成績單、趨勢、城市表、互動地圖用
         "cyc_dir": AIFS_CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential_AIFS.png",
         "output_prefix": "AIFS_",
@@ -182,6 +183,7 @@ MODEL_CONFIGS = [
         "mean_dir": IFS_MEAN_DIR,
         "det_dir": IFS_DET_DIR,
         "det_label": "HRES (deterministic)",
+        "det_name": "ECMWF HRES",
         "cyc_dir": IFS_CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential_ECMWF.png",
         "output_prefix": "ECMWF_",
@@ -1744,8 +1746,13 @@ def _plume_panel(ax, series, idx, init, n_members, ylabel, alpha):
 
 
 def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
-                         model_name: str, n_members: int | None = None) -> tuple[str | None, float | None]:
-    """強度羽狀圖（上：最大風速、下：中心氣壓）。回傳 (存檔路徑, RI 機率%)。"""
+                         model_name: str, n_members: int | None = None,
+                         det: tuple | None = None, det_name: str | None = None
+                         ) -> tuple[str | None, float | None]:
+    """強度羽狀圖（上：最大風速、下：中心氣壓）。回傳 (存檔路徑, RI 機率%)。
+
+    det = (hours, wind, mslp) 時另疊一條決定報（琥珀色），RI 機率仍只算系集成員。
+    """
     import matplotlib.dates as mdates  # type: ignore
     if not series:
         return None, None
@@ -1770,6 +1777,15 @@ def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
         ax_p.text(0.5, 0.5, 'No pressure data', transform=ax_p.transAxes, ha='center',
                   va='center', color=TEXT_MUTED, fontsize=9)
 
+    has_det = det is not None and np.isfinite(det[1]).sum() >= 2
+    if has_det:
+        for ax_, v in ((ax_w, det[1]), (ax_p, det[2])):
+            ok = np.isfinite(v)
+            if ok.sum() >= 2:
+                ax_.plot(init + pd.to_timedelta(det[0][ok], unit='h'), v[ok], color='white',
+                         lw=4.2, alpha=0.9, zorder=4.9)
+                ax_.plot(init + pd.to_timedelta(det[0][ok], unit='h'), v[ok], color=DET_COLOR,
+                         lw=2.2, zorder=5)
     ri = rapid_intensification_prob(series, n_total=n)
     peaks = np.array([np.nanmax(w) for _, w, _ in series if np.isfinite(w).any()])
     info = []
@@ -1784,8 +1800,12 @@ def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
     handles = [mlines.Line2D([], [], color=PLUME_MEMBER_COLOR, lw=1, alpha=0.6),
                mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4),
                mpatches.Patch(color=PLUME_BAND_COLOR, alpha=0.22)]
-    leg = ax_w.legend(handles, ['Members', 'Median', '10–90%'], loc='upper right',
-                      fontsize=8, ncol=3, handlelength=1.4, columnspacing=1.0, **LEGEND_KW)
+    labels = ['Members', 'Median', '10–90%']
+    if has_det:
+        handles.append(mlines.Line2D([], [], color=DET_COLOR, lw=2.2))
+        labels.append(det_name or 'Deterministic')
+    leg = ax_w.legend(handles, labels, loc='upper right',
+                      fontsize=8, ncol=len(labels), handlelength=1.4, columnspacing=1.0, **LEGEND_KW)
     _style_legend(leg)
 
     ax_p.xaxis.set_major_locator(mdates.DayLocator(interval=1 if len(series) else 1))
@@ -1820,14 +1840,19 @@ def paired_member_series(df: pd.DataFrame, init_time) -> list:
 # 這顆颱風所有期數的系集平均路徑疊在一起，看預報一路往哪邊修正。來源合併兩處：
 # 下載目錄（只留最近 KEEP_CYCLES 期）與路徑校驗存檔（每期一份、留 VERIF_KEEP_DAYS 天），
 # 後者讓颱風壽命超過三天時也能畫到第一報。舊 → 新由淺灰漸深到深海軍藍。
-TREND_CMAP_COLORS = ['#D5DEE8', '#8FA6C1', '#4C72A0', '#16324F']
+TREND_CMAP_COLORS = ['#7EC4E8', '#4A8FD6', '#5B5BC2', '#3B2F8F']   # 天藍 → 紫藍；最新一報另用深海軍藍
+TREND_DET_COLORS = ['#F4C46A', '#E8963A', '#D0622A', '#9C3B12']   # 決定報：金黃 → 赭紅
 
 
-def load_trend_means(cfg: dict, cycle, track_id: str) -> list:
-    """這顆颱風在此模式下所有期數的系集平均：[(init_time, mean_df), ...]，舊 → 新。"""
+def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list:
+    """這顆颱風在此模式下所有期數的系集平均（det=True 為決定報）：[(init_time, df), ...]，舊 → 新。"""
+    src_dir = cfg.get("det_dir") if det else cfg["mean_dir"]
+    suffix = "deterministic" if det else "paired"
+    if det and not (src_dir and cfg.get("det_name")):
+        return []
     found = {}
     # ① 路徑校驗存檔：lead_h → valid_time
-    slug = str(cfg['display']).replace(' ', '~')
+    slug = str(cfg['det_name'] if det else cfg['display']).replace(' ', '~')
     fdir = os.path.join(VERIF_DIR, 'fcst')
     if os.path.isdir(fdir):
         for name in os.listdir(fdir):
@@ -1844,12 +1869,12 @@ def load_trend_means(cfg: dict, cycle, track_id: str) -> list:
             found[it] = pd.DataFrame({'valid_time': it + pd.to_timedelta(f['lead_h'], unit='h'),
                                       'lat': f['lat'], 'lon': f['lon']})
     # ② 下載目錄（含本期；同一期以下載檔為準，資料較完整）
-    name_re = re.compile(rf"^{re.escape(cfg['local_prefix'])}_\d{{4}}_\d{{2}}_\d{{2}}T\d{{2}}_00_paired\.csv$")
-    for name in sorted(os.listdir(cfg["mean_dir"])) if os.path.isdir(cfg["mean_dir"]) else []:
+    name_re = re.compile(rf"^{re.escape(cfg['local_prefix'])}_\d{{4}}_\d{{2}}_\d{{2}}T\d{{2}}_00_{suffix}\.csv$")
+    for name in sorted(os.listdir(src_dir)) if os.path.isdir(src_dir) else []:
         if not name_re.match(name):
             continue
         try:
-            mdf, it = load_forecast_dataframe(os.path.join(cfg["mean_dir"], name), track_id)
+            mdf, it = load_forecast_dataframe(os.path.join(src_dir, name), track_id)
         except Exception:
             continue    # 該期沒有這顆颱風（還沒生成或已消散）
         if not mdf.empty and it is not None:
@@ -1858,8 +1883,10 @@ def load_trend_means(cfg: dict, cycle, track_id: str) -> list:
     return [(it, found[it]) for it in sorted(found) if it <= cyc]
 
 
-def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: str) -> str | None:
-    """所有期數的系集平均路徑疊圖；少於兩期時不畫（回 None）。"""
+def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: str,
+                     colors: list = TREND_CMAP_COLORS, latest_color: str = MEAN_COLOR,
+                     track_kind: str = 'Ensemble mean') -> str | None:
+    """所有期數的路徑疊圖（系集平均或決定報）；少於兩期時不畫（回 None）。"""
     import matplotlib.dates as mdates  # type: ignore
     from matplotlib.colors import LinearSegmentedColormap, Normalize  # type: ignore
     if len(entries) < 2:
@@ -1880,7 +1907,7 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
         _setup_plain_axes(ax, extent)
         kw = {}
 
-    cmap = LinearSegmentedColormap.from_list('trend', TREND_CMAP_COLORS)
+    cmap = LinearSegmentedColormap.from_list('trend', colors)
     tnum = [mdates.date2num(pd.to_datetime(it)) for it, _ in entries]
     norm = Normalize(tnum[0], tnum[-1])
     for k, ((it, mdf), tn) in enumerate(zip(entries, tnum)):
@@ -1888,26 +1915,26 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
         lons = _normalize_lon_values(mdf['lon'].to_numpy(), use_360=use_360)
         lats = mdf['lat'].to_numpy()
         newest = k == len(entries) - 1
-        color = MEAN_COLOR if newest else cmap(norm(tn))
+        color = latest_color if newest else cmap(norm(tn))
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
             if newest:
                 ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.9,
                         solid_capstyle='round', zorder=3.9, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 1.4,
-                    alpha=1.0 if newest else 0.9, solid_capstyle='round',
+            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 1.8,
+                    alpha=1.0, solid_capstyle='round',
                     zorder=4 if newest else 3, **kw)
         if newest:
             pts = get_24h_markers(mdf, it)
             if not pts.empty:
                 ax.scatter(_normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360), pts['lat'],
-                           marker='o', s=34, facecolors='white', edgecolors=MEAN_COLOR,
+                           marker='o', s=34, facecolors='white', edgecolors=latest_color,
                            linewidths=1.4, zorder=5, **kw)
 
     first_s = pd.to_datetime(entries[0][0]).strftime('%m/%d %HZ')
     last_s = pd.to_datetime(entries[-1][0]).strftime('%m/%d %HZ')
-    handles = [mlines.Line2D([], [], color=MEAN_COLOR, lw=3.4, marker='o', ms=5,
-                             markerfacecolor='white', markeredgecolor=MEAN_COLOR),
-               mlines.Line2D([], [], color=cmap(0.5), lw=1.4)]
+    handles = [mlines.Line2D([], [], color=latest_color, lw=3.4, marker='o', ms=5,
+                             markerfacecolor='white', markeredgecolor=latest_color),
+               mlines.Line2D([], [], color=cmap(0.5), lw=1.8)]
     leg = ax.legend(handles, [f'Latest  {last_s}', f'Earlier cycles (from {first_s})'],
                     loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42,
                     handlelength=2.0, **LEGEND_KW)
@@ -1924,7 +1951,7 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
 
     ax.set_title(f"{model_name}  ·  {track_id}  Track Trend", loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, f"Ensemble mean tracks of all {len(entries)} cycles  ·  {first_s} → {last_s}  ·  "
+    ax.text(0, 1.012, f"{track_kind} tracks of all {len(entries)} cycles  ·  {first_s} → {last_s}  ·  "
             "Hollow dots = 24-hr steps of the latest", transform=ax.transAxes,
             ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
@@ -1986,6 +2013,13 @@ def archive_verification(storms: list) -> None:
                 lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
                 pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
                               'lon': mdf['lon'].round(3)}).to_csv(p, index=False)
+        ddf, dname = s.get('det_df'), s.get('det_name')
+        if ddf is not None and not ddf.empty and dname and it is not None:
+            p = os.path.join(fdir, f"{str(dname).replace(' ', '~')}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
+            if not os.path.exists(p):
+                lead = (pd.to_datetime(ddf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
+                pd.DataFrame({'lead_h': lead.round(2), 'lat': ddf['lat'].round(3),
+                              'lon': ddf['lon'].round(3)}).to_csv(p, index=False)
         jt = (s.get('current_info') or {}).get('jtwc') or {}
         if not jt or tid in seen_jtwc:
             continue
@@ -3016,7 +3050,7 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     keep = set(keep_ids)
     p = re.escape(prefix)
     file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_"
-                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png)$")
+                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png|Det_Track_Trend\.png)$")
     dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
@@ -3247,12 +3281,23 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             except Exception as e:
                 print(f"[{display}-STRIKE] 侵襲機率圖失敗，略過: {e}")
 
+            det_name = cfg.get('det_name')
+            has_det = det_df is not None and not det_df.empty and bool(det_name)
+            city_strike_det = None
+            if has_det:
+                try:
+                    city_strike_det = city_strike_stats(_member_tracks(det_df, init_time), init_time)
+                except Exception as e:
+                    print(f"[{display}-DET] 決定報城市表失敗，略過: {e}")
+
             plume_path, ri_prob = None, None
             try:
                 plume_path, ri_prob = plot_intensity_plume(
                     paired_member_series(df, init_time), init_time, tid,
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Intensity_Plume.png"),
-                    model_name=display)
+                    model_name=display,
+                    det=paired_member_series(det_df, init_time)[0] if has_det else None,
+                    det_name=det_name)
             except Exception as e:
                 print(f"[{display}-PLUME] 強度羽狀圖失敗，略過: {e}")
 
@@ -3263,6 +3308,16 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Track_Trend.png"), model_name=display)
             except Exception as e:
                 print(f"[{display}-TREND] 趨勢圖失敗，略過: {e}")
+            det_trend_path = None
+            if det_name and cfg.get('det_dir'):
+                try:
+                    det_trend_path = plot_track_trend(
+                        load_trend_means(cfg, cycle, tid, det=True), tid,
+                        os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Det_Track_Trend.png"),
+                        model_name=det_name, colors=TREND_DET_COLORS, latest_color=DET_COLOR,
+                        track_kind='Deterministic')
+                except Exception as e:
+                    print(f"[{display}-DET] 決定報趨勢圖失敗，略過: {e}")
 
             download_jtwc_img(tid, OUTPUT_DIR, jtwc_forecast_urls)
 
@@ -3295,9 +3350,14 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'city_strike': city_strike,
                 'plume_path': plume_path,
                 'trend_path': trend_path,
+                'det_name': det_name if has_det else None,
+                'city_strike_det': city_strike_det,
+                'det_trend_path': det_trend_path,
                 'track_points': {
                     'members': [_track_points(g, init_time) for _, g in df.groupby('sample')],
-                    'mean': _track_points(mean_df, init_time)},
+                    'mean': _track_points(mean_df, init_time),
+                    'det': _track_points(det_df, init_time) if has_det else [],
+                    'det_name': det_name if has_det else None},
                 'ri_prob': ri_prob,
                 'current_info': current_info,
                 'frames_dir': frames_dir,

@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.1.0"
+SITE_VERSION = "5.2.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -273,17 +273,26 @@ def _score_table(card: dict, order: list[str]) -> str:
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
 
-def _city_table(cols: list[tuple[str, dict]]) -> str:
-    """cols = [(模式名, {city: {'p': %, 'eta': iso}}), ...] → 城市侵襲機率表 HTML。"""
-    keys = list(dict.fromkeys(k for _, d in cols for k in d if not k.startswith('_')))
+def _city_table(cols: list[tuple]) -> str:
+    """cols = [(模式名, {city: {'p': %, 'eta': iso}}[, 是否決定報]), ...] → 城市侵襲機率表 HTML。
+
+    決定報只有一條路徑，機率不是 0 就是 100，改顯示 ✓（附抵達時間）或 —。
+    """
+    keys = list(dict.fromkeys(k for c in cols for k in c[1] if not k.startswith('_')))
     rows = []
     for key in keys:
-        vals = [d.get(key) or {} for _, d in cols]
+        vals = [c[1].get(key) or {} for c in cols]
         if key not in CITY_ALWAYS and not any((v.get('p') or 0) >= CITY_LEVELS[0] for v in vals):
             continue
         cells = []
-        for v in vals:
+        for c, v in zip(cols, vals):
             p = v.get('p')
+            if len(c) > 2 and c[2]:
+                eta = v.get('eta') or ''
+                cells.append((f'<td class="c-det" title="{_esc(eta)}">✓<span class="eta">'
+                              f'{_esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z") if eta else ""}</span></td>')
+                             if (p or 0) >= 50 else '<td class="c-nil">—</td>')
+                continue
             if p is None or p < CITY_LEVELS[0]:
                 cells.append('<td class="c-nil">&lt;1%</td>')
                 continue
@@ -298,7 +307,7 @@ def _city_table(cols: list[tuple[str, dict]]) -> str:
         return ''
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
     head = ''.join(f'<th>{_esc(m)}' + (f'<span class="eta">≤{d["_max_h"]} h</span>' if d.get('_max_h') else '')
-                   + '</th>' for m, d in cols)
+                   + '</th>' for m, d, *_ in cols)
     return (f'<div class="city-table-wrap"><table class="city-table">'
             f'<thead><tr><th data-i18n="cities.city">City</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
@@ -805,7 +814,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if _card_m is not None:
             sec_id = f"sec-{key_prefix}-score"
             sections.append((sec_id, 'sub.score', 'Verification'))
-            order = [m.get('model') for m in models if isinstance(m, dict)] + ['JTWC']
+            order = [x for m in models if isinstance(m, dict)
+                     for x in (m.get('model'), m.get('det_name')) if x] + ['JTWC']
             t_storm = _score_table(_card_m.get('scorecard') or {}, order)
             t_all = _score_table(_card_m.get('scorecard_all') or {}, order)
             body = (t_storm or '<p class="map-note" data-i18n="score.pending">Collecting data — the first '
@@ -843,6 +853,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <select class="tm-model" aria-label="Model"></select>
                         <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
                         <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
+                        <label class="tm-det-wrap"><input type="checkbox" class="tm-det" checked> <span data-i18n="tmap.det">Deterministic</span></label>
                     </div>
                     <div class="tm-map"></div>
                 </div>
@@ -853,7 +864,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
         trend_html = ""
-        trend_items = _model_images(models, 'trend_path', '_none_')
+        trend_items = []
+        for m in models:
+            if not isinstance(m, dict):
+                continue
+            for lbl, p in ((m.get('model'), m.get('trend_path')), (m.get('det_name'), m.get('det_trend_path'))):
+                if lbl and p and os.path.exists(p):
+                    trend_items.append((lbl, p))
         if trend_items:
             sec_id = f"sec-{key_prefix}-trend"
             sections.append((sec_id, 'sub.trend', 'Trend'))
@@ -861,7 +878,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-trend", '🧭', 'panel.trend', 'Track Trend',
                 trend_items, 'note.trend',
                 'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter '
-                '&nbsp;·&nbsp; Shows which way successive forecasts have shifted',
+                '&nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
                 f"{track_id} Track Trend")
         plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
         if plume_items:
@@ -871,13 +888,19 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
-                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h',
+                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
                 f"{track_id} Intensity Forecast")
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
         cities_html = ""
-        city_cols = [(m.get('model', 'WN2-C r2'), m['city_strike'])
-                     for m in models if isinstance(m, dict) and m.get('city_strike')]
+        city_cols = []
+        for m in models:
+            if not isinstance(m, dict):
+                continue
+            if m.get('city_strike'):
+                city_cols.append((m.get('model', 'WN2-C r2'), m['city_strike']))
+            if m.get('city_strike_det') and m.get('det_name'):
+                city_cols.append((m['det_name'], m['city_strike_det'], True))
         city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
                       for m in models if isinstance(m, dict) and m.get('city_strike_1000')][:1]
         table = _city_table(city_cols) if city_cols else ''
@@ -1726,6 +1749,7 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-table td.c-best { background: var(--accent-lo); color: var(--accent); font-weight: 800; }
 .score-sub { margin: 16px 0 6px; font-size: .9em; color: var(--text-2); }
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
+.city-table td.c-det { background: #B45309; color: #fff; }
 .city-table td .eta { display: block; font-size: .78em; font-weight: 500; opacity: .85; }
 .model-label { display:inline-block; font-weight: 800; font-size:.82em; padding: 6px 12px; border-radius: 8px; background: var(--accent-lo); color: var(--accent); margin-bottom: 14px; }
 
@@ -2523,6 +2547,7 @@ const I18N = {
     'panel.tmap':       'Interactive Track Map',
     'tmap.members':     'Members',
     'tmap.mean':        'Mean',
+    'tmap.det':         'Deterministic',
     'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
@@ -2536,14 +2561,14 @@ const I18N = {
     'city.tw_landfall': 'Taiwan landfall',
     'sub.trend':        'Trend',
     'panel.trend':      'Track Trend',
-    'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted',
+    'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
-    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h',
+    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
     'sub.cities':     'Cities',
     'panel.cities':   'City Strike Probability',
     'cities.city':    'City',
-    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; ≤ N h under a model = its forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1%',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; ≤ N h under a model = its forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
     'city.kaohsiung':    'Kaohsiung',
@@ -2667,6 +2692,7 @@ const I18N = {
     'panel.tmap':       '互動式路徑地圖',
     'tmap.members':     '成員',
     'tmap.mean':        '平均',
+    'tmap.det':         '決定報',
     'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
@@ -2680,14 +2706,14 @@ const I18N = {
     'city.tw_landfall': '登陸台灣',
     'sub.trend':        '趨勢',
     'panel.trend':      '預報趨勢',
-    'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正',
+    'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
-    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt',
+    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF）',
     'sub.cities':     '城市',
     'panel.cities':   '城市侵襲機率',
     'cities.city':    '城市',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 台灣城市一律列出，其他城市任一模式達 1% 才列出',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 台灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '台北',
     'city.taichung':     '台中',
     'city.kaohsiung':    '高雄',
@@ -3072,6 +3098,7 @@ async function initTrackMap(box) {
         const sel = box.querySelector('.tm-model');
         const showM = box.querySelector('.tm-members');
         const showA = box.querySelector('.tm-mean');
+        const showD = box.querySelector('.tm-det');
         Object.keys(data.models).forEach(m => sel.add(new Option(m, m)));
         const pad = n => String(n).padStart(2, '0');
         const fmt = (m, h) => {
@@ -3109,11 +3136,24 @@ async function initTrackMap(box) {
                         .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
+            // 決定報（AIFS／ECMWF 才有）：琥珀色粗線，沒有時把開關藏起來
+            const hasDet = d.det && d.det.length > 1;
+            showD.closest('label').style.display = hasDet ? '' : 'none';
+            if (hasDet && showD.checked) {
+                const pts = unwrap(d.det), ll = pts.map(p => [p[0], p[1]]);
+                L.polyline(ll, {color: '#fff', weight: 6, opacity: .85}).addTo(layer);
+                L.polyline(ll, {color: '#B45309', weight: 3.4}).bindTooltip(d.det_name || 'Deterministic', {sticky: true}).addTo(layer);
+                pts.filter(p => p[3] % 24 === 0).forEach(p =>
+                    L.circleMarker([p[0], p[1]], {radius: 4.5, color: '#B45309', weight: 2, fillColor: '#fff', fillOpacity: 1})
+                        .bindTooltip(`${d.det_name || 'DET'} +${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
+                ll.forEach(p => bounds.push(p));
+            }
             if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
         }
         sel.onchange = () => draw(true);
         showM.onchange = () => draw(false);
         showA.onchange = () => draw(false);
+        showD.onchange = () => draw(false);
         draw(true);
     } catch (e) {
         el.textContent = 'Map failed to load';
