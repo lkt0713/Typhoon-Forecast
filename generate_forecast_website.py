@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.2.4"
+SITE_VERSION = "5.2.5"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -302,9 +302,24 @@ def _city_table(cols: list[tuple]) -> str:
             eta_txt = (f'{eta[5:7]}/{eta[8:10]} {eta[11:13]}Z') if eta else ''
             cells.append(f'<td style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
                          f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
-        rows.append(f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>')
+        rows.append((key, f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>'))
     if not rows:
         return ''
+    # 登陸臺灣與城市侵襲定義不同（中心上岸 vs. 通過 1° 內），分兩區並各加小標題列
+    span = len(cols) + 1
+
+    def _grp(k, txt, sub_k, sub):
+        return (f'<tr class="grp"><td colspan="{span}"><span data-i18n="{k}">{txt}</span>'
+                f'<small data-i18n="{sub_k}">{sub}</small></td></tr>')
+    land = [r for k, r in rows if k == 'tw_landfall']
+    city = [r for k, r in rows if k != 'tw_landfall']
+    body = ''
+    if land:
+        body += _grp('cities.grp.land', 'Taiwan landfall', 'cities.grp.land.sub',
+                     'storm centre moves onto Taiwan\'s main island (outlying islands excluded)') + ''.join(land)
+    if city:
+        body += _grp('cities.grp.city', 'City strike', 'cities.grp.city.sub',
+                     'track passes within 1° (~111 km) of the city') + ''.join(city)
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
     def _th_sub(d):
         parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
@@ -313,7 +328,7 @@ def _city_table(cols: list[tuple]) -> str:
     head = ''.join(f'<th>{_esc(m)}{_th_sub(d)}</th>' for m, d, *_ in cols)
     return (f'<div class="city-table-wrap"><table class="city-table">'
             f'<thead><tr><th data-i18n="cities.city">City</th>{head}</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table></div>')
+            f'<tbody>{body}</tbody></table></div>')
 
 
 # 線條圖示（導覽列與行動版底部分頁列共用）
@@ -915,7 +930,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">📍</span>
-                    <span data-i18n="panel.cities">City Strike Probability</span>
+                    <span data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</span>
                 </div>
                 {table}
                 <p class="map-note" data-i18n="note.cities">
@@ -1078,7 +1093,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
-                        <div><h4 data-i18n="panel.cities">City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
+                        <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
@@ -1763,7 +1778,12 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-table td.c-best { background: var(--accent-lo); color: var(--accent); font-weight: 800; }
 .score-sub { margin: 16px 0 6px; font-size: .9em; color: var(--text-2); }
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
-.city-table td.c-det { background: #B45309; color: #fff; }
+/* 決定報：外框＋琥珀字，不用實心色塊，免得跟 60–70% 的橘色機率格混淆 */
+.city-table td.c-det { background: var(--surface-2); color: #E8963A; box-shadow: inset 0 0 0 2px #B45309; }
+.city-table tr.grp td { text-align: left; background: none; color: var(--text); font-weight: 800;
+    padding: 12px 6px 6px; border-bottom: 1px solid var(--border); }
+.city-table tr.grp:first-child td { padding-top: 2px; }
+.city-table tr.grp small { margin-left: 10px; color: var(--text-2); font-weight: 500; font-size: .86em; }
 .city-table td .eta { display: block; font-size: .78em; font-weight: 500; opacity: .85; }
 .model-label { display:inline-block; font-weight: 800; font-size:.82em; padding: 6px 12px; border-radius: 8px; background: var(--accent-lo); color: var(--accent); margin-bottom: 14px; }
 
@@ -2573,15 +2593,19 @@ const I18N = {
     'sub.strikex':      'By Period',
     'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
-    'city.tw_landfall': 'Taiwan landfall',
+    'city.tw_landfall': 'Taiwan (main island)',
     'sub.trend':        'Trend',
     'panel.trend':      'Track Trend',
     'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
     'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
-    'sub.cities':     'Cities',
-    'panel.cities':   'City Strike Probability',
+    'sub.cities':     'Landfall & Cities',
+    'panel.cities':   'Taiwan Landfall &amp; City Strike Probability',
+    'cities.grp.land': 'Taiwan landfall',
+    'cities.grp.land.sub': 'storm centre moves onto Taiwan\'s main island (outlying islands excluded)',
+    'cities.grp.city': 'City strike',
+    'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
     'cities.city':    'City',
     'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
@@ -2720,15 +2744,19 @@ const I18N = {
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
-    'city.tw_landfall': '登陸臺灣',
+    'city.tw_landfall': '臺灣本島',
     'sub.trend':        '趨勢',
     'panel.trend':      '預報趨勢',
     'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
     'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF）',
-    'sub.cities':     '城市',
-    'panel.cities':   '城市侵襲機率',
+    'sub.cities':     '登陸與城市',
+    'panel.cities':   '登陸臺灣與城市侵襲機率',
+    'cities.grp.land': '登陸臺灣',
+    'cities.grp.land.sub': '颱風中心進入臺灣本島（不含離島）',
+    'cities.grp.city': '城市侵襲',
+    'cities.grp.city.sub': '路徑通過城市 1°（約 111 公里）以內',
     'cities.city':    '城市',
     'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
