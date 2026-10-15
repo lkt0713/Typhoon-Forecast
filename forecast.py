@@ -12,6 +12,7 @@ import matplotlib.lines as mlines # type: ignore
 import matplotlib.patheffects as mpe # type: ignore
 from matplotlib.legend_handler import HandlerTuple # type: ignore
 from matplotlib.legend import Legend # type: ignore
+from matplotlib.offsetbox import DrawingArea # type: ignore
 import matplotlib.ticker as mticker # type: ignore
 import re
 
@@ -540,12 +541,13 @@ def _init_legend_handle(ms: float = 11.0):
 
 def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 11.0,
                          det_label: str | None = None, intensity_style: str = 'line'):
-    """左上角的合併圖例：上半 Track Source、下半 Intensity（靜態圖與動畫幀共用）。
+    """左上角的合併圖例：上半路徑／符號（不加標題，各列自己就說得清楚）、
+    下半 Intensity 色票（靜態圖與動畫幀共用）。
 
     det_label 有值時多一列決定報（ECMWF HRES／AIFS-single）。intensity_style
     'line' 給成員畫彩色線的路徑圖、'marker' 給成員當前位置畫圈的動畫幀。
 
-    一個 Legend 只能有一種欄數，Track Source 一欄、強度四欄排不進同一個；所以
+    一個 Legend 只能有一種欄數，路徑區一欄、強度四欄排不進同一個；所以
     強度另建一個不掛到軸上的 Legend 只拿來排版，把它的方塊（標題＋色票）接到
     主圖例的 _legend_box 底下 —— 外框、底色只有一個，看起來是同一個圖例。
     """
@@ -566,7 +568,7 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
         labels.append(det_label)
     handles.append(_init_legend_handle(ms))
     labels.append('Init Position')
-    leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
+    leg = ax.legend(handles=handles, labels=labels, loc='upper left',
                     fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.4, handletextpad=0.7,
                     handler_map={tuple: HandlerTuple(ndivide=1, pad=0),
@@ -580,7 +582,18 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
                      handlelength=1.4 if intensity_style == 'line' else 0.9,
                      handletextpad=0.4, borderpad=0, alignment='left')
     _style_legend(int_leg)
-    leg._legend_box._children.append(int_leg._legend_box)
+
+    # 兩段之間的虛線分隔：寬度要等於圖例內容寬，但 VPacker 不會把子方塊撐滿，
+    # 只能先量兩段的實際寬度（像素）再換成 DrawingArea 用的點數
+    fig = ax.figure
+    renderer = fig.canvas.get_renderer()
+    width_px = max(leg._legend_box.get_bbox(renderer).width,
+                   int_leg._legend_box.get_bbox(renderer).width)
+    width_pt = width_px * 72.0 / fig.dpi
+    sep = DrawingArea(width_pt, 6)
+    sep.add_artist(mlines.Line2D([0, width_pt], [3, 3], color=TEXT_MUTED, alpha=0.6,
+                                 lw=0.8, ls=(0, (3, 2.5))))
+    leg._legend_box._children += [sep, int_leg._legend_box]
 
     _style_legend(leg)
     ax.add_artist(leg)
