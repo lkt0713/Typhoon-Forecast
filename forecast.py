@@ -113,7 +113,7 @@ MODEL_CONFIGS = [
     {
         "remote": "WNV3",         # Weather Lab URL 上的模型代號
         "local_prefix": "WNC3",   # 本地 CSV 檔名前綴
-        "display": "WNC3",
+        "display": "WN3-C",
         "ensemble_dir": WNC3_ENSEMBLE_DIR,
         "mean_dir": WNC3_MEAN_DIR,
         "cyc_dir": WNC3_CYCLOGENESIS_DIR,
@@ -126,7 +126,7 @@ MODEL_CONFIGS = [
     {
         "remote": "FNV3P2",       # 對方未改的舊代號，見上方註解
         "local_prefix": "WNC2-r2",
-        "display": "WNC2-r2",
+        "display": "WN2-C r2",
         "ensemble_dir": ENSEMBLE_DIR,
         "mean_dir": MEAN_DIR,
         "cyc_dir": CYCLOGENESIS_DIR,
@@ -138,7 +138,7 @@ MODEL_CONFIGS = [
     {
         "remote": "FNV3P1",
         "local_prefix": "WNC2-r1",
-        "display": "WNC2-r1",
+        "display": "WN2-C r1",
         "ensemble_dir": WNC_R1_ENSEMBLE_DIR,
         "mean_dir": WNC_R1_MEAN_DIR,
         "cyc_dir": WNC_R1_CYCLOGENESIS_DIR,
@@ -1055,7 +1055,7 @@ def extract_current_info(df: pd.DataFrame) -> dict:
         'r34_nw': r34_nw,
     }
 
-def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None) -> list:
+def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None) -> list:
     """生成預報軌跡演變的幀序列，用於網頁動畫生成。與靜態地圖保持一致的風格。
 
     det_df／det_label 的意義與 plot_forecast_map 相同。
@@ -1922,7 +1922,8 @@ def archive_verification(storms: list) -> None:
     for s in storms:
         tid, model, mdf, it = s['track_id'], s.get('model'), s.get('mean_df'), s.get('init_time')
         if mdf is not None and not mdf.empty and it is not None:
-            p = os.path.join(fdir, f"{model}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
+            slug = str(model).replace(' ', '~')   # 檔名不放空格
+            p = os.path.join(fdir, f"{slug}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
             if not os.path.exists(p):
                 lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
                 pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
@@ -1977,7 +1978,7 @@ def compute_scorecard() -> dict:
         m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
         if not m or m.group(2) not in obs:
             continue
-        model, tid = m.group(1), m.group(2)
+        model, tid = m.group(1).replace('~', ' '), m.group(2)
         init = pd.Timestamp(datetime.strptime(m.group(3), '%Y%m%d%H'), tz='UTC')
         f = pd.read_csv(os.path.join(fdir, name)).dropna()
         if len(f) < 2:
@@ -2035,7 +2036,7 @@ def write_tracks_json(storms: list) -> None:
         next(s for s in storms if s['track_id'] == tid)['tracks_json'] = path
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。
 
     det_df 有值時（ECMWF／AIFS）再疊一條決定報路徑；det_label 是圖例文字。
@@ -2158,9 +2159,9 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 # 比較圖一律實線（含決定報）：八條線本來就靠顏色分辨，虛線只會讓
 # 短的那幾條看起來斷斷續續。各模式自己的分頁圖上，決定報仍是虛線。
 COMPARE_STYLES = {
-    'WNC3':      '#16324F',
-    'WNC2-r2':   '#1B4F9C',
-    'WNC2-r1':   '#5B8DC8',
+    'WN3-C':      '#16324F',
+    'WN2-C r2':   '#1B4F9C',
+    'WN2-C r1':   '#5B8DC8',
     'GENC':      '#1FA97E',
     'AIFS':      '#7A3FA8',
     'AIFS-DET':  '#C2569B',
@@ -2168,16 +2169,16 @@ COMPARE_STYLES = {
     'ECMWF-DET': '#B45309',
 }
 # 畫線順序：後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在四條 WNC／GENC 的最後。
-COMPARE_ORDER = ['WNC3', 'WNC2-r1', 'GENC', 'WNC2-r2',
+COMPARE_ORDER = ['WN3-C', 'WN2-C r1', 'GENC', 'WN2-C r2',
                  'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 # 圖例順序與畫線順序刻意分開：圖例照模式輩分排（WNC3 → WNC2-r2 → WNC2-r1 →
 # GENC → ECMWF → AIFS），疊圖先後則由 COMPARE_ORDER 決定。
-COMPARE_LEGEND_ORDER = ['WNC3', 'WNC2-r2', 'WNC2-r1', 'GENC',
+COMPARE_LEGEND_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'GENC',
                         'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 COMPARE_LABELS = {
-    'WNC3': 'WNC3 Mean',
-    'WNC2-r2': 'WNC2-r2 Mean',
-    'WNC2-r1': 'WNC2-r1 Mean',
+    'WN3-C': 'WN3-C Mean',
+    'WN2-C r2': 'WN2-C r2 Mean',
+    'WN2-C r1': 'WN2-C r1 Mean',
     'GENC': 'GENC Mean',
     'AIFS': 'AIFS-ENS Mean',
     'AIFS-DET': 'AIFS-single',
@@ -2296,7 +2297,7 @@ def _data_source(model_name: str) -> str:
             else 'Google DeepMind Weather Lab')
 
 
-def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WNC2-r2",
+def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WN2-C r2",
                                range_hours: int = 360):
     """繪製西太平洋 Ensemble 潛勢預報總覽圖（以 MSLP 著色）。
 
@@ -2412,7 +2413,7 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
 WNC2_LE_CONFIG = {
     "remote": "FNV3_LARGE_ENSEMBLE",
     "local_prefix": "WNC2-1000",
-    "display": "WNC2-1000",
+    "display": "WN2-C 1000",
     "cyc_dir": "deepmind_weather_wnc2_le_cyclogenesis_2026",
     "cluster_png": "WP_Track_Clusters_WNC2-1000.png",
 }
@@ -2617,7 +2618,7 @@ def cluster_large_ensemble_tracks(df: pd.DataFrame) -> tuple[list[dict], list[tu
     return clusters, noise
 
 
-def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str = "WNC2"):
+def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str = "WN2-C"):
     """繪製 WNC2 1000 成員大系集的路徑聚類圖。"""
     from matplotlib.collections import LineCollection  # type: ignore
 
@@ -2743,7 +2744,7 @@ def _process_large_ensemble() -> tuple[str | None, str | None]:
 
     try:
         cluster = plot_large_ensemble_clusters(path, os.path.join(OUTPUT_DIR, cfg["cluster_png"]),
-                                               model_name="WNC2")
+                                               model_name="WN2-C")
     except Exception as e:
         print(f"[{cfg['display']}-ERROR] 路徑聚類圖失敗，略過: {e}")
         cluster = None
@@ -2991,7 +2992,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
                          r"|^((?:WP|CP|EP)\d{6})_Tracks\.json$"
-                         rf"|^{re.escape(WNC2_LE_CONFIG['display'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
+                         rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
@@ -3315,6 +3316,7 @@ def main():
     # （與模式比較圖同樣是「每顆一份」）。加分項，失敗不影響其他產品
     if le_csv:
         le_name = WNC2_LE_CONFIG["display"]
+        le_file = WNC2_LE_CONFIG["local_prefix"]   # 檔名用；顯示名稱有空格
         try:
             le_tracks, le_init, le_n, le_series = load_large_ensemble_tracks(le_csv)
             for tid in dict.fromkeys(s['track_id'] for s in storms):
@@ -3322,14 +3324,14 @@ def main():
                     continue
                 path = plot_strike_probability(
                     le_tracks[tid], le_init, tid,
-                    os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Strike_Probability.png"),
+                    os.path.join(OUTPUT_DIR, f"{le_file}_{tid}_Strike_Probability.png"),
                     model_name=le_name, n_members=le_n)
                 head = next(s for s in storms if s['track_id'] == tid)
                 head['city_strike_1000'] = city_strike_stats(le_tracks[tid], le_init, n_total=le_n)
                 try:
                     plume, ri = plot_intensity_plume(
                         le_series.get(tid, []), le_init, tid,
-                        os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Intensity_Plume.png"),
+                        os.path.join(OUTPUT_DIR, f"{le_file}_{tid}_Intensity_Plume.png"),
                         model_name=le_name, n_members=le_n)
                     if plume:
                         head['plume_1000_path'], head['ri_1000'] = plume, ri
@@ -3340,7 +3342,7 @@ def main():
                 extra = []
                 for t0, t1 in STRIKE_WINDOWS:
                     lbl = f"{t0}–{t1} h" if t1 is not None else f"{t0} h+"
-                    fn = f"{le_name}_{tid}_Strike_{t0}_{t1 if t1 is not None else 'end'}h.png"
+                    fn = f"{le_file}_{tid}_Strike_{t0}_{t1 if t1 is not None else 'end'}h.png"
                     try:
                         p_ = plot_strike_probability(
                             window_tracks(le_tracks[tid], t0, t1), le_init, tid,
@@ -3357,7 +3359,7 @@ def main():
                     if radii:
                         p_ = plot_strike_probability(
                             le_tracks[tid], le_init, tid,
-                            os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Wind34_Probability.png"),
+                            os.path.join(OUTPUT_DIR, f"{le_file}_{tid}_Wind34_Probability.png"),
                             model_name=le_name, n_members=le_n,
                             title='34-kt Wind Probability',
                             subtitle='inside the 34-kt wind radii (4 quadrants) at any time',

@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.12.0"
+SITE_VERSION = "5.0.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -47,9 +47,9 @@ NAV_COLLAPSE_AT = 3
 
 # 總覽頁「預報模式」一欄的清單（顯示順序即此順序）
 KNOWN_MODELS = [
-    ('WNC3', 'Google DeepMind', 'WeatherNext · Ensemble'),
-    ('WNC2-r2', 'Google DeepMind', 'WeatherNext · Ensemble'),
-    ('WNC2-r1', 'Google DeepMind', 'WeatherNext · Ensemble'),
+    ('WN3-C', 'Google DeepMind', 'WeatherNext · Ensemble'),
+    ('WN2-C r2', 'Google DeepMind', 'WeatherNext · Ensemble'),
+    ('WN2-C r1', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('GENC', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('AIFS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
     ('ECMWF', 'ECMWF', 'IFS ENS + HRES'),
@@ -80,7 +80,7 @@ ECMWF_MODELS = {'ECMWF', 'AIFS'}
 
 # 潛勢頁上的 WNC2 1000 成員路徑聚類圖：是 WNC2 的另一種產品而非獨立模式，
 # 不算進「N 個模式」，圖說也不同
-CLUSTER_LABEL = 'WNC2-1000'
+CLUSTER_LABEL = 'WN2-C 1000'
 
 
 def _genesis_source(model_label: str) -> str:
@@ -215,7 +215,7 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
                         items: list[tuple[str, str]], note_key: str, note: str, alt: str) -> str:
     """一個 panel：上方模式分頁（只有一個時改成標籤）＋每模式一張圖＋說明。
 
-    track_key 要與其他區塊不同，分頁才會獨立切換（多出的 WNC2-1000 分頁不牽動
+    track_key 要與其他區塊不同，分頁才會獨立切換（多出的 WN2-C 1000 分頁不牽動
     路徑圖與動畫的分頁）。items = [(模式名, 圖檔路徑), ...]。
     """
     panels = "".join(f"""
@@ -238,7 +238,7 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
 
 def _model_images(models: list, key: str, key_1000: str) -> list[tuple[str, str]]:
     """各模式 storm dict 的 key 圖檔，再加上掛在第一個 dict 的 1000 成員圖（存在者）。"""
-    items = [(m.get('model', 'WNC2-r2'), m.get(key)) for m in models if isinstance(m, dict)]
+    items = [(m.get('model', 'WN2-C r2'), m.get(key)) for m in models if isinstance(m, dict)]
     items += [(CLUSTER_LABEL, m.get(key_1000)) for m in models
               if isinstance(m, dict) and m.get(key_1000)][:1]
     return [(lbl, p) for lbl, p in items if p and os.path.exists(p)]
@@ -341,7 +341,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                            genesis_map_paths: list | None = None):
     """生成預報網站（多頁式：總覽／各颱風／生成潛勢／說明，以 hash 路由切換）。
 
-    同一顆颱風若同時有 WNC3 / WNC2-r2 / WNC2-r1 / GENC 多種模式的預報，會合併成
+    同一顆颱風若同時有 WN3-C / WN2-C r2 / WN2-C r1 / GENC 多種模式的預報，會合併成
     單一颱風頁：颱風字卡與 JTWC 官方預報圖僅顯示一次，Ensemble 路徑圖與動畫則
     透過分頁切換，避免同一顆颱風重複出現多張幾乎相同的卡片。
 
@@ -398,7 +398,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             'pos': (f"{jtwc_data['latitude']}, {jtwc_data['longitude']}"
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
-            'models': [m.get('model', 'WNC2-r2') for m in models if isinstance(m, dict)],
+            'models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)],
             # 3D 地球用：颱風位置只用 JTWC；路徑優先用 JTWC 官方預報，沒有才退回模式系集平均
             'lat': _coord(jtwc_data.get('latitude')),
             'lon': _coord(jtwc_data.get('longitude')),
@@ -420,14 +420,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             _model_label, _gpath = _entry
         else:
             # 舊呼叫方式：只給路徑，退回用檔名判斷（WP_Genesis_Potential.png 無後綴
-            # 者即現行主力模式 WNC2-r2）
+            # 者即現行主力模式 WN2-C r2）
             _gpath = _entry
             _stem = os.path.basename(str(_gpath)).upper()
             _model_label = next(
-                (lbl for key, lbl in (("GENC", "GENC"), ("WNC3", "WNC3"),
-                                      ("WNC2-R1", "WNC2-r1"), ("WNC-R1", "WNC2-r1"))
+                (lbl for key, lbl in (("GENC", "GENC"), ("WNC3", "WN3-C"),
+                                      ("WNC2-R1", "WN2-C r1"), ("WNC-R1", "WN2-C r1"))
                  if key in _stem),
-                "WNC2-r2")
+                "WN2-C r2")
         if not (_gpath and os.path.exists(_gpath)):
             continue
         _genesis_entries.append((_model_label, os.path.basename(_gpath)))
@@ -677,7 +677,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         # ── 動畫（依模式分頁切換；僅在該模式有幀資料時輸出）
         anim_panels = []
         for i, m in enumerate(models):
-            model_name = m.get('model', 'WNC2-r2')
+            model_name = m.get('model', 'WN2-C r2')
             storm_frames_dir = m.get('frames_dir', '')
             if not (storm_frames_dir and os.path.exists(storm_frames_dir)):
                 continue
@@ -722,7 +722,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             sec_id = f"sec-{key_prefix}-anim"
             sections.append((sec_id, 'sub.anim', 'Animation'))
             first_anim_model = next(
-                (m.get('model', 'WNC2-r2') for m in models
+                (m.get('model', 'WN2-C r2') for m in models
                  if m.get('frames_dir') and os.path.exists(m.get('frames_dir'))), model_names[0])
             anim_html = f"""
             <div class="panel reveal" id="{sec_id}">
@@ -738,7 +738,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         # ── Ensemble 路徑圖（依模式分頁切換）+ JTWC 官方預報（每顆颱風僅一份）
         map_panels = []
         for i, m in enumerate(models):
-            model_name = m.get('model', 'WNC2-r2')
+            model_name = m.get('model', 'WN2-C r2')
             forecast_map_path = m.get('forecast_map_path', '') if isinstance(m, dict) else ''
             map_src = os.path.basename(forecast_map_path) if forecast_map_path else ''
             hide_attr = '' if i == 0 else ' style="display:none;"'
@@ -876,7 +876,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
         cities_html = ""
-        city_cols = [(m.get('model', 'WNC2-r2'), m['city_strike'])
+        city_cols = [(m.get('model', 'WN2-C r2'), m['city_strike'])
                      for m in models if isinstance(m, dict) and m.get('city_strike')]
         city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
                       for m in models if isinstance(m, dict) and m.get('city_strike_1000')][:1]
@@ -898,6 +898,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </p>
             </div>"""
 
+        # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
+        page_order = ['cmp', 'anim', 'maps', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'score']
+        sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
+                      if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
         subnav = "".join(
             f'<button data-target="{sid}" data-i18n="{k}">{txt}</button>' for sid, k, txt in sections)
 
@@ -1042,7 +1046,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
-                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WNC3 / GENC / AIFS / ECMWF"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data"></p></div>
                     </div>
@@ -1156,7 +1160,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
-                <small data-i18n="brand.sub">Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
+                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
         <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
@@ -1189,7 +1193,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
                 <p data-i18n="footer.desc">
                     Ensemble track forecasts from DeepMind WeatherNext —
-                    WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data —
+                    WN3-C, WN2-C r2, WN2-C r1 &amp; GENC — and from ECMWF Open Data —
                     AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
                     Official intensity guidance from JTWC. Data refreshed automatically.
                 </p>
@@ -2456,7 +2460,7 @@ const I18N = {
   en: {
     'doc.title':        "Pillar's Tropical Cyclone Forecast",
     'brand.title':      "Pillar's Tropical Cyclone Forecast",
-    'brand.sub':        'Real-time WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
     'header.updated':   'Updated',
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
@@ -2527,7 +2531,7 @@ const I18N = {
     'score.pending':    'Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.',
     'note.score':       'Mean distance (km) between each model\'s forecast position (ensemble mean; JTWC = official forecast) and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified &nbsp;·&nbsp; Bold = smallest error',
     'sub.strikex':      'By Period',
-    'panel.strikex':    'WNC2-1000 Strike Probability by Period &amp; 34-kt Wind',
+    'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
     'city.tw_landfall': 'Taiwan landfall',
     'sub.trend':        'Trend',
@@ -2584,7 +2588,7 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WNC3, WNC2-r2, WNC2-r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
@@ -2600,7 +2604,7 @@ const I18N = {
   zh: {
     'doc.title':        'Pillar 熱帶氣旋預報',
     'brand.title':      'Pillar 熱帶氣旋預報',
-    'brand.sub':        'WNC3 / WNC2-r2 / WNC2-r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
     'header.updated':   '更新於',
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
@@ -2671,7 +2675,7 @@ const I18N = {
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
     'note.score':       '各模式預報位置（系集平均；JTWC＝官方預報）與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; n＝已校驗的預報數 &nbsp;·&nbsp; 粗體＝誤差最小',
     'sub.strikex':      '分時段',
-    'panel.strikex':    'WNC2-1000 分時段侵襲機率與七級風機率',
+    'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
     'city.tw_landfall': '登陸台灣',
     'sub.trend':        '趨勢',
@@ -2728,7 +2732,7 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WNC3、WNC2-r2、WNC2-r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
@@ -2995,7 +2999,7 @@ function updateIndicators() {
 }
 window.addEventListener('resize', () => requestAnimationFrame(() => { NavDrop.fit(); updateIndicators(); }));
 
-// ── Model tab switching (WNC3 / WNC2-r2 / WNC2-r1 / GENC for the same storm) ──
+// ── Model tab switching (WN3-C / WN2-C r2 / WN2-C r1 / GENC for the same storm) ──
 function switchModelTab(trackId, model) {
     $$('.model-panel').filter(el => el.dataset.track === trackId).forEach(el => {
         const isActive = el.dataset.model === model;
@@ -3049,8 +3053,9 @@ function loadLeaflet() {
 }
 function tmTiles(L) {
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    return L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`,
-        {attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 10});
+    // Esri 灰階底圖：不需金鑰（CARTO 底圖已改成要 API key）
+    return L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${dark ? 'World_Dark_Gray_Base' : 'World_Light_Gray_Base'}/MapServer/tile/{z}/{y}/{x}`,
+        {attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ', maxZoom: 10});
 }
 async function initTrackMap(box) {
     if (box.dataset.ready) return;
