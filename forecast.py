@@ -2378,10 +2378,11 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
         lats = d['lat'].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            ax.plot(seg_lon, seg_lat, color='white', lw=5.9, alpha=0.8,
-                    solid_capstyle='round', zorder=3.5, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=3.5,
-                    solid_capstyle='round', zorder=4, **kw)
+            # 線細一點、壓在海岸線（zorder 2.5）底下：八條線疊在臺灣附近時陸地輪廓仍看得到
+            ax.plot(seg_lon, seg_lat, color='white', lw=3.6, alpha=0.6,
+                    solid_capstyle='round', zorder=2.0, **kw)
+            ax.plot(seg_lon, seg_lat, color=color, lw=2.2, alpha=0.9,
+                    solid_capstyle='round', zorder=2.2, **kw)
 
         # 24h 標記：各模式在同一時間點的位置差距，是這張圖最想讓人看到的東西
         init_time = init_times.get(key)
@@ -2389,13 +2390,13 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
             pts = get_24h_markers(d, init_time)
             if not pts.empty:
                 mlons = _normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360)
-                ax.scatter(mlons, pts['lat'], marker='o', s=28, facecolors='white',
-                           edgecolors=color, linewidths=1.3, zorder=5, **kw)
+                ax.scatter(mlons, pts['lat'], marker='o', s=20, facecolors='white',
+                           edgecolors=color, linewidths=1.1, zorder=2.3, **kw)
 
         last = d.iloc[-1]
         last_lon = _normalize_lon_values([last['lon']], use_360=use_360)[0]
-        ax.scatter([last_lon], [last['lat']], marker='o', s=38, color=color,
-                   ec='white', linewidth=1.1, zorder=5.2, **kw)
+        ax.scatter([last_lon], [last['lat']], marker='o', s=28, color=color,
+                   ec='white', linewidth=1.0, zorder=2.4, **kw)
 
         suffix = ''
         if init_time is not None:
