@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.4.5"
+SITE_VERSION = "4.5.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -644,9 +644,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="model-panel" data-track="{key_prefix}" data-model="{_esc(model_name)}"{hide_attr}>
                     {_figure(map_src, f"{track_id} {model_name} Forecast Map")}
                     <p class="map-note" data-i18n="note.ensemble" data-i18n-model="{_esc(model_name)}">
-                        {_esc(model_name)} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp;
-                        Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp;
-                        Dots = 6-hr intensity (filled ≥ 35 kt) &nbsp;·&nbsp; ★ = initial position
+                        {_esc(model_name)} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp;
+                        Navy line = ensemble mean &nbsp;·&nbsp; ★ = initial position
                     </p>
                 </div>""")
 
@@ -2276,7 +2275,7 @@ const I18N = {
     'pl.next':          'Next frame',
     'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
     'panel.ensemble':   'Ensemble Track Forecast',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; Gray lines = ensemble members &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Shaded cone = track uncertainty &nbsp;·&nbsp; Dots = 6-hr intensity (filled ≥ 35 kt) &nbsp;·&nbsp; ★ = initial position',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; ★ = initial position',
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
     'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
@@ -2379,7 +2378,7 @@ const I18N = {
     'pl.next':          '下一格',
     'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
     'panel.ensemble':   '系集路徑預報',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; 灰線＝系集成員 &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 陰影錐＝路徑不確定範圍 &nbsp;·&nbsp; 圓點＝每 6 小時強度（≥ 35 kt 為實心） &nbsp;·&nbsp; ★＝起始位置',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; ★＝起始位置',
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
     'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',

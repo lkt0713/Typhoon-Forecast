@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt # type: ignore
 import matplotlib.lines as mlines # type: ignore
 import matplotlib.patheffects as mpe # type: ignore
 from matplotlib.legend_handler import HandlerTuple # type: ignore
+from matplotlib.legend import Legend # type: ignore
 import matplotlib.ticker as mticker # type: ignore
 import re
 
@@ -19,21 +20,6 @@ try:
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
-
-try:
-    from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d as _scipy_interp1d  # type: ignore
-    from scipy.ndimage import gaussian_filter1d as _scipy_gf1d  # type: ignore
-    HAS_SCIPY = True
-except ImportError:
-    HAS_SCIPY = False
-    print("[WARN] scipy 未安裝，無法繪製不確定性圓錐")
-
-try:
-    from shapely.geometry import Point as _ShapelyPoint        # type: ignore
-    from shapely.ops import unary_union as _shapely_union      # type: ignore
-    HAS_SHAPELY = True
-except ImportError:
-    HAS_SHAPELY = False
 
 # Target timestamp — auto-derived from current UTC time.
 # WNC data is available ~6h45m after cycle time, so we subtract that
@@ -390,11 +376,6 @@ MEAN_COLOR  = '#16324F'   # 集合平均路徑：深海軍藍（在彩色點群�
 # 平均路徑，只用顏色區分。強度色階裡的橘（Cat3 #EE7A22）只以小圓點出現，這裡
 # 是帶白色描邊的粗線，不會與強度點混淆。
 DET_COLOR   = '#B45309'
-CONE_FILL   = '#8FA8C6'   # 不確定性圓錐填色
-# 不確定性圓錐只畫到 +72h：再往後成員發散太大，圓錐會漲成幾乎覆蓋整張圖的巨圓，
-# 既遮住路徑也不再有參考價值。平均路徑與成員線不受此限，仍畫到各自的終點。
-CONE_MAX_FH = 72.0
-CONE_EDGE   = '#3D5A80'   # 圓錐邊界
 INIT_FACE   = '#FFC24A'   # 初始位置星形
 INIT_EDGE   = '#A9670C'
 TEXT_DARK   = '#16324F'   # 主要文字
@@ -466,24 +447,6 @@ def _draw_member_track(ax, g, use_360: bool, kw, lw: float = 1.0,
     ax.add_collection(LineCollection(segs[keep], colors=colors, linewidths=lw,
                                      alpha=alpha, zorder=zorder,
                                      capstyle='round', joinstyle='round', **kw))
-
-
-def _intensity_legend(ax, style: str = 'marker', fontsize: float = 8, ms: float = 7.0):
-    """強度圖例放在地圖正下方（軸外）、排成一列。
-
-    原本貼在右下角，颱風從東南方生成時起點與早期成員正好被它蓋住；放軸外就
-    不論路徑走哪都擋不到。y 要壓在經度刻度標籤底下，-0.045 是 8 pt 標籤的高度。
-    """
-    leg = ax.legend(handles=_intensity_legend_handles(ms=ms, style=style),
-                    loc='upper center', bbox_to_anchor=(0.5, -0.045),
-                    fontsize=fontsize, ncol=7, borderpad=0.45, columnspacing=1.4,
-                    handlelength=1.4 if style == 'line' else 0.9, handletextpad=0.4,
-                    markerscale=0.85, title='Intensity', title_fontsize=fontsize,
-                    alignment='center', **LEGEND_KW)
-    # 不能 add_artist：那會把 clip path 設成軸框，軸外的圖例整個被裁掉。
-    # 留在 ax.legend_ 上（呼叫端須是最後一個 ax.legend）就不受裁切。
-    _style_legend(leg)
-    return leg
 
 
 def _intensity_legend_handles(ms: float = 7.0, style: str = 'marker') -> list:
@@ -576,11 +539,15 @@ def _init_legend_handle(ms: float = 11.0):
 
 
 def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 11.0,
-                         det_label: str | None = None):
-    """左上角的 Track Source 圖例（靜態圖與動畫幀共用同一份定義）。
+                         det_label: str | None = None, intensity_style: str = 'line'):
+    """左上角的合併圖例：上半 Track Source、下半 Intensity（靜態圖與動畫幀共用）。
 
-    det_label 有值時多一列決定報（ECMWF HRES／AIFS-single）；WNC 系列沒有
-    對應產品，維持原本的四列。
+    det_label 有值時多一列決定報（ECMWF HRES／AIFS-single）。intensity_style
+    'line' 給成員畫彩色線的路徑圖、'marker' 給成員當前位置畫圈的動畫幀。
+
+    一個 Legend 只能有一種欄數，Track Source 一欄、強度四欄排不進同一個；所以
+    強度另建一個不掛到軸上的 Legend 只拿來排版，把它的方塊（標題＋色票）接到
+    主圖例的 _legend_box 底下 —— 外框、底色只有一個，看起來是同一個圖例。
     """
     # 成員線依強度著色，圖例用三段彩色短線並排暗示「顏色＝強度」
     member_handle = tuple(mlines.Line2D([], [], color=COLOR_MAP[c], lw=2.0)
@@ -597,17 +564,24 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
                                      lw=3.5, markerfacecolor='white',
                                      markeredgecolor=DET_COLOR, markeredgewidth=1.4))
         labels.append(det_label)
-    handles += [
-        mlines.Line2D([], [], color=CONE_FILL, lw=6, alpha=0.5),
-        _init_legend_handle(ms),
-    ]
-    labels += [f'Uncertainty Cone (≤ {int(CONE_MAX_FH)} h)', 'Init Position']
+    handles.append(_init_legend_handle(ms))
+    labels.append('Init Position')
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
                     fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.4, handletextpad=0.7,
                     handler_map={tuple: HandlerTuple(ndivide=1, pad=0),
                                  member_handle: HandlerTuple(ndivide=None, pad=0)},
-                    **LEGEND_KW)
+                    alignment='left', **LEGEND_KW)
+
+    int_handles = _intensity_legend_handles(ms=ms * 0.6, style=intensity_style)
+    int_leg = Legend(ax, int_handles, [h.get_label() for h in int_handles],
+                     title='Intensity', fontsize=fontsize * 0.92, ncol=4,
+                     title_fontsize=fontsize, labelspacing=0.3, columnspacing=1.0,
+                     handlelength=1.4 if intensity_style == 'line' else 0.9,
+                     handletextpad=0.4, borderpad=0, alignment='left')
+    _style_legend(int_leg)
+    leg._legend_box._children.append(int_leg._legend_box)
+
     _style_legend(leg)
     ax.add_artist(leg)
     return leg
@@ -1125,12 +1099,9 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             _setup_plain_axes(ax, extent, label_size=10)
             kw = {}
 
-        # ── 不確定性圓錐（截至 current_time）──────────────────────────────────
-        # Pass full df so circle radii are computed from the complete ensemble
-        # (consistent across frames), and limit drawing via max_fh.
+        # 平均路徑的截止時間（成員過少就不再畫平均）；圓錐已移除，但截止邏輯沿用
         fh_now = (pd.to_datetime(current_time) - init_time).total_seconds() / 3600.0
         cone_stop_fh = _compute_cone_stop_fh(df, init_time, max_fh=fh_now)
-        _draw_uncertainty_cone(ax, df, mean_df, init_time, use_360, kw, max_fh=fh_now)
 
         # ── 起始位置星形標記 ──────────────────────────────────────────────────
         _draw_init_marker(ax, init_lon_star, init_lat_star, kw, scale=0.9)
@@ -1201,9 +1172,9 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
 
         # ── 圖例 ──────────────────────────────────────────────────────────────
         _track_source_legend(ax, model_name, fontsize=8, ms=10,
-                             det_label=det_label if has_det else None)
+                             det_label=det_label if has_det else None,
+                             intensity_style='marker')
 
-        _intensity_legend(ax, style='marker', fontsize=7, ms=6)
 
         # ── 標題 ──────────────────────────────────────────────────────────────
         time_str = pd.to_datetime(current_time).strftime('%Y-%m-%d %H:%M UTC')
@@ -1299,185 +1270,6 @@ def _compute_cone_stop_fh(df: pd.DataFrame, init_time: pd.Timestamp, max_fh: flo
 
 
 
-def _draw_uncertainty_cone(ax, df: pd.DataFrame, mean_df: pd.DataFrame,
-                           init_time: pd.Timestamp, use_360: bool, kw: dict,
-                           max_fh: float = None):
-    """CWA-style uncertainty cone using the true geometric union of circles.
-
-    Approach: build one circle per 12-h step (90th-pct ensemble spread,
-    non-decreasing radius), then take their Shapely unary_union.  The union
-    boundary is by construction non-self-intersecting and monotonically grows
-    as more circles are added — no analytical envelope needed.
-
-    max_fh : limit drawing to this forecast hour (animation mode); circles are
-             always computed from the full df so radii stay consistent across frames.
-    """
-    if not HAS_SCIPY or df.empty or mean_df.empty or init_time is None:
-        return
-
-    cone_stop_fh = _compute_cone_stop_fh(df, init_time, max_fh=max_fh)
-    if cone_stop_fh is None:
-        return
-    # 圓錐最多畫到 CONE_MAX_FH。刻意只夾在這裡、不動 _compute_cone_stop_fh：
-    # 那個回傳值同時決定平均路徑要畫到幾小時，一起夾就會把平均路徑也砍到 72h。
-    cone_stop_fh = min(cone_stop_fh, CONE_MAX_FH)
-
-    work = df.copy()
-    work['fh'] = (work['valid_time'] - init_time).dt.total_seconds() / 3600.0
-
-    mean_s = mean_df.sort_values('valid_time').copy()
-    mean_s['fh'] = (mean_s['valid_time'] - init_time).dt.total_seconds() / 3600.0
-    mean_s['lon_n'] = _normalize_lon_values(mean_s['lon'].to_numpy(), use_360=use_360)
-
-    # ── 1. Discrete circles at 12-h steps ────────────────────────────────────
-    t_kn, cx_kn, cy_kn, r_kn = [], [], [], []
-    for t in np.arange(0, cone_stop_fh + 1, 12):
-        sub = work[abs(work['fh'] - t) < 3.5]
-        if sub.empty:
-            continue
-        lons = _normalize_lon_values(sub['lon'].to_numpy(), use_360=use_360)
-        lats = sub['lat'].to_numpy()
-        mt   = mean_s[abs(mean_s['fh'] - t) < 3.5]
-        cx   = float(mt.iloc[0]['lon_n']) if not mt.empty else float(np.nanmean(lons))
-        cy   = float(mt.iloc[0]['lat'])   if not mt.empty else float(np.nanmean(lats))
-        r    = float(np.percentile(np.sqrt((lons - cx)**2 + (lats - cy)**2), 90))
-        t_kn.append(t); cx_kn.append(cx); cy_kn.append(cy); r_kn.append(r)
-
-    if len(t_kn) < 2:
-        return
-
-    t_arr  = np.array(t_kn,  dtype=float)
-    cx_arr = np.array(cx_kn, dtype=float)
-    cy_arr = np.array(cy_kn, dtype=float)
-    r_arr  = np.array(r_kn,  dtype=float)
-    for i in range(1, len(r_arr)):          # enforce non-decreasing radius
-        r_arr[i] = max(r_arr[i], r_arr[i - 1])
-
-    # ── 2. Smooth splines for centre and radius ───────────────────────────────
-    cs_x = CubicSpline(t_arr, cx_arr, bc_type='not-a-knot')
-    cs_y = CubicSpline(t_arr, cy_arr, bc_type='not-a-knot')
-    cs_r = PchipInterpolator(t_arr, r_arr)   # monotone → radius stays non-decreasing
-
-    # ── 3. Build cone polygon ─────────────────────────────────────────────────
-    if HAS_SHAPELY:
-        # Use a FIXED step (np.arange) so the same t values are sampled in every frame.
-        # linspace(0, t_arr[-1], N) shifts all intermediate t positions as t_arr[-1]
-        # grows, causing the early cone to drift. With arange(0, ..., STEP_H) the
-        # circles at t=0, STEP_H, 2*STEP_H, ... are identical across all frames —
-        # only new circles at the trailing end are added as max_fh increases.
-        STEP_H = 1.0   # hours — fixed step guarantees stability of the early cone
-
-        t_dense  = np.arange(t_arr[0], t_arr[-1] + STEP_H * 0.5, STEP_H)
-
-        # 圓心沿「實際的平均路徑」取樣，而不是在 12h 節點之間拉直線。
-        # 平均路徑是 6 小時一筆、而且前期常常大幅轉向；用 12h 節點連線當中心線的話，
-        # 中心線會直接切過轉彎的弦，偏離真正的平均路徑，而前 12 小時圓錐半徑又還
-        # 接近 0 —— 平均線就整條跑到圓錐外面去。以平均路徑本身內插即可對齊，
-        # 圓心就是圖上畫出來的那條線。
-        mean_fh = mean_s['fh'].to_numpy(dtype=float)
-        mean_x  = mean_s['lon_n'].to_numpy(dtype=float)
-        mean_y  = mean_s['lat'].to_numpy(dtype=float)
-        # 平均路徑比圓錐短時（末端超出範圍），該段退回節點內插
-        use_mean = (t_dense >= mean_fh[0]) & (t_dense <= mean_fh[-1])
-        cx_dense = np.where(use_mean, np.interp(t_dense, mean_fh, mean_x),
-                            np.interp(t_dense, t_arr, cx_arr))
-        cy_dense = np.where(use_mean, np.interp(t_dense, mean_fh, mean_y),
-                            np.interp(t_dense, t_arr, cy_arr))
-
-        # 最小半徑：相鄰兩個圓必須重疊，否則 union 會斷成一串珠子。
-        # 直接用實際的圓心間距算（2*MIN_R > 間距），比用節點平均速度推更保險。
-        step_d = (np.hypot(np.diff(cx_dense), np.diff(cy_dense))
-                  if len(cx_dense) > 1 else np.array([0.0]))
-        MIN_R = max(0.10, float(step_d.max()) * 0.6)
-        r_dense  = np.maximum(np.interp(t_dense, t_arr, r_arr), MIN_R)
-
-        geo_circles = [
-            _ShapelyPoint(float(cx), float(cy)).buffer(float(r), resolution=64)
-            for cx, cy, r in zip(cx_dense, cy_dense, r_dense)
-        ]
-        cone = _shapely_union(geo_circles)
-        if cone.geom_type == 'MultiPolygon':
-            cone = max(cone.geoms, key=lambda g: g.area)
-        raw_lons, raw_lats = map(np.array, cone.exterior.xy)
-
-        # Resample to uniform arc-length, then Gaussian-smooth the C0 circle-arc
-        # junctions → visually smooth boundary without self-intersection.
-        # Shapely exterior.xy already closes the ring (last==first); do NOT append
-        # raw_lons[0] again or arc gets a zero-length final segment and interp1d fails.
-        pts_cl = np.column_stack([raw_lons, raw_lats])
-        seg = np.hypot(np.diff(pts_cl[:, 0]), np.diff(pts_cl[:, 1]))
-        arc = np.concatenate([[0.0], np.cumsum(seg)])
-        N_s = 600
-        t_u = np.linspace(0.0, arc[-1], N_s, endpoint=False)
-        xs_u = _scipy_interp1d(arc, pts_cl[:, 0])(t_u)
-        ys_u = _scipy_interp1d(arc, pts_cl[:, 1])(t_u)
-        # Sigma in PHYSICAL arc-length (degrees), not sample count.
-        # A fixed SMOOTH_DEG ensures the same physical smoothing scale in every frame
-        # regardless of the total cone perimeter → no drift in the early cone.
-        SMOOTH_DEG = 0.20                              # smooth over 0.2° of arc
-        sigma = max(2, round(SMOOTH_DEG * N_s / arc[-1]))
-        # Roll the array so the Gaussian wrap seam falls at the cone's tail
-        # (0h initial position), not on the leading cap arc.  If the Shapely
-        # exterior starts mid-cap, mode='wrap' blends opposite sides of the arc
-        # across the array boundary → concave dent at the leading edge.
-        _roll_idx = int(np.argmin(np.hypot(xs_u - float(cx_dense[0]),
-                                           ys_u - float(cy_dense[0]))))
-        xs_u = np.roll(xs_u, -_roll_idx)
-        ys_u = np.roll(ys_u, -_roll_idx)
-        poly_lons = list(_scipy_gf1d(xs_u, sigma=sigma, mode='wrap'))
-        poly_lats = list(_scipy_gf1d(ys_u, sigma=sigma, mode='wrap'))
-
-    else:
-        # Analytical envelope fallback (may self-intersect on sharply curved tracks)
-        N    = 400
-        t_f  = np.linspace(t_arr[0], t_arr[-1], N)
-        cx_f = cs_x(t_f); cy_f = cs_y(t_f); r_f = np.maximum(cs_r(t_f), 0.0)
-        xt_f = cs_x(t_f, 1); yt_f = cs_y(t_f, 1); rt_f = cs_r(t_f, 1)
-        v_f  = np.where(np.hypot(xt_f, yt_f) < 1e-9, 1e-9, np.hypot(xt_f, yt_f))
-        kappa = np.clip(rt_f / v_f, -1.0, 1.0)
-        eta   = np.sqrt(np.maximum(0.0, 1.0 - kappa**2))
-        along_x = -r_f * kappa * xt_f / v_f
-        along_y = -r_f * kappa * yt_f / v_f
-        perp_x  =  r_f * eta   * yt_f / v_f
-        perp_y  =  r_f * eta   * xt_f / v_f
-        x_L = cx_f + along_x - perp_x
-        y_L = cy_f + along_y + perp_y
-        x_R = cx_f + along_x + perp_x
-        y_R = cy_f + along_y - perp_y
-
-        def _norm_angle(a, phi, side):
-            if side == 'L':
-                while a <= phi:            a += 2 * np.pi
-                while a > phi + 2*np.pi:  a -= 2 * np.pi
-            else:
-                while a > phi:             a -= 2 * np.pi
-                while a <= phi - 2*np.pi: a += 2 * np.pi
-            return a
-
-        phi_tail = np.arctan2(yt_f[-1], xt_f[-1])
-        aL_tail  = _norm_angle(np.arctan2(y_L[-1]-cy_f[-1], x_L[-1]-cx_f[-1]), phi_tail, 'L')
-        aR_tail  = _norm_angle(np.arctan2(y_R[-1]-cy_f[-1], x_R[-1]-cx_f[-1]), phi_tail, 'R')
-        tail_a    = np.linspace(aL_tail, aR_tail, 64)
-        tail_lons = cx_f[-1] + r_f[-1] * np.cos(tail_a)
-        tail_lats = cy_f[-1] + r_f[-1] * np.sin(tail_a)
-        poly_lons  = list(x_L) + list(tail_lons) + list(x_R[::-1])
-        poly_lats  = list(y_L) + list(tail_lats) + list(y_R[::-1])
-        r0 = float(r_f[0])
-        if r0 > 0.05:
-            phi_start = np.arctan2(yt_f[0], xt_f[0])
-            aL_start  = _norm_angle(np.arctan2(y_L[0]-cy_f[0], x_L[0]-cx_f[0]), phi_start, 'L')
-            aR_start  = _norm_angle(np.arctan2(y_R[0]-cy_f[0], x_R[0]-cx_f[0]), phi_start, 'R')
-            start_a    = np.linspace(aR_start, aL_start - 2*np.pi, 48)
-            poly_lons  = list(cx_f[0] + r0*np.cos(start_a)) + poly_lons
-            poly_lats  = list(cy_f[0] + r0*np.sin(start_a)) + poly_lats
-
-    # ── 3. Draw ───────────────────────────────────────────────────────────────
-    ax.fill(poly_lons, poly_lats, color=CONE_FILL, alpha=0.22, zorder=0.35, **kw)
-    ax.plot(np.append(poly_lons, poly_lons[:1]),
-            np.append(poly_lats, poly_lats[:1]),
-            color=CONE_EDGE, lw=1.3, alpha=0.9, ls=(0, (5, 2.5)), zorder=0.50, **kw)
-
-
 def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: bool, kw: dict,
                     upto: pd.Timestamp | None = None, label_end: bool = True) -> None:
     """畫決定報路徑（實線）—— 靜態圖與動畫幀共用。
@@ -1565,9 +1357,6 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
         _setup_plain_axes(ax, extent)
         kw = {}
 
-    # 不確定性圓錐（ensemble spread）
-    _draw_uncertainty_cone(ax, df, mean_df, init_time, use_360, kw)
-
     # 每個 member：依強度著色的細線
     for _sid, g in df.groupby("sample"):
         _draw_member_track(ax, g.sort_values('valid_time'), use_360, kw,
@@ -1629,7 +1418,6 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     _track_source_legend(ax, model_name, fontsize=9, ms=11,
                          det_label=det_label if has_det else None)
 
-    _intensity_legend(ax, style='line', fontsize=8, ms=7)
 
     n_members = int(df['sample'].nunique()) if 'sample' in df.columns else 0
     init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
