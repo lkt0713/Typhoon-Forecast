@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.5.2"
+SITE_VERSION = "4.6.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -672,6 +672,39 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
             </div>"""
 
+        # ── 侵襲機率（每模式一張，另加 1000 成員；分頁用獨立的 data-track，
+        #    多出的 WNC2-1000 分頁不會牽動路徑圖與動畫的分頁）
+        strike_html = ""
+        strike_items = [(m.get('model', 'WNC2-r2'), m.get('strike_map_path'))
+                        for m in models if isinstance(m, dict)]
+        strike_items += [(CLUSTER_LABEL, m.get('strike_1000_path'))
+                         for m in models if isinstance(m, dict) and m.get('strike_1000_path')][:1]
+        strike_items = [(lbl, p) for lbl, p in strike_items if p and os.path.exists(p)]
+        if strike_items:
+            strike_track = f"{key_prefix}-strike"
+            sec_id = f"sec-{key_prefix}-strike"
+            sections.append((sec_id, 'sub.strike', 'Strike Prob.'))
+            strike_panels = "".join(f"""
+                <div class="model-panel" data-track="{strike_track}" data-model="{_esc(lbl)}"{'' if i == 0 else ' style="display:none;"'}>
+                    {_figure(os.path.basename(p), f"{track_id} {lbl} Strike Probability")}
+                </div>""" for i, (lbl, p) in enumerate(strike_items))
+            strike_tabs = (_model_tabs(strike_track, [lbl for lbl, _ in strike_items])
+                           if len(strike_items) > 1 else
+                           f'<div class="model-label">{_esc(strike_items[0][0])}</div>')
+            strike_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🎯</span>
+                    <span data-i18n="panel.strike">Strike Probability</span>
+                </div>
+                {strike_tabs}
+                {strike_panels}
+                <p class="map-note" data-i18n="note.strike">
+                    Share of ensemble members whose track passes within 1° (~111 km) of each 0.1° grid point
+                    at any time in the forecast &nbsp;·&nbsp; Intensity is not considered
+                </p>
+            </div>"""
+
         subnav = "".join(
             f'<button data-target="{sid}" data-i18n="{k}">{txt}</button>' for sid, k, txt in sections)
 
@@ -699,6 +732,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             {cmp_html}
             {anim_html}
             {maps_html}
+            {strike_html}
         </div>
     </section>""")
 
@@ -2263,6 +2297,9 @@ const I18N = {
     'sub.cmp':          'Comparison',
     'sub.anim':         'Animation',
     'sub.maps':         'Ensemble & JTWC',
+    'sub.strike':       'Strike Prob.',
+    'panel.strike':     'Strike Probability',
+    'note.strike':      'Share of ensemble members whose track passes within 1° (~111 km) of each 0.1° grid point at any time in the forecast &nbsp;·&nbsp; Intensity is not considered',
     'panel.comparison': 'Multi-Model Comparison',
     'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
     'zoom.hint':        '🔍 Click to enlarge',
@@ -2366,6 +2403,9 @@ const I18N = {
     'sub.cmp':          '模式比較',
     'sub.anim':         '動畫',
     'sub.maps':         '系集與 JTWC',
+    'sub.strike':       '侵襲機率',
+    'panel.strike':     '侵襲機率',
+    'note.strike':      '各 0.1° 格點：預報期間內路徑曾通過其 1°（約 111 公里）以內的系集成員比例 &nbsp;·&nbsp; 不考慮強度',
     'panel.comparison': '多模式比較',
     'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
     'zoom.hint':        '🔍 點擊放大',

@@ -1328,6 +1328,146 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
                 zorder=6, bbox=_label_box(), clip_on=True, **kw)
 
 
+# ── 侵襲機率（strike probability）─────────────────────────────────────────
+# 每個 0.1° 格點：路徑曾通過其 1° 內的成員比例。距離用經緯度度數算（與常見的
+# 「1° track buffer」產品一致），高緯經度方向會略窄於 111 km。
+STRIKE_RES = 0.1
+STRIKE_RADIUS_DEG = 1.0
+STRIKE_LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+STRIKE_COLORS = ['#A9D6F5', '#5E9DDB', '#3B6DB3', '#3F9C55', '#9CC64E',
+                 '#EFD35A', '#EBA03E', '#D9463A', '#9E2A22']
+STRIKE_OVER = '#C451D3'    # > 90 %
+STRIKE_FIG_AR = 1.25
+
+
+def compute_strike_probability(tracks: list, extent: tuple):
+    """tracks 為 [(lons, lats), ...]（經度須已依 use_360 正規化），回傳 (glon, glat, prob%)。
+
+    每條路徑先加密到每步 < 半格，在成員自己的外框內做距離轉換（≤ 半徑格數即命中），
+    一個成員對同一格最多算一次。只算外框是為了 1000 成員也能在十秒內跑完。
+    """
+    from scipy.ndimage import distance_transform_edt  # type: ignore
+    lon0, lon1, lat0, lat1 = extent
+    r = int(round(STRIKE_RADIUS_DEG / STRIKE_RES))
+    # 網格外圍多留 r 格：範圍外的路徑點也能把 1° 影響圈帶進來
+    gx0, gy0 = lon0 - r * STRIKE_RES, lat0 - r * STRIKE_RES
+    nx = int(round((lon1 - lon0) / STRIKE_RES)) + 1 + 2 * r
+    ny = int(round((lat1 - lat0) / STRIKE_RES)) + 1 + 2 * r
+    count = np.zeros((ny, nx), dtype=np.int32)
+    for lons, lats in tracks:
+        lons = np.asarray(lons, dtype=float)
+        lats = np.asarray(lats, dtype=float)
+        ok = ~(np.isnan(lons) | np.isnan(lats))
+        lons, lats = lons[ok], lats[ok]
+        if lons.size == 0:
+            continue
+        if lons.size > 1:
+            seg = np.hypot(np.diff(lons), np.diff(lats))
+            n = np.maximum(1, np.ceil(seg / (STRIKE_RES / 2)).astype(int))
+            xs = np.concatenate([np.linspace(lons[i], lons[i + 1], n[i], endpoint=False)
+                                 for i in range(len(n))] + [lons[-1:]])
+            ys = np.concatenate([np.linspace(lats[i], lats[i + 1], n[i], endpoint=False)
+                                 for i in range(len(n))] + [lats[-1:]])
+        else:
+            xs, ys = lons, lats
+        ix = np.round((xs - gx0) / STRIKE_RES).astype(int)
+        iy = np.round((ys - gy0) / STRIKE_RES).astype(int)
+        inside = (ix >= 0) & (ix < nx) & (iy >= 0) & (iy < ny)
+        if not inside.any():
+            continue
+        ix, iy = ix[inside], iy[inside]
+        x0, x1 = max(ix.min() - r - 1, 0), min(ix.max() + r + 2, nx)
+        y0, y1 = max(iy.min() - r - 1, 0), min(iy.max() + r + 2, ny)
+        mask = np.ones((y1 - y0, x1 - x0), dtype=bool)
+        mask[iy - y0, ix - x0] = False
+        count[y0:y1, x0:x1] += distance_transform_edt(mask) <= r
+    prob = count[r:-r, r:-r] * 100.0 / max(len(tracks), 1)
+    glon = lon0 + np.arange(prob.shape[1]) * STRIKE_RES
+    glat = lat0 + np.arange(prob.shape[0]) * STRIKE_RES
+    return glon, glat, prob
+
+
+def plot_strike_probability(tracks: list, init_time, track_id: str, save_path: str,
+                            model_name: str, n_members: int | None = None) -> str | None:
+    """畫侵襲機率圖。tracks 為 [(lons, lats), ...]（原始經度即可）；回傳存檔路徑或 None。"""
+    if not HAS_CARTOPY or not tracks:
+        return None
+    all_lon = np.concatenate([np.asarray(x, dtype=float) for x, _ in tracks])
+    all_lat = np.concatenate([np.asarray(y, dtype=float) for _, y in tracks])
+    big, use_360 = _auto_extent(all_lat, all_lon, pad_deg=2)
+    big = tuple(float(np.round(v, 1)) for v in big)
+    tracks = [(_normalize_lon_values(x, use_360=use_360), np.asarray(y, dtype=float))
+              for x, y in tracks]
+    glon, glat, prob = compute_strike_probability(tracks, big)
+    iy, ix = np.nonzero(prob >= STRIKE_LEVELS[0])
+    if iy.size == 0:
+        return None
+    # 顯示範圍＝機率 ≥1% 區域外擴 4°：零星跑到高緯的成員不會把地圖撐大
+    extent = (glon[ix.min()] - 4, glon[ix.max()] + 4, glat[iy.min()] - 4, glat[iy.max()] + 4)
+    extent = _fit_extent_to_aspect(extent, STRIKE_FIG_AR, use_360)
+
+    fig = plt.figure(figsize=(10, 7.6), facecolor='white')
+    proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
+    ax = plt.axes(projection=proj)
+    _setup_basemap(ax, extent)
+    kw = dict(transform=ccrs.PlateCarree())
+    from matplotlib.colors import ListedColormap, BoundaryNorm  # type: ignore
+    cmap = ListedColormap(STRIKE_COLORS)
+    cmap.set_over(STRIKE_OVER)
+    # 色塊半透明、壓在國界（0.6）與海岸線（2.5）底下：陸地灰底與輪廓都透得出來
+    cf = ax.contourf(glon, glat, prob, levels=STRIKE_LEVELS, cmap=cmap,
+                     norm=BoundaryNorm(STRIKE_LEVELS, cmap.N), extend='max',
+                     zorder=0.5, alpha=0.72, **kw)
+    # 初始位置取各成員起點的中位數
+    starts = np.array([(x[0], y[0]) for x, y in tracks if len(x)])
+    _draw_init_marker(ax, float(np.median(starts[:, 0])), float(np.median(starts[:, 1])),
+                      kw, scale=0.9)
+
+    cb = fig.colorbar(cf, ax=ax, orientation='horizontal', pad=0.06, fraction=0.045,
+                      aspect=40, shrink=0.8, ticks=[1, 20, 40, 60, 80, 90])
+    cb.set_label('Strike probability (%)', color=TEXT_MUTED, fontsize=9)
+    cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
+    cb.outline.set_edgecolor(BOX_EDGE)
+
+    n = n_members if n_members is not None else len(tracks)
+    init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
+    # 主標題＋灰色副標，兩行都靠左；副標貼在軸框正上方，主標題用 pad 讓出一行
+    ax.set_title(f"{model_name}  ·  {track_id}  Strike Probability", loc='left',
+                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax.text(0, 1.012, f"Init {init_str}  ·  {n} members  ·  "
+            f"{STRIKE_RADIUS_DEG:g}° track buffer  ·  {STRIKE_RES:g}° grid",
+            transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    print(f"[STRIKE] 已儲存侵襲機率圖：{save_path}")
+    return save_path
+
+
+def _member_tracks(df: pd.DataFrame) -> list:
+    """paired 系集 DataFrame → [(lons, lats), ...]，每個成員一條、依時間排序。"""
+    return [(g['lon'].to_numpy(), g['lat'].to_numpy())
+            for _, g in df.sort_values('valid_time').groupby('sample')]
+
+
+def load_large_ensemble_tracks(csv_path: str) -> tuple[dict, pd.Timestamp, int]:
+    """讀 1000 成員 cyclogenesis CSV，回傳 ({track_id: [(lons, lats), ...]}, init_time, 成員總數)。
+
+    已命名系統先用 _relink_lost_tracks 接回追蹤器跟丟後重新編號的路徑，與路徑聚類圖
+    的成員認定一致。分母用全部成員數：沒有這顆颱風的成員就是「沒侵襲」。
+    """
+    df = pd.read_csv(csv_path, comment='#').dropna(subset=['lat', 'lon', 'lead_time_hours'])
+    df['track_id'] = df['track_id'].astype(str)
+    df['lon360'] = df['lon'] % 360.0
+    df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
+    named = [t for t in df['track_id'].unique() if not t.isdigit()]
+    _relink_lost_tracks(df, named)
+    df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
+    out = {tid: [(t['lon360'].to_numpy(), t['lat'].to_numpy()) for _, t in g.groupby('sample')]
+           for tid, g in df[df['track_id'].isin(named)].groupby('track_id')}
+    return out, pd.to_datetime(df['init_time'].iloc[0], utc=True), int(df['sample'].nunique())
+
+
 def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。
 
@@ -2003,8 +2143,12 @@ def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str 
     return save_path
 
 
-def _process_large_ensemble() -> str | None:
-    """下載最新一期 WNC2 1000 成員 cyclogenesis CSV 並畫聚類圖；失敗回 None。"""
+def _process_large_ensemble() -> tuple[str | None, str | None]:
+    """下載最新一期 WNC2 1000 成員 cyclogenesis CSV 並畫聚類圖。
+
+    回傳 (聚類圖路徑, CSV 路徑)；取不到資料時兩者皆 None。CSV 留給 main() 畫各颱風的
+    1000 成員侵襲機率圖。
+    """
     cfg = WNC2_LE_CONFIG
     d, prefix = cfg["cyc_dir"], cfg["local_prefix"]
     path = None
@@ -2019,7 +2163,7 @@ def _process_large_ensemble() -> str | None:
             break
     if path is None:
         print(f"[{cfg['display']}] 最近 5 期都取不到大系集 CSV")
-        return None
+        return None, None
 
     names = sorted(n for n in os.listdir(d)
                    if n.startswith(f"{prefix}_") and n.endswith("_cyclogenesis.csv"))
@@ -2030,8 +2174,13 @@ def _process_large_ensemble() -> str | None:
             except OSError as e:
                 print(f"[{cfg['display']}-CLEANUP] 警告: 移除 {name} 失敗: {e}")
 
-    return plot_large_ensemble_clusters(path, os.path.join(OUTPUT_DIR, cfg["cluster_png"]),
-                                        model_name="WNC2")
+    try:
+        cluster = plot_large_ensemble_clusters(path, os.path.join(OUTPUT_DIR, cfg["cluster_png"]),
+                                               model_name="WNC2")
+    except Exception as e:
+        print(f"[{cfg['display']}-ERROR] 路徑聚類圖失敗，略過: {e}")
+        cluster = None
+    return cluster, path
 
 
 def _download_file(url: str, out_path: str, label: str, allow_404: bool = False) -> bool:
@@ -2240,7 +2389,8 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
         return
     keep = set(keep_ids)
     p = re.escape(prefix)
-    file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_Forecast_(?:Map\.png|Animation\.gif)$")
+    file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_"
+                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png)$")
     dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
@@ -2266,13 +2416,14 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
 def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     """移除已無任何模式追蹤的颱風其「每顆一份」的產物。
 
-    jtwc_{TID}.gif 與 {TID}_Model_Comparison.png 都與模式無關（同一顆真實
-    颱風各模式共用），因此只能在所有模式都跑完、以 track_id 聯集判斷才安全，
+    jtwc_{TID}.gif、{TID}_Model_Comparison.png 與 1000 成員侵襲機率圖都不屬於單一
+    paired 模式（同一顆真實颱風各模式共用），因此只能在所有模式都跑完、以 track_id 聯集判斷才安全，
     不能放進 _process_model。
     """
     if not os.path.isdir(OUTPUT_DIR):
         return
-    jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$")
+    jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
+                         rf"|^{re.escape(WNC2_LE_CONFIG['display'])}_((?:WP|CP|EP)\d{{6}})_Strike_Probability\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
@@ -2281,7 +2432,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     for name in names:
         m = jtwc_re.match(name)
         # 兩個分支各佔一個群組，命中的那個才有值
-        if not m or (m.group(1) or m.group(2)) in keep_ids:
+        if not m or (m.group(1) or m.group(2) or m.group(3)) in keep_ids:
             continue
         try:
             os.remove(os.path.join(OUTPUT_DIR, name))
@@ -2457,6 +2608,16 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display,
                               det_df=det_df, det_label=det_label)
 
+            # 侵襲機率圖：加分項，失敗只略過這張
+            strike_path = None
+            try:
+                strike_path = plot_strike_probability(
+                    _member_tracks(df), init_time, tid,
+                    os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Strike_Probability.png"),
+                    model_name=display)
+            except Exception as e:
+                print(f"[{display}-STRIKE] 侵襲機率圖失敗，略過: {e}")
+
             download_jtwc_img(tid, OUTPUT_DIR, jtwc_forecast_urls)
 
             print("[ANIMATION] 正在生成幀序列...")
@@ -2477,6 +2638,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'track_id': tid,
                 'model': display,
                 'forecast_map_path': save_path,
+                'strike_map_path': strike_path,
                 'current_info': current_info,
                 'frames_dir': frames_dir,
                 'forecast_gif_path': gif_output,
@@ -2542,12 +2704,30 @@ def main():
 
     # WNC2 1000 成員路徑聚類圖：放在潛勢頁當一個分頁。加分項，失敗不影響其他產品
     try:
-        cluster_path = _process_large_ensemble()
+        cluster_path, le_csv = _process_large_ensemble()
     except Exception as e:
-        print(f"[{WNC2_LE_CONFIG['display']}-ERROR] 路徑聚類圖失敗，略過: {e}")
-        cluster_path = None
+        print(f"[{WNC2_LE_CONFIG['display']}-ERROR] 大系集處理失敗，略過: {e}")
+        cluster_path, le_csv = None, None
     if cluster_path:
         genesis_maps.append((WNC2_LE_CONFIG["display"], cluster_path))
+
+    # 1000 成員侵襲機率圖：每顆颱風一張，掛在該颱風第一個模式的 storm dict 上
+    # （與模式比較圖同樣是「每顆一份」）。加分項，失敗不影響其他產品
+    if le_csv:
+        le_name = WNC2_LE_CONFIG["display"]
+        try:
+            le_tracks, le_init, le_n = load_large_ensemble_tracks(le_csv)
+            for tid in dict.fromkeys(s['track_id'] for s in storms):
+                if tid not in le_tracks:
+                    continue
+                path = plot_strike_probability(
+                    le_tracks[tid], le_init, tid,
+                    os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Strike_Probability.png"),
+                    model_name=le_name, n_members=le_n)
+                if path:
+                    next(s for s in storms if s['track_id'] == tid)['strike_1000_path'] = path
+        except Exception as e:
+            print(f"[{le_name}-STRIKE] 1000 成員侵襲機率圖失敗，略過: {e}")
 
     # 模式比較圖：所有模式跑完才有完整素材，故放在迴圈之後統一產生。
     # 一顆颱風一張，掛在該颱風第一個模式的 storm dict 上，網頁端就能當成
