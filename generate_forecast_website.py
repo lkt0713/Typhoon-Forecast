@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "4.6.0"
+SITE_VERSION = "4.12.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -200,6 +200,108 @@ def _model_tabs(track: str, labels: list[str], extra_cls: str = "") -> str:
         f'data-track="{_esc(track)}" data-model="{_esc(lbl)}">{_esc(lbl)}</button>'
         for i, lbl in enumerate(labels))
     return f'<div class="seg model-tabs {extra_cls}" role="tablist"><span class="seg-ind"></span>{buttons}</div>'
+
+
+# 城市侵襲機率表：台灣城市一律列出，其餘只在任一模式 ≥ 1% 時列出。
+# 色階與 forecast.py 的 STRIKE_LEVELS／STRIKE_COLORS 一致（同一份侵襲機率的配色）。
+CITY_ALWAYS = {'tw_landfall', 'taipei', 'taichung', 'kaohsiung', 'hualien', 'hengchun'}
+CITY_LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+CITY_COLORS = ['#A9D6F5', '#5E9DDB', '#3B6DB3', '#3F9C55', '#9CC64E',
+               '#EFD35A', '#EBA03E', '#D9463A', '#9E2A22', '#C451D3']
+CITY_DARK_TEXT = {0, 4, 5, 6}   # 淺色底用深字，其餘用白字
+
+
+def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, title: str,
+                        items: list[tuple[str, str]], note_key: str, note: str, alt: str) -> str:
+    """一個 panel：上方模式分頁（只有一個時改成標籤）＋每模式一張圖＋說明。
+
+    track_key 要與其他區塊不同，分頁才會獨立切換（多出的 WNC2-1000 分頁不牽動
+    路徑圖與動畫的分頁）。items = [(模式名, 圖檔路徑), ...]。
+    """
+    panels = "".join(f"""
+                <div class="model-panel" data-track="{_esc(track_key)}" data-model="{_esc(lbl)}"{'' if i == 0 else ' style="display:none;"'}>
+                    {_figure(os.path.basename(p), f"{alt} · {lbl}")}
+                </div>""" for i, (lbl, p) in enumerate(items))
+    tabs = (_model_tabs(track_key, [lbl for lbl, _ in items]) if len(items) > 1
+            else f'<div class="model-label">{_esc(items[0][0])}</div>')
+    return f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">{icon}</span>
+                    <span data-i18n="{title_key}">{title}</span>
+                </div>
+                {tabs}
+                {panels}
+                <p class="map-note" data-i18n="{note_key}">{note}</p>
+            </div>"""
+
+
+def _model_images(models: list, key: str, key_1000: str) -> list[tuple[str, str]]:
+    """各模式 storm dict 的 key 圖檔，再加上掛在第一個 dict 的 1000 成員圖（存在者）。"""
+    items = [(m.get('model', 'WNC2-r2'), m.get(key)) for m in models if isinstance(m, dict)]
+    items += [(CLUSTER_LABEL, m.get(key_1000)) for m in models
+              if isinstance(m, dict) and m.get(key_1000)][:1]
+    return [(lbl, p) for lbl, p in items if p and os.path.exists(p)]
+
+
+def _score_table(card: dict, order: list[str]) -> str:
+    """模式路徑誤差表：card = {model: {lead: [km, n]}}（lead 可能是 str，來自 JSON）。"""
+    leads = [24, 48, 72, 96, 120]
+    models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
+    if not models:
+        return ''
+    # 每個時數的最小誤差加粗，一眼看出誰最準
+    best = {}
+    for ld in leads:
+        vals = [card[m].get(ld) or card[m].get(str(ld)) for m in models]
+        vals = [v[0] for v in vals if v]
+        best[ld] = min(vals) if vals else None
+    rows = []
+    for m in models:
+        cells = []
+        for ld in leads:
+            v = card[m].get(ld) or card[m].get(str(ld))
+            if not v:
+                cells.append('<td class="c-nil">—</td>')
+                continue
+            cls = ' class="c-best"' if best[ld] is not None and v[0] == best[ld] else ''
+            cells.append(f'<td{cls}>{v[0]:.0f}<span class="eta">n={v[1]}</span></td>')
+        rows.append(f'<tr><td class="c-name">{_esc(m)}</td>{"".join(cells)}</tr>')
+    head = ''.join(f'<th>{ld} h</th>' for ld in leads)
+    return (f'<div class="city-table-wrap"><table class="city-table score-table">'
+            f'<thead><tr><th data-i18n="score.model">Model</th>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def _city_table(cols: list[tuple[str, dict]]) -> str:
+    """cols = [(模式名, {city: {'p': %, 'eta': iso}}), ...] → 城市侵襲機率表 HTML。"""
+    keys = list(dict.fromkeys(k for _, d in cols for k in d if not k.startswith('_')))
+    rows = []
+    for key in keys:
+        vals = [d.get(key) or {} for _, d in cols]
+        if key not in CITY_ALWAYS and not any((v.get('p') or 0) >= CITY_LEVELS[0] for v in vals):
+            continue
+        cells = []
+        for v in vals:
+            p = v.get('p')
+            if p is None or p < CITY_LEVELS[0]:
+                cells.append('<td class="c-nil">&lt;1%</td>')
+                continue
+            idx = sum(p >= lv for lv in CITY_LEVELS) - 1
+            fg = '#16324F' if idx in CITY_DARK_TEXT else '#fff'
+            eta = v.get('eta') or ''
+            eta_txt = (f'{eta[5:7]}/{eta[8:10]} {eta[11:13]}Z') if eta else ''
+            cells.append(f'<td style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
+                         f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
+        rows.append(f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>')
+    if not rows:
+        return ''
+    # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
+    head = ''.join(f'<th>{_esc(m)}' + (f'<span class="eta">≤{d["_max_h"]} h</span>' if d.get('_max_h') else '')
+                   + '</th>' for m, d in cols)
+    return (f'<div class="city-table-wrap"><table class="city-table">'
+            f'<thead><tr><th data-i18n="cities.city">City</th>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
 
 
 # 線條圖示（導覽列與行動版底部分頁列共用）
@@ -579,7 +681,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             storm_frames_dir = m.get('frames_dir', '')
             if not (storm_frames_dir and os.path.exists(storm_frames_dir)):
                 continue
-            frame_files = sorted([f for f in os.listdir(storm_frames_dir) if f.endswith('.png')])
+            frame_files = sorted([f for f in os.listdir(storm_frames_dir) if f.endswith(('.webp', '.png'))])
             if not frame_files:
                 continue
             key = f"{track_id}-{model_name}"
@@ -672,36 +774,127 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
             </div>"""
 
-        # ── 侵襲機率（每模式一張，另加 1000 成員；分頁用獨立的 data-track，
-        #    多出的 WNC2-1000 分頁不會牽動路徑圖與動畫的分頁）
-        strike_html = ""
-        strike_items = [(m.get('model', 'WNC2-r2'), m.get('strike_map_path'))
-                        for m in models if isinstance(m, dict)]
-        strike_items += [(CLUSTER_LABEL, m.get('strike_1000_path'))
-                         for m in models if isinstance(m, dict) and m.get('strike_1000_path')][:1]
-        strike_items = [(lbl, p) for lbl, p in strike_items if p and os.path.exists(p)]
+        # ── 侵襲機率、強度預報（每模式一張，另加 1000 成員）
+        strike_html = plume_html = ""
+        strike_items = _model_images(models, 'strike_map_path', 'strike_1000_path')
         if strike_items:
-            strike_track = f"{key_prefix}-strike"
             sec_id = f"sec-{key_prefix}-strike"
             sections.append((sec_id, 'sub.strike', 'Strike Prob.'))
-            strike_panels = "".join(f"""
-                <div class="model-panel" data-track="{strike_track}" data-model="{_esc(lbl)}"{'' if i == 0 else ' style="display:none;"'}>
-                    {_figure(os.path.basename(p), f"{track_id} {lbl} Strike Probability")}
-                </div>""" for i, (lbl, p) in enumerate(strike_items))
-            strike_tabs = (_model_tabs(strike_track, [lbl for lbl, _ in strike_items])
-                           if len(strike_items) > 1 else
-                           f'<div class="model-label">{_esc(strike_items[0][0])}</div>')
-            strike_html = f"""
+            strike_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-strike", '🎯', 'panel.strike', 'Strike Probability',
+                strike_items, 'note.strike',
+                'Share of ensemble members whose track passes within 1° (~111 km) of each 0.1° grid point '
+                'at any time in the forecast &nbsp;·&nbsp; Intensity is not considered',
+                f"{track_id} Strike Probability")
+        extra_html = ""
+        extra_items = next((m['strike_1000_extra'] for m in models
+                            if isinstance(m, dict) and m.get('strike_1000_extra')), [])
+        extra_items = [(lbl, p) for lbl, p in extra_items if p and os.path.exists(p)]
+        if extra_items:
+            sec_id = f"sec-{key_prefix}-strikex"
+            sections.append((sec_id, 'sub.strikex', 'By Period'))
+            extra_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-strikex", '⏱', 'panel.strikex',
+                f'{CLUSTER_LABEL} Strike Probability by Period &amp; 34-kt Wind',
+                extra_items, 'note.strikex',
+                'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the '
+                'forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
+                f"{track_id} {CLUSTER_LABEL} Strike Probability")
+        score_html = ""
+        _card_m = next((m for m in models if isinstance(m, dict) and 'scorecard' in m), None)
+        if _card_m is not None:
+            sec_id = f"sec-{key_prefix}-score"
+            sections.append((sec_id, 'sub.score', 'Verification'))
+            order = [m.get('model') for m in models if isinstance(m, dict)] + ['JTWC']
+            t_storm = _score_table(_card_m.get('scorecard') or {}, order)
+            t_all = _score_table(_card_m.get('scorecard_all') or {}, order)
+            body = (t_storm or '<p class="map-note" data-i18n="score.pending">Collecting data — the first '
+                    'errors appear once this storm has been tracked for 24 hours after a forecast.</p>')
+            if t_all:
+                body += f'<h4 class="score-sub" data-i18n="score.all">All storms (last 90 days)</h4>{t_all}'
+            score_html = f"""
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
-                    <span class="panel-icon">🎯</span>
-                    <span data-i18n="panel.strike">Strike Probability</span>
+                    <span class="panel-icon">🏁</span>
+                    <span data-i18n="panel.score">Track Error by Model</span>
                 </div>
-                {strike_tabs}
-                {strike_panels}
-                <p class="map-note" data-i18n="note.strike">
-                    Share of ensemble members whose track passes within 1° (~111 km) of each 0.1° grid point
-                    at any time in the forecast &nbsp;·&nbsp; Intensity is not considered
+                {body}
+                <p class="map-note" data-i18n="note.score">
+                    Mean distance (km) between each model's forecast position (ensemble mean; JTWC = official forecast)
+                    and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified
+                    &nbsp;·&nbsp; Bold = smallest error
+                </p>
+            </div>"""
+
+        tmap_html = ""
+        _tj = next((m.get('tracks_json') for m in models
+                    if isinstance(m, dict) and m.get('tracks_json')), '')
+        if _tj and os.path.exists(_tj):
+            sec_id = f"sec-{key_prefix}-tmap"
+            sections.append((sec_id, 'sub.tmap', 'Map'))
+            tmap_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🧭</span>
+                    <span data-i18n="panel.tmap">Interactive Track Map</span>
+                </div>
+                <div class="track-map" data-src="{_esc(os.path.basename(_tj))}">
+                    <div class="tm-controls">
+                        <select class="tm-model" aria-label="Model"></select>
+                        <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
+                        <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
+                    </div>
+                    <div class="tm-map"></div>
+                </div>
+                <p class="map-note" data-i18n="note.tmap">
+                    Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
+                    Member colors = intensity
+                </p>
+            </div>"""
+
+        trend_html = ""
+        trend_items = _model_images(models, 'trend_path', '_none_')
+        if trend_items:
+            sec_id = f"sec-{key_prefix}-trend"
+            sections.append((sec_id, 'sub.trend', 'Trend'))
+            trend_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-trend", '🧭', 'panel.trend', 'Track Trend',
+                trend_items, 'note.trend',
+                'Ensemble mean tracks from recent cycles, older = lighter &nbsp;·&nbsp; '
+                'Shows which way successive forecasts are shifting',
+                f"{track_id} Track Trend")
+        plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
+        if plume_items:
+            sec_id = f"sec-{key_prefix}-plume"
+            sections.append((sec_id, 'sub.plume', 'Intensity'))
+            plume_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
+                plume_items, 'note.plume',
+                'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
+                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h',
+                f"{track_id} Intensity Forecast")
+
+        # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
+        cities_html = ""
+        city_cols = [(m.get('model', 'WNC2-r2'), m['city_strike'])
+                     for m in models if isinstance(m, dict) and m.get('city_strike')]
+        city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
+                      for m in models if isinstance(m, dict) and m.get('city_strike_1000')][:1]
+        table = _city_table(city_cols) if city_cols else ''
+        if table:
+            sec_id = f"sec-{key_prefix}-cities"
+            sections.append((sec_id, 'sub.cities', 'Cities'))
+            cities_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">📍</span>
+                    <span data-i18n="panel.cities">City Strike Probability</span>
+                </div>
+                {table}
+                <p class="map-note" data-i18n="note.cities">
+                    Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp;
+                    Time below = median first arrival among those members (UTC) &nbsp;·&nbsp;
+                    Taiwan cities always shown; others only when any model reaches 1%
                 </p>
             </div>"""
 
@@ -732,7 +925,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             {cmp_html}
             {anim_html}
             {maps_html}
+            {tmap_html}
             {strike_html}
+            {extra_html}
+            {cities_html}
+            {trend_html}
+            {plume_html}
+            {score_html}
         </div>
     </section>""")
 
@@ -1508,6 +1707,22 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .panel-icon { width: 32px; height: 32px; border-radius: 9px; display:inline-flex; align-items:center; justify-content:center; background: var(--surface-2); border:1px solid var(--border); font-size: .95em; }
 .panel-aside { margin-left:auto; }
 .maps-grid { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+.city-table-wrap { overflow-x: auto; margin-bottom: 6px; }
+.city-table { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: .86em; font-variant-numeric: tabular-nums; }
+.city-table th { color: var(--text-2); font-weight: 750; padding: 6px 8px; text-align: center; white-space: nowrap; }
+.city-table td { padding: 6px 8px; text-align: center; border-radius: 7px; white-space: nowrap; font-weight: 750; }
+.city-table th:first-child, .city-table td.c-name { text-align: left; }
+.city-table td.c-name { color: var(--text); background: none; }
+.city-table td.c-nil { color: var(--text-2); background: var(--surface-2); font-weight: 500; }
+.track-map .tm-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; font-size: .88em; color: var(--text-2); }
+.track-map select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font: inherit; font-weight: 700; }
+.track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
+.score-table td { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.score-table td.c-best { background: var(--accent-lo); color: var(--accent); font-weight: 800; }
+.score-sub { margin: 16px 0 6px; font-size: .9em; color: var(--text-2); }
+.city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
+.city-table td .eta { display: block; font-size: .78em; font-weight: 500; opacity: .85; }
 .model-label { display:inline-block; font-weight: 800; font-size:.82em; padding: 6px 12px; border-radius: 8px; background: var(--accent-lo); color: var(--accent); margin-bottom: 14px; }
 
 /* 模式分頁：滑動的底色指示塊 */
@@ -2300,6 +2515,44 @@ const I18N = {
     'sub.strike':       'Strike Prob.',
     'panel.strike':     'Strike Probability',
     'note.strike':      'Share of ensemble members whose track passes within 1° (~111 km) of each 0.1° grid point at any time in the forecast &nbsp;·&nbsp; Intensity is not considered',
+    'sub.tmap':         'Map',
+    'panel.tmap':       'Interactive Track Map',
+    'tmap.members':     'Members',
+    'tmap.mean':        'Mean',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity',
+    'sub.score':        'Verification',
+    'panel.score':      'Track Error by Model',
+    'score.model':      'Model',
+    'score.all':        'All storms (last 90 days)',
+    'score.pending':    'Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.',
+    'note.score':       'Mean distance (km) between each model\'s forecast position (ensemble mean; JTWC = official forecast) and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified &nbsp;·&nbsp; Bold = smallest error',
+    'sub.strikex':      'By Period',
+    'panel.strikex':    'WNC2-1000 Strike Probability by Period &amp; 34-kt Wind',
+    'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
+    'city.tw_landfall': 'Taiwan landfall',
+    'sub.trend':        'Trend',
+    'panel.trend':      'Track Trend',
+    'note.trend':       'Ensemble mean tracks from recent cycles, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts are shifting',
+    'sub.plume':        'Intensity',
+    'panel.plume':      'Intensity Forecast',
+    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h',
+    'sub.cities':     'Cities',
+    'panel.cities':   'City Strike Probability',
+    'cities.city':    'City',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; ≤ N h under a model = its forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1%',
+    'city.taipei':       'Taipei',
+    'city.taichung':     'Taichung',
+    'city.kaohsiung':    'Kaohsiung',
+    'city.hualien':      'Hualien',
+    'city.hengchun':     'Hengchun',
+    'city.naha':         'Naha',
+    'city.manila':       'Manila',
+    'city.hongkong':     'Hong Kong',
+    'city.xiamen':       'Xiamen',
+    'city.shanghai':     'Shanghai',
+    'city.seoul':        'Seoul',
+    'city.tokyo':        'Tokyo',
+    'city.guam':         'Guam',
     'panel.comparison': 'Multi-Model Comparison',
     'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
     'zoom.hint':        '🔍 Click to enlarge',
@@ -2406,6 +2659,44 @@ const I18N = {
     'sub.strike':       '侵襲機率',
     'panel.strike':     '侵襲機率',
     'note.strike':      '各 0.1° 格點：預報期間內路徑曾通過其 1°（約 111 公里）以內的系集成員比例 &nbsp;·&nbsp; 不考慮強度',
+    'sub.tmap':         '互動地圖',
+    'panel.tmap':       '互動式路徑地圖',
+    'tmap.members':     '成員',
+    'tmap.mean':        '平均',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度',
+    'sub.score':        '成績',
+    'panel.score':      '模式路徑誤差',
+    'score.model':      '模式',
+    'score.all':        '所有颱風合計（近 90 天）',
+    'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
+    'note.score':       '各模式預報位置（系集平均；JTWC＝官方預報）與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; n＝已校驗的預報數 &nbsp;·&nbsp; 粗體＝誤差最小',
+    'sub.strikex':      '分時段',
+    'panel.strikex':    'WNC2-1000 分時段侵襲機率與七級風機率',
+    'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
+    'city.tw_landfall': '登陸台灣',
+    'sub.trend':        '趨勢',
+    'panel.trend':      '預報趨勢',
+    'note.trend':       '最近幾期的系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看連續幾報的預報往哪個方向修正',
+    'sub.plume':        '強度',
+    'panel.plume':      '強度預報',
+    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt',
+    'sub.cities':     '城市',
+    'panel.cities':   '城市侵襲機率',
+    'cities.city':    '城市',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 台灣城市一律列出，其他城市任一模式達 1% 才列出',
+    'city.taipei':       '台北',
+    'city.taichung':     '台中',
+    'city.kaohsiung':    '高雄',
+    'city.hualien':      '花蓮',
+    'city.hengchun':     '恆春',
+    'city.naha':         '那霸',
+    'city.manila':       '馬尼拉',
+    'city.hongkong':     '香港',
+    'city.xiamen':       '廈門',
+    'city.shanghai':     '上海',
+    'city.seoul':        '首爾',
+    'city.tokyo':        '東京',
+    'city.guam':         '關島',
     'panel.comparison': '多模式比較',
     'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
     'zoom.hint':        '🔍 點擊放大',
@@ -2733,6 +3024,101 @@ function staggerReveals() {
         groups.set(p, n + 1);
     });
 }
+
+// ── 互動式路徑地圖（Leaflet；捲到才載入函式庫與資料）──────────────
+const TM_COLORS = {TD:'#8A97A6', TS:'#2E86C8', Cat1:'#1FA97E', Cat2:'#E0AC2B', Cat3:'#EE7A22', Cat4:'#DC3A4E', Cat5:'#A548C8'};
+function tmCat(kt) {
+    if (kt == null) return 'TD';
+    return kt < 35 ? 'TD' : kt < 64 ? 'TS' : kt < 83 ? 'Cat1' : kt < 96 ? 'Cat2' : kt < 113 ? 'Cat3' : kt < 137 ? 'Cat4' : 'Cat5';
+}
+let leafletP = null;
+function loadLeaflet() {
+    if (leafletP) return leafletP;
+    leafletP = new Promise((res, rej) => {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+        const js = document.createElement('script');
+        js.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+        js.onload = () => res(window.L);
+        js.onerror = rej;
+        document.head.appendChild(js);
+    });
+    return leafletP;
+}
+function tmTiles(L) {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`,
+        {attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 10});
+}
+async function initTrackMap(box) {
+    if (box.dataset.ready) return;
+    box.dataset.ready = '1';
+    const el = box.querySelector('.tm-map');
+    try {
+        const [L, data] = await Promise.all([loadLeaflet(), fetch(box.dataset.src).then(r => r.json())]);
+        const map = L.map(el, {preferCanvas: true}).setView([20, 130], 4);
+        let tiles = tmTiles(L).addTo(map);
+        // 切換深淺主題時換底圖
+        new MutationObserver(() => { map.removeLayer(tiles); tiles = tmTiles(L).addTo(map); })
+            .observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+        const layer = L.layerGroup().addTo(map);
+        const sel = box.querySelector('.tm-model');
+        const showM = box.querySelector('.tm-members');
+        const showA = box.querySelector('.tm-mean');
+        Object.keys(data.models).forEach(m => sel.add(new Option(m, m)));
+        const pad = n => String(n).padStart(2, '0');
+        const fmt = (m, h) => {
+            const d = new Date(new Date(data.inits[m] || data.init).getTime() + h * 3600e3);
+            return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
+        };
+        // 經度展開：跨換日線時不會連到地球另一邊
+        const unwrap = pts => {
+            let prev = null;
+            return pts.map(p => {
+                let lon = p[1];
+                if (prev != null) { while (lon - prev > 180) lon -= 360; while (lon - prev < -180) lon += 360; }
+                prev = lon;
+                return [p[0], lon, p[2], p[3]];
+            });
+        };
+        function draw(fit) {
+            layer.clearLayers();
+            const m = sel.value, d = data.models[m], bounds = [];
+            if (showM.checked) d.members.forEach((raw, i) => {
+                const pts = unwrap(raw);
+                for (let k = 0; k < pts.length - 1; k++) {
+                    const a = pts[k], b = pts[k + 1];
+                    L.polyline([[a[0], a[1]], [b[0], b[1]]], {color: TM_COLORS[tmCat(a[2])], weight: 1.6, opacity: .75})
+                        .bindTooltip(`#${i + 1} · ${fmt(m, a[3])} · ${a[2] ?? '–'} kt`, {sticky: true}).addTo(layer);
+                }
+                pts.forEach(p => bounds.push([p[0], p[1]]));
+            });
+            if (showA.checked && d.mean.length) {
+                const pts = unwrap(d.mean), ll = pts.map(p => [p[0], p[1]]);
+                L.polyline(ll, {color: '#fff', weight: 7, opacity: .85}).addTo(layer);
+                L.polyline(ll, {color: '#16324F', weight: 4}).addTo(layer);
+                pts.filter(p => p[3] % 24 === 0).forEach(p =>
+                    L.circleMarker([p[0], p[1]], {radius: 5, color: '#16324F', weight: 2, fillColor: '#fff', fillOpacity: 1})
+                        .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
+                ll.forEach(p => bounds.push(p));
+            }
+            if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
+        }
+        sel.onchange = () => draw(true);
+        showM.onchange = () => draw(false);
+        showA.onchange = () => draw(false);
+        draw(true);
+    } catch (e) {
+        el.textContent = 'Map failed to load';
+        console.log('[trackmap]', e);
+    }
+}
+const tmIO = ('IntersectionObserver' in window) ? new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { tmIO.unobserve(e.target); initTrackMap(e.target); }
+}), {rootMargin: '200px'}) : null;
+document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : initTrackMap(b));
 
 const revealIO = ('IntersectionObserver' in window) ? new IntersectionObserver(entries => {
     for (const e of entries) {

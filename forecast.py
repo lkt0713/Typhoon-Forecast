@@ -9,6 +9,7 @@ import matplotlib # type: ignore
 matplotlib.use("Agg")  # 排程環境無顯示器，避免載入 GUI 後端
 import matplotlib.pyplot as plt # type: ignore
 import matplotlib.lines as mlines # type: ignore
+import matplotlib.patches as mpatches # type: ignore
 import matplotlib.patheffects as mpe # type: ignore
 from matplotlib.legend_handler import HandlerTuple # type: ignore
 from matplotlib.legend import Legend # type: ignore
@@ -700,6 +701,7 @@ FIG_DPI = 300
 # 潛勢總覽／路徑聚類圖與動畫幀的輸出解析度（幀數多，比 FIG_DPI 低一些以控制 docs 大小）
 OVERVIEW_DPI = 300
 FRAME_DPI = 220
+FRAME_WEBP_QUALITY = 82
 
 # 目標颱風 Track ID — 從最新 CSV 自動偵測，無需手動修改
 TARGET_TRACK_IDS = _auto_detect_track_ids(MEAN_DIR)
@@ -1197,47 +1199,16 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                         f"Valid {time_str}\nInit {init_str}",
                         main_size=12.5, right_size=8)
         plt.tight_layout(pad=0.6)
-        frame_path = os.path.join(output_dir, f"frame_{frame_idx:04d}.png")
-        plt.savefig(frame_path, dpi=FRAME_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+        # 幀存 WebP：網頁播放器逐張載入，PNG 一幀 300–800 KB，WebP 約小 3–5 倍、肉眼看不出差別
+        frame_path = os.path.join(output_dir, f"frame_{frame_idx:04d}.webp")
+        plt.savefig(frame_path, dpi=FRAME_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12,
+                    pil_kwargs={'quality': FRAME_WEBP_QUALITY, 'method': 6})
         frame_paths.append(frame_path)
         plt.close(fig)
 
         print(f"[FRAME] 已生成第 {frame_idx + 1}/{len(all_times)} 幀")
 
     return frame_paths
-
-
-def create_gif_from_frames(frame_paths: list[str], gif_path: str, duration_ms: int = 180, loop: int = 0) -> str:
-    """將幀序列輸出為 GIF 動圖。"""
-    if not frame_paths:
-        print("[GIF] 無可用幀，略過 GIF 生成")
-        return None
-    if not HAS_PIL:
-        print("[GIF] 未安裝 Pillow，略過 GIF 生成")
-        return None
-
-    sorted_paths = sorted(frame_paths)
-    images = []
-    try:
-        for p in sorted_paths:
-            with Image.open(p) as im:
-                images.append(im.convert("P", palette=Image.ADAPTIVE).copy())
-
-        first, rest = images[0], images[1:]
-        first.save(
-            gif_path,
-            save_all=True,
-            append_images=rest,
-            duration=duration_ms,
-            loop=loop,
-            optimize=False,
-            disposal=2,
-        )
-        print(f"[GIF] 已輸出動圖：{gif_path}")
-        return gif_path
-    except Exception as e:
-        print(f"[GIF] 生成失敗: {e}")
-        return None
 
 
 def _compute_cone_stop_fh(df: pd.DataFrame, init_time: pd.Timestamp, max_fh: float = None) -> float | None:
@@ -1340,7 +1311,25 @@ STRIKE_OVER = '#C451D3'    # > 90 %
 STRIKE_FIG_AR = 1.25
 
 
-def compute_strike_probability(tracks: list, extent: tuple):
+def _densify_track(lons, lats, hours=None, step: float = STRIKE_RES / 2):
+    """把路徑加密到每步 < step 度；有 hours 時一併線性內插時間。NaN 點先剔除。"""
+    lons = np.asarray(lons, dtype=float)
+    lats = np.asarray(lats, dtype=float)
+    ok = ~(np.isnan(lons) | np.isnan(lats))
+    hrs = None if hours is None else np.asarray(hours, dtype=float)[ok]
+    lons, lats = lons[ok], lats[ok]
+    if lons.size < 2:
+        return lons, lats, hrs
+    seg = np.hypot(np.diff(lons), np.diff(lats))
+    n = np.maximum(1, np.ceil(seg / step).astype(int))
+
+    def _fill(v):
+        return np.concatenate([np.linspace(v[i], v[i + 1], n[i], endpoint=False)
+                               for i in range(len(n))] + [v[-1:]])
+    return _fill(lons), _fill(lats), (None if hrs is None else _fill(hrs))
+
+
+def compute_strike_probability(tracks: list, extent: tuple, n_total: int | None = None):
     """tracks 為 [(lons, lats), ...]（經度須已依 use_360 正規化），回傳 (glon, glat, prob%)。
 
     每條路徑先加密到每步 < 半格，在成員自己的外框內做距離轉換（≤ 半徑格數即命中），
@@ -1354,22 +1343,10 @@ def compute_strike_probability(tracks: list, extent: tuple):
     nx = int(round((lon1 - lon0) / STRIKE_RES)) + 1 + 2 * r
     ny = int(round((lat1 - lat0) / STRIKE_RES)) + 1 + 2 * r
     count = np.zeros((ny, nx), dtype=np.int32)
-    for lons, lats in tracks:
-        lons = np.asarray(lons, dtype=float)
-        lats = np.asarray(lats, dtype=float)
-        ok = ~(np.isnan(lons) | np.isnan(lats))
-        lons, lats = lons[ok], lats[ok]
-        if lons.size == 0:
+    for lons, lats, *_ in tracks:
+        xs, ys, _ = _densify_track(lons, lats)
+        if xs.size == 0:
             continue
-        if lons.size > 1:
-            seg = np.hypot(np.diff(lons), np.diff(lats))
-            n = np.maximum(1, np.ceil(seg / (STRIKE_RES / 2)).astype(int))
-            xs = np.concatenate([np.linspace(lons[i], lons[i + 1], n[i], endpoint=False)
-                                 for i in range(len(n))] + [lons[-1:]])
-            ys = np.concatenate([np.linspace(lats[i], lats[i + 1], n[i], endpoint=False)
-                                 for i in range(len(n))] + [lats[-1:]])
-        else:
-            xs, ys = lons, lats
         ix = np.round((xs - gx0) / STRIKE_RES).astype(int)
         iy = np.round((ys - gy0) / STRIKE_RES).astype(int)
         inside = (ix >= 0) & (ix < nx) & (iy >= 0) & (iy < ny)
@@ -1381,25 +1358,119 @@ def compute_strike_probability(tracks: list, extent: tuple):
         mask = np.ones((y1 - y0, x1 - x0), dtype=bool)
         mask[iy - y0, ix - x0] = False
         count[y0:y1, x0:x1] += distance_transform_edt(mask) <= r
-    prob = count[r:-r, r:-r] * 100.0 / max(len(tracks), 1)
+    prob = count[r:-r, r:-r] * 100.0 / max(n_total or len(tracks), 1)
     glon = lon0 + np.arange(prob.shape[1]) * STRIKE_RES
     glat = lat0 + np.arange(prob.shape[0]) * STRIKE_RES
     return glon, glat, prob
 
 
+# 分時段侵襲機率的時段（h）；None 表示到預報結束
+STRIKE_WINDOWS = [(0, 72), (72, 120), (120, None)]
+WIND34_COLS = ['radius_34_knot_winds_ne_km', 'radius_34_knot_winds_se_km',
+               'radius_34_knot_winds_sw_km', 'radius_34_knot_winds_nw_km']
+
+
+def window_tracks(tracks: list, t0: float, t1: float | None) -> list:
+    """只留 [t0, t1) 時段內的路徑片段（先加密再切，切點落在時段邊界附近）。"""
+    out = []
+    for x, y, h in tracks:
+        xs, ys, hs = _densify_track(x, y, h)
+        if xs.size == 0:
+            out.append((xs, ys))
+            continue
+        m = (hs >= t0) & ((hs < t1) if t1 is not None else True)
+        out.append((xs[m], ys[m]))
+    return out
+
+
+def compute_wind34_probability(members: list, extent: tuple, n_total: int) -> tuple:
+    """34 kt 暴風圈侵襲機率：格點曾落在成員 34 kt 暴風半徑（四象限）內的成員比例。
+
+    members = [(lons, lats, hours, r_ne, r_se, r_sw, r_nw), ...]，半徑單位 km、NaN／0
+    表示未達 34 kt。每 3 h 內插一點，每點只在半徑涵蓋的小窗內計算，1000 成員也跑得動。
+    """
+    lon0, lon1, lat0, lat1 = extent
+    nx = int(round((lon1 - lon0) / STRIKE_RES)) + 1
+    ny = int(round((lat1 - lat0) / STRIKE_RES)) + 1
+    glon = lon0 + np.arange(nx) * STRIKE_RES
+    glat = lat0 + np.arange(ny) * STRIKE_RES
+    count = np.zeros((ny, nx), dtype=np.int32)
+    for x, y, h, *radii in members:
+        x = np.asarray(x, dtype=float)
+        h = np.asarray(h, dtype=float)
+        ok = ~(np.isnan(x) | np.isnan(np.asarray(y, dtype=float)) | np.isnan(h))
+        if ok.sum() < 1:
+            continue
+        hh = np.arange(h[ok][0], h[ok][-1] + 1e-6, 3.0)
+        xi = np.interp(hh, h[ok], x[ok])
+        yi = np.interp(hh, h[ok], np.asarray(y, dtype=float)[ok])
+        ri = [np.interp(hh, h[ok], np.nan_to_num(np.asarray(r, dtype=float)[ok], nan=0.0))
+              for r in radii]
+        hit = np.zeros((ny, nx), dtype=bool)
+        for k in range(hh.size):
+            rmax = max(r[k] for r in ri)
+            if rmax <= 0:
+                continue
+            coslat = max(np.cos(np.radians(yi[k])), 0.2)
+            dlon = rmax / (111.0 * coslat)
+            dlat = rmax / 111.0
+            ix0 = max(int((xi[k] - dlon - lon0) / STRIKE_RES), 0)
+            ix1 = min(int((xi[k] + dlon - lon0) / STRIKE_RES) + 2, nx)
+            iy0 = max(int((yi[k] - dlat - lat0) / STRIKE_RES), 0)
+            iy1 = min(int((yi[k] + dlat - lat0) / STRIKE_RES) + 2, ny)
+            if ix0 >= ix1 or iy0 >= iy1:
+                continue
+            dx = (glon[ix0:ix1][None, :] - xi[k]) * 111.0 * coslat
+            dy = (glat[iy0:iy1][:, None] - yi[k]) * 111.0
+            # 象限：NE(dx≥0,dy≥0)、SE(dx≥0,dy<0)、SW(dx<0,dy<0)、NW(dx<0,dy≥0)
+            r = np.where(dx >= 0, np.where(dy >= 0, ri[0][k], ri[1][k]),
+                         np.where(dy < 0, ri[2][k], ri[3][k]))
+            hit[iy0:iy1, ix0:ix1] |= np.hypot(dx, dy) <= r
+        count += hit
+    return glon, glat, count * 100.0 / max(n_total, 1)
+
+
+def load_large_ensemble_radii(csv_path: str, track_id: str) -> list:
+    """1000 成員某颱風的 34 kt 暴風半徑序列：[(lon360, lat, hours, r_ne, r_se, r_sw, r_nw), ...]。"""
+    df = pd.read_csv(csv_path, comment='#').dropna(subset=['lat', 'lon', 'lead_time_hours'])
+    if not all(c in df.columns for c in WIND34_COLS):
+        return []
+    df['track_id'] = df['track_id'].astype(str)
+    df['lon360'] = df['lon'] % 360.0
+    df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
+    _relink_lost_tracks(df, [t for t in df['track_id'].unique() if not t.isdigit()])
+    g = df[df['track_id'] == track_id].sort_values(['sample', 'lead_time_hours'])
+    return [(t['lon360'].to_numpy(), t['lat'].to_numpy(), t['lead_time_hours'].to_numpy(),
+             *(t[c].to_numpy() for c in WIND34_COLS)) for _, t in g.groupby('sample')]
+
+
 def plot_strike_probability(tracks: list, init_time, track_id: str, save_path: str,
-                            model_name: str, n_members: int | None = None) -> str | None:
-    """畫侵襲機率圖。tracks 為 [(lons, lats), ...]（原始經度即可）；回傳存檔路徑或 None。"""
+                            model_name: str, n_members: int | None = None,
+                            title: str = 'Strike Probability', subtitle: str | None = None,
+                            field=None, extent_tracks: list | None = None) -> str | None:
+    """畫侵襲機率圖。tracks 為 [(lons, lats[, lead_hours]), ...]（原始經度即可）；回傳存檔路徑或 None。"""
     if not HAS_CARTOPY or not tracks:
         return None
-    all_lon = np.concatenate([np.asarray(x, dtype=float) for x, _ in tracks])
-    all_lat = np.concatenate([np.asarray(y, dtype=float) for _, y in tracks])
+    # 範圍依 extent_tracks（預設 tracks）決定；分時段圖用完整路徑定範圍，三張才對得齊
+    ext_src = extent_tracks or tracks
+    all_lon = np.concatenate([np.asarray(t[0], dtype=float) for t in ext_src if len(t[0])])
+    all_lat = np.concatenate([np.asarray(t[1], dtype=float) for t in ext_src if len(t[1])])
     big, use_360 = _auto_extent(all_lat, all_lon, pad_deg=2)
     big = tuple(float(np.round(v, 1)) for v in big)
-    tracks = [(_normalize_lon_values(x, use_360=use_360), np.asarray(y, dtype=float))
-              for x, y in tracks]
-    glon, glat, prob = compute_strike_probability(tracks, big)
-    iy, ix = np.nonzero(prob >= STRIKE_LEVELS[0])
+    tracks = [(_normalize_lon_values(t[0], use_360=use_360), np.asarray(t[1], dtype=float))
+              for t in tracks]
+    if field is not None:
+        glon, glat, prob = field(big, use_360)
+    else:
+        glon, glat, prob = compute_strike_probability(tracks, big, n_total=n_members)
+    # 顯示範圍用完整路徑的侵襲範圍，分時段、暴風圈各圖才會對齊
+    if extent_tracks is not None:
+        _, _, ref = compute_strike_probability(
+            [(_normalize_lon_values(t[0], use_360=use_360), t[1]) for t in extent_tracks],
+            big, n_total=n_members)
+        iy, ix = np.nonzero(ref >= STRIKE_LEVELS[0])
+    else:
+        iy, ix = np.nonzero(prob >= STRIKE_LEVELS[0])
     if iy.size == 0:
         return None
     # 顯示範圍＝機率 ≥1% 區域外擴 4°：零星跑到高緯的成員不會把地圖撐大
@@ -1419,23 +1490,25 @@ def plot_strike_probability(tracks: list, init_time, track_id: str, save_path: s
                      norm=BoundaryNorm(STRIKE_LEVELS, cmap.N), extend='max',
                      zorder=0.5, alpha=0.72, **kw)
     # 初始位置取各成員起點的中位數
-    starts = np.array([(x[0], y[0]) for x, y in tracks if len(x)])
+    starts = np.array([(x[0], y[0]) for x, y in tracks if len(x)]) if extent_tracks is None else \
+        np.array([(_normalize_lon_values([t[0][0]], use_360=use_360)[0], t[1][0])
+                  for t in extent_tracks if len(t[0])])
     _draw_init_marker(ax, float(np.median(starts[:, 0])), float(np.median(starts[:, 1])),
                       kw, scale=0.9)
 
     cb = fig.colorbar(cf, ax=ax, orientation='horizontal', pad=0.06, fraction=0.045,
                       aspect=40, shrink=0.8, ticks=[1, 20, 40, 60, 80, 90])
-    cb.set_label('Strike probability (%)', color=TEXT_MUTED, fontsize=9)
+    cb.set_label(f"{title.split('  ')[0]} (%)", color=TEXT_MUTED, fontsize=9)
     cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
     cb.outline.set_edgecolor(BOX_EDGE)
 
     n = n_members if n_members is not None else len(tracks)
     init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
     # 主標題＋灰色副標，兩行都靠左；副標貼在軸框正上方，主標題用 pad 讓出一行
-    ax.set_title(f"{model_name}  ·  {track_id}  Strike Probability", loc='left',
+    ax.set_title(f"{model_name}  ·  {track_id}  {title}", loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, f"Init {init_str}  ·  {n} members  ·  "
-            f"{STRIKE_RADIUS_DEG:g}° track buffer  ·  {STRIKE_RES:g}° grid",
+    ax.text(0, 1.012, f"Init {init_str}  ·  {n} members  ·  " + (subtitle or
+            f"{STRIKE_RADIUS_DEG:g}° track buffer  ·  {STRIKE_RES:g}° grid"),
             transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
@@ -1444,14 +1517,103 @@ def plot_strike_probability(tracks: list, init_time, track_id: str, save_path: s
     return save_path
 
 
-def _member_tracks(df: pd.DataFrame) -> list:
-    """paired 系集 DataFrame → [(lons, lats), ...]，每個成員一條、依時間排序。"""
-    return [(g['lon'].to_numpy(), g['lat'].to_numpy())
-            for _, g in df.sort_values('valid_time').groupby('sample')]
+# 城市侵襲機率表的城市：(key, 緯度, 經度, 是否一律列出)。台灣城市一律列出，
+# 其餘只在任一模式 ≥ 1% 時列出（由網頁端判斷）。中英文名稱在網頁的 i18n 表。
+STRIKE_CITIES = [
+    ('taipei', 25.04, 121.56, True), ('taichung', 24.15, 120.67, True),
+    ('kaohsiung', 22.62, 120.30, True), ('hualien', 23.98, 121.60, True),
+    ('hengchun', 22.00, 120.74, True),
+    ('naha', 26.21, 127.68, False), ('manila', 14.60, 120.98, False),
+    ('hongkong', 22.30, 114.17, False), ('xiamen', 24.48, 118.09, False),
+    ('shanghai', 31.23, 121.47, False), ('seoul', 37.57, 126.98, False),
+    ('tokyo', 35.68, 139.69, False), ('guam', 13.44, 144.79, False),
+]
 
 
-def load_large_ensemble_tracks(csv_path: str) -> tuple[dict, pd.Timestamp, int]:
-    """讀 1000 成員 cyclogenesis CSV，回傳 ({track_id: [(lons, lats), ...]}, init_time, 成員總數)。
+# 台灣本島簡化輪廓（經度, 緯度），給「登陸台灣」判斷用。只求不漏不多算到
+# 幾十公里的精度；離島（澎湖、金馬、蘭嶼）不算本島登陸。
+TAIWAN_OUTLINE = [
+    (121.54, 25.30), (121.93, 25.02), (121.87, 24.60), (121.60, 24.00), (121.50, 23.50),
+    (121.15, 22.75), (120.89, 22.30), (120.85, 21.90), (120.70, 21.95), (120.62, 22.30),
+    (120.28, 22.55), (120.10, 23.00), (120.10, 23.40), (120.20, 23.80), (120.40, 24.30),
+    (120.75, 24.75), (121.00, 25.05), (121.40, 25.20),
+]
+
+
+def taiwan_landfall_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
+    """路徑中心進入台灣本島的成員比例與首次登陸時間中位數（格式同 city_strike_stats）。"""
+    from matplotlib.path import Path as _MplPath  # type: ignore
+    poly = _MplPath(TAIWAN_OUTLINE)
+    first = []
+    for x, y, h in tracks:
+        xs, ys, hs = _densify_track(np.asarray(x, dtype=float) % 360.0, y, h)
+        if xs.size == 0:
+            continue
+        inside = poly.contains_points(np.column_stack([xs, ys]))
+        if inside.any():
+            first.append(float(hs[np.argmax(inside)]))
+    p = len(first) * 100.0 / max(n_total or len(tracks), 1)
+    eta = None
+    if first:
+        eta = (pd.to_datetime(init_time) + pd.to_timedelta(float(np.median(first)), unit='h')
+               ).strftime('%Y-%m-%dT%H:%MZ')
+    return {'p': round(p, 1), 'eta': eta}
+
+
+def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
+    """各城市的侵襲機率與預估影響時間。
+
+    tracks 為 [(lons, lats, lead_hours), ...]。侵襲的定義與侵襲機率圖相同（路徑通過
+    城市 STRIKE_RADIUS_DEG 內）；影響時間取各侵襲成員「第一次進入範圍」時間的中位數。
+    n_total 為分母（預設 len(tracks)）；大系集裡沒有這顆颱風的成員也要算進去。
+    回傳 {key: {'p': 百分比, 'eta': 'YYYY-MM-DDTHH:MMZ' 或 None}}。
+    """
+    init = pd.to_datetime(init_time)
+    dense = [_densify_track(x, y, h) for x, y, h in tracks]
+    # 第一列放「登陸台灣」（網頁依 dict 順序排列）
+    out = {'tw_landfall': taiwan_landfall_stats(tracks, init_time, n_total=n_total)}
+    for key, clat, clon, _ in STRIKE_CITIES:
+        first = []
+        for xs, ys, hs in dense:
+            if xs.size == 0:
+                continue
+            # 經度差折回 ±180，跨換日線或 0–360／±180 混用都算得對
+            dx = (xs - clon + 180.0) % 360.0 - 180.0
+            hit = np.hypot(dx, ys - clat) <= STRIKE_RADIUS_DEG
+            if hit.any():
+                first.append(float(hs[np.argmax(hit)]))
+        p = len(first) * 100.0 / max(n_total or len(tracks), 1)
+        eta = None
+        if first:
+            eta = (init + pd.to_timedelta(float(np.median(first)), unit='h')).strftime('%Y-%m-%dT%H:%MZ')
+        out[key] = {'p': round(p, 1), 'eta': eta}
+    # 預報長度：IFS 06Z／18Z 只跑 144 h，颱風還沒到就結束時 <1% 不代表「不會來」，
+    # 網頁在表頭標出來
+    hs = [float(np.nanmax(h)) for _, _, h in tracks if len(h)]
+    out['_max_h'] = int(round(max(hs))) if hs else None
+    return out
+
+
+def _member_tracks(df: pd.DataFrame, init_time=None) -> list:
+    """paired 系集 DataFrame → [(lons, lats), ...]，每個成員一條、依時間排序。
+
+    給 init_time 時多回傳預報時數：[(lons, lats, lead_hours), ...]。
+    """
+    out = []
+    for _, g in df.sort_values('valid_time').groupby('sample'):
+        if init_time is None:
+            out.append((g['lon'].to_numpy(), g['lat'].to_numpy()))
+        else:
+            hrs = (pd.to_datetime(g['valid_time']) - pd.to_datetime(init_time)).dt.total_seconds() / 3600.0
+            out.append((g['lon'].to_numpy(), g['lat'].to_numpy(), hrs.to_numpy()))
+    return out
+
+
+def load_large_ensemble_tracks(csv_path: str) -> tuple[dict, pd.Timestamp, int, dict]:
+    """讀 1000 成員 cyclogenesis CSV，回傳 (路徑, init_time, 成員總數, 強度序列)。
+
+    路徑為 {track_id: [(lons, lats, lead_hours), ...]}，強度序列為
+    {track_id: [(hours, wind, mslp), ...]}（給強度羽狀圖）。
 
     已命名系統先用 _relink_lost_tracks 接回追蹤器跟丟後重新編號的路徑，與路徑聚類圖
     的成員認定一致。分母用全部成員數：沒有這顆颱風的成員就是「沒侵襲」。
@@ -1463,9 +1625,414 @@ def load_large_ensemble_tracks(csv_path: str) -> tuple[dict, pd.Timestamp, int]:
     named = [t for t in df['track_id'].unique() if not t.isdigit()]
     _relink_lost_tracks(df, named)
     df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
-    out = {tid: [(t['lon360'].to_numpy(), t['lat'].to_numpy()) for _, t in g.groupby('sample')]
-           for tid, g in df[df['track_id'].isin(named)].groupby('track_id')}
-    return out, pd.to_datetime(df['init_time'].iloc[0], utc=True), int(df['sample'].nunique())
+    named_df = df[df['track_id'].isin(named)]
+    out = {tid: [(t['lon360'].to_numpy(), t['lat'].to_numpy(), t['lead_time_hours'].to_numpy())
+                 for _, t in g.groupby('sample')]
+           for tid, g in named_df.groupby('track_id')}
+    d = named_df.rename(columns={'maximum_sustained_wind_speed_knots': 'wind',
+                                 'lead_time_hours': '_h'})
+    series = {tid: _member_series([t for _, t in g.groupby('sample')])
+              for tid, g in d.groupby('track_id')}
+    return out, pd.to_datetime(df['init_time'].iloc[0], utc=True), int(df['sample'].nunique()), series
+
+
+# ── 強度羽狀圖 ───────────────────────────────────────────────────────────
+RI_KT = 30.0          # 快速增強門檻：24 h 內增強 ≥ 30 kt（JTWC／NHC 常用定義）
+RI_WINDOW_H = 24.0
+PLUME_MEMBER_COLOR = '#5B7A99'
+PLUME_BAND_COLOR = '#3B6DB3'
+# 強度區間（kt）：與 ss_category 的門檻一致，畫成背景色帶
+INTENSITY_BANDS = [('TD', 0, 35), ('TS', 35, 64), ('Cat1', 64, 83), ('Cat2', 83, 96),
+                   ('Cat3', 96, 113), ('Cat4', 113, 137), ('Cat5', 137, 200)]
+
+
+def _member_series(groups: list) -> list:
+    """[(hours, wind, mslp), ...]：每個成員一組 numpy 陣列（mslp 可能全為 NaN）。"""
+    out = []
+    for g in groups:
+        h = g['_h'].to_numpy(dtype=float)
+        w = (g['wind'] if 'wind' in g.columns else pd.Series(np.nan, index=g.index)).to_numpy(dtype=float)
+        p = (g['minimum_sea_level_pressure_hpa'] if 'minimum_sea_level_pressure_hpa' in g.columns
+             else pd.Series(np.nan, index=g.index)).to_numpy(dtype=float)
+        out.append((h, w, p))
+    return out
+
+
+def rapid_intensification_prob(series: list, n_total: int | None = None) -> float | None:
+    """成員中「任一 24 h 內增強 ≥ RI_KT」的比例（%）；沒有風速資料時回 None。"""
+    n_ri, n_valid = 0, 0
+    for h, w, _ in series:
+        ok = ~np.isnan(w)
+        h, w = h[ok], w[ok]
+        if h.size < 2:
+            continue
+        n_valid += 1
+        grid = np.arange(h[0], h[-1] + 1e-6, 6.0)
+        wi = np.interp(grid, h, w)
+        k = int(round(RI_WINDOW_H / 6.0))
+        if wi.size > k and np.max(wi[k:] - wi[:-k]) >= RI_KT:
+            n_ri += 1
+    if n_valid == 0:
+        return None
+    return n_ri * 100.0 / max(n_total or len(series), 1)
+
+
+def _plume_panel(ax, series, idx, init, n_members, ylabel, alpha):
+    """畫一個羽狀圖面板（idx=1 風速、2 氣壓）；回傳是否有資料。"""
+    has = False
+    grid = None
+    for s_ in series:
+        h, v = s_[0], s_[idx]
+        ok = ~np.isnan(v)
+        if ok.sum() < 2:
+            continue
+        has = True
+        t = init + pd.to_timedelta(h[ok], unit='h')
+        ax.plot(t, v[ok], color=PLUME_MEMBER_COLOR, lw=0.6, alpha=alpha, zorder=2)
+        grid = h[ok][-1] if grid is None else max(grid, h[ok][-1])
+    if not has:
+        return False
+    # 百分位只在還有足夠成員存活的時段計算，免得尾端剩幾條時亂跳
+    hh = np.arange(0, grid + 1e-6, 6.0)
+    vals = np.full((len(series), hh.size), np.nan)
+    for i, s_ in enumerate(series):
+        h, v = s_[0], s_[idx]
+        ok = ~np.isnan(v)
+        if ok.sum() < 2:
+            continue
+        inside = (hh >= h[ok][0]) & (hh <= h[ok][-1])
+        vals[i, inside] = np.interp(hh[inside], h[ok], v[ok])
+    alive = np.sum(~np.isnan(vals), axis=0)
+    keep = alive >= max(5, 0.2 * n_members)
+    if keep.any():
+        with np.errstate(all='ignore'):
+            p10 = np.nanpercentile(vals[:, keep], 10, axis=0)
+            p50 = np.nanpercentile(vals[:, keep], 50, axis=0)
+            p90 = np.nanpercentile(vals[:, keep], 90, axis=0)
+        t = init + pd.to_timedelta(hh[keep], unit='h')
+        ax.fill_between(t, p10, p90, color=PLUME_BAND_COLOR, alpha=0.22, lw=0, zorder=3)
+        ax.plot(t, p50, color=MEAN_COLOR, lw=2.4, zorder=4)
+    ax.set_ylabel(ylabel, color=TEXT_MUTED, fontsize=9)
+    ax.grid(True, color=BASEMAP['grid'], lw=0.5, ls=(0, (2, 3)))
+    ax.tick_params(colors=TEXT_MUTED, labelsize=8)
+    for sp in ax.spines.values():
+        sp.set_edgecolor(BOX_EDGE)
+    return True
+
+
+def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
+                         model_name: str, n_members: int | None = None) -> tuple[str | None, float | None]:
+    """強度羽狀圖（上：最大風速、下：中心氣壓）。回傳 (存檔路徑, RI 機率%)。"""
+    import matplotlib.dates as mdates  # type: ignore
+    if not series:
+        return None, None
+    n = n_members or len(series)
+    init = pd.to_datetime(init_time)
+    alpha = float(np.clip(12.0 / max(len(series), 1), 0.04, 0.35))
+    fig, (ax_w, ax_p) = plt.subplots(2, 1, figsize=(10, 7.2), sharex=True,
+                                     gridspec_kw={'height_ratios': [2.2, 1]}, facecolor='white')
+    if not _plume_panel(ax_w, series, 1, init, n, 'Max sustained wind (kt)', alpha):
+        plt.close(fig)
+        return None, None
+    ymax = ax_w.get_ylim()[1]
+    for cat, lo, hi in INTENSITY_BANDS:
+        if lo >= ymax:
+            break
+        ax_w.axhspan(lo, hi, color=COLOR_MAP[cat], alpha=0.09, lw=0, zorder=1)
+        ax_w.text(1.005, (lo + min(hi, ymax)) / 2, cat, transform=ax_w.get_yaxis_transform(),
+                  ha='left', va='center', fontsize=7.5, color=COLOR_MAP[cat], fontweight='bold')
+    ax_w.set_ylim(0, ymax)
+    has_p = _plume_panel(ax_p, series, 2, init, n, 'Min. pressure (hPa)', alpha)
+    if not has_p:
+        ax_p.text(0.5, 0.5, 'No pressure data', transform=ax_p.transAxes, ha='center',
+                  va='center', color=TEXT_MUTED, fontsize=9)
+
+    ri = rapid_intensification_prob(series, n_total=n)
+    peaks = np.array([np.nanmax(w) for _, w, _ in series if np.isfinite(w).any()])
+    info = []
+    if ri is not None:
+        info.append(f"RI probability (≥{RI_KT:.0f} kt / {RI_WINDOW_H:.0f} h): {ri:.0f}%")
+    if peaks.size:
+        info.append(f"Peak wind median {np.median(peaks):.0f} kt "
+                    f"(10–90%: {np.percentile(peaks, 10):.0f}–{np.percentile(peaks, 90):.0f})")
+    if info:
+        ax_w.text(0.012, 0.975, '\n'.join(info), transform=ax_w.transAxes, ha='left', va='top',
+                  fontsize=8.5, color=TEXT_DARK, linespacing=1.4, bbox=_label_box(0.94), zorder=6)
+    handles = [mlines.Line2D([], [], color=PLUME_MEMBER_COLOR, lw=1, alpha=0.6),
+               mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4),
+               mpatches.Patch(color=PLUME_BAND_COLOR, alpha=0.22)]
+    leg = ax_w.legend(handles, ['Members', 'Median', '10–90%'], loc='upper right',
+                      fontsize=8, ncol=3, handlelength=1.4, columnspacing=1.0, **LEGEND_KW)
+    _style_legend(leg)
+
+    ax_p.xaxis.set_major_locator(mdates.DayLocator(interval=1 if len(series) else 1))
+    ax_p.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    days = (ax_p.get_xlim()[1] - ax_p.get_xlim()[0])
+    if days > 9:
+        ax_p.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+    ax_p.set_xlabel('Valid date (UTC)', color=TEXT_MUTED, fontsize=9)
+
+    init_str = init.strftime('%Y-%m-%d %H:%M UTC')
+    ax_w.set_title(f"{model_name}  ·  {track_id}  Intensity Forecast", loc='left',
+                   fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax_w.text(0, 1.015, f"Init {init_str}  ·  {n} members", transform=ax_w.transAxes,
+              ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    ax_p.text(0.995, 0.03, 'By Pillar', transform=ax_p.transAxes, ha='right', va='bottom',
+              fontsize=7, style='italic', color=TEXT_MUTED, zorder=10)
+    fig.tight_layout(pad=0.6)
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    print(f"[PLUME] 已儲存強度羽狀圖：{save_path}")
+    return save_path, ri
+
+
+def paired_member_series(df: pd.DataFrame, init_time) -> list:
+    """paired 系集 DataFrame → 強度羽狀圖用的 [(hours, wind, mslp), ...]。"""
+    d = df.copy()
+    d['_h'] = (pd.to_datetime(d['valid_time']) - pd.to_datetime(init_time)).dt.total_seconds() / 3600.0
+    return _member_series([g.sort_values('_h') for _, g in d.groupby('sample')])
+
+
+# ── 前幾報趨勢比較 ───────────────────────────────────────────────────────
+# 最近 TREND_CYCLES 期（每 6 h 一期）的系集平均路徑疊在一起，看預報往哪邊修正。
+# 舊 → 新由淺灰漸深到平均路徑的深海軍藍。
+TREND_CYCLES = 5
+TREND_COLORS = ['#C9D3DE', '#9DB2C9', '#6B8DB3', '#3A6390', '#16324F']
+
+
+def load_trend_means(cfg: dict, cycle, track_id: str) -> list:
+    """讀最近 TREND_CYCLES 期中含此颱風的系集平均：[(init_time, mean_df), ...]，舊 → 新。"""
+    out = []
+    for k in range(TREND_CYCLES - 1, -1, -1):
+        stamp = _cycle_stamp(cycle - timedelta(hours=6 * k))
+        p = os.path.join(cfg["mean_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
+        if not os.path.exists(p):
+            continue
+        try:
+            mdf, it = load_forecast_dataframe(p, track_id)
+        except Exception:
+            continue    # 該期沒有這顆颱風（剛生成）或檔案有問題就略過
+        if not mdf.empty:
+            out.append((it, mdf))
+    return out
+
+
+def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: str) -> str | None:
+    """前幾報的系集平均路徑疊圖；少於兩期時不畫（回 None）。"""
+    if len(entries) < 2:
+        return None
+    all_lons = np.concatenate([e[1]['lon'].to_numpy() for e in entries])
+    all_lats = np.concatenate([e[1]['lat'].to_numpy() for e in entries])
+    extent, use_360 = _auto_extent(all_lats, all_lons, pad_deg=3)
+    extent = _fit_extent_to_aspect(extent, FIG_AR, use_360)
+    if HAS_CARTOPY:
+        fig = plt.figure(figsize=(10, 7), facecolor='white')
+        proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
+        ax = plt.axes(projection=proj)
+        _setup_basemap(ax, extent)
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        fig = plt.figure(figsize=(FIG_W, FIG_H), dpi=FIG_DPI, facecolor='white')
+        ax = fig.add_subplot(111)
+        _setup_plain_axes(ax, extent)
+        kw = {}
+
+    colors = TREND_COLORS[-len(entries):]
+    handles, labels = [], []
+    for (it, mdf), color in zip(entries, colors):
+        mdf = mdf.sort_values('valid_time')
+        lons = _normalize_lon_values(mdf['lon'].to_numpy(), use_360=use_360)
+        lats = mdf['lat'].to_numpy()
+        newest = color == colors[-1]
+        for seg_lon, seg_lat in _split_track_segments(lons, lats):
+            if newest:
+                ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.85,
+                        solid_capstyle='round', zorder=3.9, **kw)
+            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 2.2,
+                    solid_capstyle='round', zorder=4 if newest else 3, **kw)
+        pts = get_24h_markers(mdf, it)
+        if not pts.empty:
+            ax.scatter(_normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360), pts['lat'],
+                       marker='o', s=30 if newest else 18, facecolors='white', edgecolors=color,
+                       linewidths=1.3, zorder=5 if newest else 3.5, **kw)
+        handles.append(mlines.Line2D([], [], color=color, lw=3.4 if newest else 2.2,
+                                     marker='o', ms=5, markerfacecolor='white',
+                                     markeredgecolor=color))
+        labels.append(pd.to_datetime(it).strftime('%m/%d %HZ') + ('  (latest)' if newest else ''))
+    leg = ax.legend(handles, labels, loc='upper left', title='Init time (mean track)',
+                    fontsize=9, borderpad=0.7, labelspacing=0.42, handlelength=2.0,
+                    alignment='left', **LEGEND_KW)
+    _style_legend(leg)
+
+    ax.set_title(f"{model_name}  ·  {track_id}  Track Trend", loc='left',
+                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax.text(0, 1.012, f"Ensemble mean tracks from the last {len(entries)} cycles  ·  "
+            "Hollow dots = 24-hr steps", transform=ax.transAxes,
+            ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    print(f"[TREND] 已儲存趨勢圖：{save_path}")
+    return save_path
+
+
+# ── 路徑校驗（模式成績單）──────────────────────────────────────────────
+# 每輪把各模式系集平均、JTWC 官方預報與 JTWC 警報位置（當作實況）存成小 CSV，
+# 預報時間到了再比對路徑誤差。放在 docs/ 底下，雲端 commit docs/ 時一併保存。
+VERIF_DIR = os.path.join(OUTPUT_DIR, 'verification')
+VERIF_LEADS = [24, 48, 72, 96, 120]
+VERIF_MATCH_H = 1.5       # 實況時間與預報時間最多差多少小時算對得上
+VERIF_KEEP_DAYS = 90
+
+
+def _jtwc_warning_time(jtwc: dict, now: datetime | None = None) -> pd.Timestamp | None:
+    """JTWC 'DDHHMM Z' → 完整 UTC 時間；月份取不晚於現在、最接近的那個月。"""
+    m = re.match(r"(\d{2})(\d{2})(\d{2})", str(jtwc.get('update_time', '')))
+    if not m:
+        return None
+    day, hh, mm = (int(x) for x in m.groups())
+    now = pd.Timestamp(now or datetime.now(timezone.utc))
+    for back in range(0, 2):
+        y, mo = now.year, now.month - back
+        if mo < 1:
+            y, mo = y - 1, 12
+        try:
+            t = pd.Timestamp(year=y, month=mo, day=day, hour=hh, minute=mm, tz='UTC')
+        except ValueError:
+            continue
+        if t <= now + pd.Timedelta(hours=6):
+            return t
+    return None
+
+
+def _parse_latlon(txt: str) -> float | None:
+    m = re.match(r"([0-9.]+)°?([NSEW])", str(txt))
+    if not m:
+        return None
+    v = float(m.group(1))
+    return -v if m.group(2) in 'SW' else v
+
+
+def archive_verification(storms: list) -> None:
+    """存本輪的預報與 JTWC 實況；已存在的檔案不覆寫（同一期只留第一份）。"""
+    fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
+    os.makedirs(fdir, exist_ok=True)
+    os.makedirs(odir, exist_ok=True)
+    seen_jtwc = set()
+    for s in storms:
+        tid, model, mdf, it = s['track_id'], s.get('model'), s.get('mean_df'), s.get('init_time')
+        if mdf is not None and not mdf.empty and it is not None:
+            p = os.path.join(fdir, f"{model}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
+            if not os.path.exists(p):
+                lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
+                pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
+                              'lon': mdf['lon'].round(3)}).to_csv(p, index=False)
+        jt = (s.get('current_info') or {}).get('jtwc') or {}
+        if not jt or tid in seen_jtwc:
+            continue
+        seen_jtwc.add(tid)
+        wt = _jtwc_warning_time(jt)
+        lat, lon = _parse_latlon(jt.get('latitude')), _parse_latlon(jt.get('longitude'))
+        if wt is None or lat is None or lon is None:
+            continue
+        # 實況：同一時間只留一筆
+        op = os.path.join(odir, f"{tid}.csv")
+        obs = pd.read_csv(op) if os.path.exists(op) else pd.DataFrame(columns=['time', 'lat', 'lon', 'wind'])
+        key = wt.strftime('%Y-%m-%dT%H:%MZ')
+        if key not in set(obs['time'].astype(str)):
+            obs.loc[len(obs)] = [key, lat, lon, jt.get('max_winds_kt')]
+            obs.sort_values('time').to_csv(op, index=False)
+        # JTWC 官方預報（以警報時間為起點）
+        track = jt.get('forecast_track') or []
+        p = os.path.join(fdir, f"JTWC_{tid}_{wt:%Y%m%d%H}.csv")
+        if track and not os.path.exists(p):
+            pd.DataFrame({'lead_h': [0] + [t[3] for t in track],
+                          'lat': [lat] + [t[0] for t in track],
+                          'lon': [lon] + [t[1] for t in track]}).to_csv(p, index=False)
+    # 太舊的檔清掉，目錄不會無限長大
+    cutoff = datetime.now(timezone.utc) - timedelta(days=VERIF_KEEP_DAYS)
+    for d in (fdir, odir):
+        for name in os.listdir(d):
+            fp = os.path.join(d, name)
+            try:
+                if datetime.fromtimestamp(os.path.getmtime(fp), timezone.utc) < cutoff:
+                    os.remove(fp)
+            except OSError:
+                pass
+
+
+def compute_scorecard() -> dict:
+    """{track_id: {model: {lead: [平均誤差 km, 樣本數]}}}；另有 '_all' 為所有颱風合計。"""
+    fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
+    if not os.path.isdir(fdir) or not os.path.isdir(odir):
+        return {}
+    obs = {}
+    for name in os.listdir(odir):
+        if name.endswith('.csv'):
+            o = pd.read_csv(os.path.join(odir, name))
+            o['t'] = pd.to_datetime(o['time'], utc=True)
+            obs[name[:-4]] = o
+    errs: dict = {}
+    for name in os.listdir(fdir):
+        m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
+        if not m or m.group(2) not in obs:
+            continue
+        model, tid = m.group(1), m.group(2)
+        init = pd.Timestamp(datetime.strptime(m.group(3), '%Y%m%d%H'), tz='UTC')
+        f = pd.read_csv(os.path.join(fdir, name)).dropna()
+        if len(f) < 2:
+            continue
+        o = obs[tid]
+        for lead in VERIF_LEADS:
+            if lead > f['lead_h'].max():
+                continue
+            target = init + pd.Timedelta(hours=lead)
+            dt = (o['t'] - target).abs()
+            if dt.empty or dt.min() > pd.Timedelta(hours=VERIF_MATCH_H):
+                continue
+            ob = o.loc[dt.idxmin()]
+            flat = float(np.interp(lead, f['lead_h'], f['lat']))
+            # 經度內插前先展開，跨換日線也不會內插到地球另一邊
+            flon = float(np.interp(lead, f['lead_h'], np.unwrap(np.radians(f['lon'])) * 180 / np.pi))
+            e = float(_haversine_km(ob['lat'], ob['lon'] % 360, flat, flon % 360))
+            for key in (tid, '_all'):
+                errs.setdefault(key, {}).setdefault(model, {}).setdefault(lead, []).append(e)
+    return {k: {mdl: {ld: [round(float(np.mean(v)), 0), len(v)] for ld, v in leads.items()}
+                for mdl, leads in d.items()} for k, d in errs.items()}
+
+
+# ── 互動式地圖資料 ───────────────────────────────────────────────────────
+# 每顆颱風一個 JSON：各模式成員路徑（每 6 h 一點）與系集平均，給網頁的 Leaflet 地圖。
+# 每點為 [lat, lon, 風速 kt 或 null, 預報時數]；座標取到 0.01°，檔案才不會太大。
+def _track_points(g: pd.DataFrame, init_time, step_h: float = 6.0) -> list:
+    g = g.sort_values('valid_time')
+    lead = (pd.to_datetime(g['valid_time']) - pd.to_datetime(init_time)).dt.total_seconds() / 3600.0
+    keep = (np.abs(lead / step_h - np.round(lead / step_h)) < 1e-3).to_numpy()
+    wind = (g['wind'] if 'wind' in g.columns else pd.Series(np.nan, index=g.index)).to_numpy()
+    out = []
+    for la, lo, w, h in zip(g['lat'].to_numpy()[keep], g['lon'].to_numpy()[keep],
+                            wind[keep], lead.to_numpy()[keep]):
+        out.append([round(float(la), 2), round(float(lo), 2),
+                    None if pd.isna(w) else int(round(float(w))), int(round(float(h)))])
+    return out
+
+
+def write_tracks_json(storms: list) -> None:
+    """依颱風合併各模式資料寫成 {tid}_Tracks.json，路徑掛在該颱風第一個 storm dict。"""
+    import json
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        group = [s for s in storms if s['track_id'] == tid and s.get('track_points')]
+        if not group:
+            continue
+        data = {'track_id': tid,
+                'init': pd.to_datetime(group[0]['init_time']).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'models': {s['model']: s['track_points'] for s in group},
+                'inits': {s['model']: pd.to_datetime(s['init_time']).strftime('%Y-%m-%dT%H:%M:%SZ')
+                          for s in group}}
+        path = os.path.join(OUTPUT_DIR, f"{tid}_Tracks.json")
+        with open(path, 'w', encoding='utf-8') as fh:
+            json.dump(data, fh, separators=(',', ':'))
+        next(s for s in storms if s['track_id'] == tid)['tracks_json'] = path
 
 
 def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WNC2-r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
@@ -2390,7 +2957,7 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     keep = set(keep_ids)
     p = re.escape(prefix)
     file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_"
-                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png)$")
+                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png)$")
     dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
@@ -2423,7 +2990,8 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     if not os.path.isdir(OUTPUT_DIR):
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
-                         rf"|^{re.escape(WNC2_LE_CONFIG['display'])}_((?:WP|CP|EP)\d{{6}})_Strike_Probability\.png$")
+                         r"|^((?:WP|CP|EP)\d{6})_Tracks\.json$"
+                         rf"|^{re.escape(WNC2_LE_CONFIG['display'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
     except OSError as e:
@@ -2432,7 +3000,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     for name in names:
         m = jtwc_re.match(name)
         # 兩個分支各佔一個群組，命中的那個才有值
-        if not m or (m.group(1) or m.group(2) or m.group(3)) in keep_ids:
+        if not m or (m.group(1) or m.group(2) or m.group(3) or m.group(4)) in keep_ids:
             continue
         try:
             os.remove(os.path.join(OUTPUT_DIR, name))
@@ -2609,14 +3177,33 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                               det_df=det_df, det_label=det_label)
 
             # 侵襲機率圖：加分項，失敗只略過這張
-            strike_path = None
+            strike_path, city_strike = None, None
             try:
+                member_tracks = _member_tracks(df, init_time)
+                city_strike = city_strike_stats(member_tracks, init_time)
                 strike_path = plot_strike_probability(
-                    _member_tracks(df), init_time, tid,
+                    member_tracks, init_time, tid,
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Strike_Probability.png"),
                     model_name=display)
             except Exception as e:
                 print(f"[{display}-STRIKE] 侵襲機率圖失敗，略過: {e}")
+
+            plume_path, ri_prob = None, None
+            try:
+                plume_path, ri_prob = plot_intensity_plume(
+                    paired_member_series(df, init_time), init_time, tid,
+                    os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Intensity_Plume.png"),
+                    model_name=display)
+            except Exception as e:
+                print(f"[{display}-PLUME] 強度羽狀圖失敗，略過: {e}")
+
+            trend_path = None
+            try:
+                trend_path = plot_track_trend(
+                    load_trend_means(cfg, cycle, tid), tid,
+                    os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Track_Trend.png"), model_name=display)
+            except Exception as e:
+                print(f"[{display}-TREND] 趨勢圖失敗，略過: {e}")
 
             download_jtwc_img(tid, OUTPUT_DIR, jtwc_forecast_urls)
 
@@ -2625,23 +3212,36 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             # 清除舊幀，避免幀數減少時殘留上次多餘的圖
             if os.path.isdir(frames_dir):
                 for _old in os.listdir(frames_dir):
-                    if _old.startswith("frame_") and _old.endswith(".png"):
+                    # .png 是改存 WebP 前的舊幀，一併清掉
+                    if _old.startswith("frame_") and _old.endswith((".png", ".webp")):
                         os.remove(os.path.join(frames_dir, _old))
             frame_paths = generate_frame_sequence(df, mean_df, init_time, tid, frames_dir,
                                                   max_frames=72, model_name=display,
                                                   det_df=det_df, det_label=det_label)
 
-            gif_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Animation.gif")
-            gif_output = create_gif_from_frames(frame_paths, gif_path, duration_ms=180, loop=0)
+            # 預報 GIF 已停產：網頁播放器用的是幀，GIF 沒有地方引用，每輪卻佔 ~57 MB。
+            # 停產前留下的舊檔在這裡順手刪掉
+            old_gif = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Animation.gif")
+            if os.path.exists(old_gif):
+                try:
+                    os.remove(old_gif)
+                except OSError as e:
+                    print(f"[{display}-CLEANUP] 警告: 移除 {old_gif} 失敗: {e}")
 
             storms.append({
                 'track_id': tid,
                 'model': display,
                 'forecast_map_path': save_path,
                 'strike_map_path': strike_path,
+                'city_strike': city_strike,
+                'plume_path': plume_path,
+                'trend_path': trend_path,
+                'track_points': {
+                    'members': [_track_points(g, init_time) for _, g in df.groupby('sample')],
+                    'mean': _track_points(mean_df, init_time)},
+                'ri_prob': ri_prob,
                 'current_info': current_info,
                 'frames_dir': frames_dir,
-                'forecast_gif_path': gif_output,
                 # 供 main() 組模式比較圖用；不會進到網頁 HTML
                 'mean_df': mean_df,
                 'det_df': det_df,
@@ -2716,7 +3316,7 @@ def main():
     if le_csv:
         le_name = WNC2_LE_CONFIG["display"]
         try:
-            le_tracks, le_init, le_n = load_large_ensemble_tracks(le_csv)
+            le_tracks, le_init, le_n, le_series = load_large_ensemble_tracks(le_csv)
             for tid in dict.fromkeys(s['track_id'] for s in storms):
                 if tid not in le_tracks:
                     continue
@@ -2724,8 +3324,53 @@ def main():
                     le_tracks[tid], le_init, tid,
                     os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Strike_Probability.png"),
                     model_name=le_name, n_members=le_n)
+                head = next(s for s in storms if s['track_id'] == tid)
+                head['city_strike_1000'] = city_strike_stats(le_tracks[tid], le_init, n_total=le_n)
+                try:
+                    plume, ri = plot_intensity_plume(
+                        le_series.get(tid, []), le_init, tid,
+                        os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Intensity_Plume.png"),
+                        model_name=le_name, n_members=le_n)
+                    if plume:
+                        head['plume_1000_path'], head['ri_1000'] = plume, ri
+                except Exception as e:
+                    print(f"[{le_name}-PLUME] 1000 成員強度羽狀圖失敗，略過: {e}")
                 if path:
-                    next(s for s in storms if s['track_id'] == tid)['strike_1000_path'] = path
+                    head['strike_1000_path'] = path
+                extra = []
+                for t0, t1 in STRIKE_WINDOWS:
+                    lbl = f"{t0}–{t1} h" if t1 is not None else f"{t0} h+"
+                    fn = f"{le_name}_{tid}_Strike_{t0}_{t1 if t1 is not None else 'end'}h.png"
+                    try:
+                        p_ = plot_strike_probability(
+                            window_tracks(le_tracks[tid], t0, t1), le_init, tid,
+                            os.path.join(OUTPUT_DIR, fn), model_name=le_name, n_members=le_n,
+                            title=f"Strike Probability  {lbl}",
+                            subtitle=f"track within {STRIKE_RADIUS_DEG:g}° during {lbl}",
+                            extent_tracks=le_tracks[tid])
+                        if p_:
+                            extra.append((lbl, p_))
+                    except Exception as e:
+                        print(f"[{le_name}-STRIKE] {lbl} 失敗，略過: {e}")
+                try:
+                    radii = load_large_ensemble_radii(le_csv, tid)
+                    if radii:
+                        p_ = plot_strike_probability(
+                            le_tracks[tid], le_init, tid,
+                            os.path.join(OUTPUT_DIR, f"{le_name}_{tid}_Wind34_Probability.png"),
+                            model_name=le_name, n_members=le_n,
+                            title='34-kt Wind Probability',
+                            subtitle='inside the 34-kt wind radii (4 quadrants) at any time',
+                            field=lambda ext, u360, _r=radii: compute_wind34_probability(
+                                [(_normalize_lon_values(m[0], use_360=u360), *m[1:]) for m in _r],
+                                ext, le_n),
+                            extent_tracks=le_tracks[tid])
+                        if p_:
+                            extra.append(('34 kt', p_))
+                except Exception as e:
+                    print(f"[{le_name}-WIND34] 暴風圈機率失敗，略過: {e}")
+                if extra:
+                    head['strike_1000_extra'] = extra
         except Exception as e:
             print(f"[{le_name}-STRIKE] 1000 成員侵襲機率圖失敗，略過: {e}")
 
@@ -2748,6 +3393,23 @@ def main():
             init_times=init_times)
         if path:
             group[0]['comparison_map_path'] = path
+
+    try:
+        write_tracks_json(storms)
+    except Exception as e:
+        print(f"[TRACKMAP] 互動地圖資料失敗，略過: {e}")
+
+    # 路徑校驗：存本輪預報與實況、算成績單，掛在各颱風第一個 storm dict 上。
+    # 加分項，失敗不影響其他產品
+    try:
+        archive_verification(storms)
+        card = compute_scorecard()
+        for tid in dict.fromkeys(s['track_id'] for s in storms):
+            head = next(s for s in storms if s['track_id'] == tid)
+            head['scorecard'] = card.get(tid, {})
+            head['scorecard_all'] = card.get('_all', {})
+    except Exception as e:
+        print(f"[VERIF] 路徑校驗失敗，略過: {e}")
 
     # 只留下本次仍在追蹤的颱風產物（JTWC 官方圖與模式比較圖都是每顆颱風一份，
     # 跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失）
