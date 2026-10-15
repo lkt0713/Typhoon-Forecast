@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.3.1"
+SITE_VERSION = "5.3.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -52,8 +52,8 @@ KNOWN_MODELS = [
     ('WN2-C r1', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('WN2-C 1000', 'Google DeepMind', 'WeatherNext · 1000 members'),
     ('GENC', 'Google DeepMind', 'WeatherNext · Ensemble'),
-    ('AIFS-ENS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
-    ('ECMWF-ENS', 'ECMWF', 'IFS ENS + HRES'),
+    ('AIFS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
+    ('ECMWF', 'ECMWF', 'IFS ENS + HRES'),
 ]
 
 
@@ -77,7 +77,9 @@ def ss_category(kt):
 
 # ECMWF／AIFS 來自 ECMWF Open Data（CC-BY，授權與 WeatherNext 不同），
 # 其餘模式來自 Weather Lab；圖說的來源字串不能寫死成 DeepMind。
-ECMWF_MODELS = {'ECMWF-ENS', 'AIFS-ENS'}
+ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
+# 只有系集的產品（如生成潛勢）用 -ENS 名稱；首頁模式卡是 AIFS／ECMWF，亮燈時對回去
+ENS_SYSTEM = {'AIFS-ENS': 'AIFS', 'ECMWF-ENS': 'ECMWF'}
 
 # 潛勢頁上的 WNC2 1000 成員路徑聚類圖：是 WNC2 的另一種產品而非獨立模式，
 # 不算進「N 個模式」，圖說也不同
@@ -237,9 +239,12 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
             </div>"""
 
 
-def _model_images(models: list, key: str, key_1000: str) -> list[tuple[str, str]]:
-    """各模式 storm dict 的 key 圖檔，再加上掛在第一個 dict 的 1000 成員圖（存在者）。"""
-    items = [(m.get('model', 'WN2-C r2'), m.get(key)) for m in models if isinstance(m, dict)]
+def _model_images(models: list, key: str, key_1000: str, label_key: str = 'model') -> list[tuple[str, str]]:
+    """各模式 storm dict 的 key 圖檔，再加上掛在第一個 dict 的 1000 成員圖（存在者）。
+
+    label_key='ens_name' 用在只有系集的產品（侵襲機率），分頁顯示 AIFS-ENS／ECMWF-ENS。
+    """
+    items = [(m.get(label_key) or m.get('model', 'WN2-C r2'), m.get(key)) for m in models if isinstance(m, dict)]
     items += [(CLUSTER_LABEL, m.get(key_1000)) for m in models
               if isinstance(m, dict) and m.get(key_1000)][:1]
     return [(lbl, p) for lbl, p in items if p and os.path.exists(p)]
@@ -587,7 +592,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     active_models = set()
     for info in infos.values():
         active_models.update(info['models'])
-    active_models.update(lbl for lbl, _ in _genesis_entries if lbl != CLUSTER_LABEL)
+    active_models.update(ENS_SYSTEM.get(lbl, lbl) for lbl, _ in _genesis_entries if lbl != CLUSTER_LABEL)
     # 1000 成員版沒有自己的 storm dict（產品掛在各颱風第一個模式上），另外判斷：
     # 有任一颱風的 1000 成員侵襲機率圖、或潛勢頁有路徑聚類圖，首頁就算它一個模式
     if (any(lbl == CLUSTER_LABEL for lbl, _ in _genesis_entries)
@@ -898,7 +903,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     {_figure(map_src, f"{track_id} {model_name} Forecast Map")}
                     <p class="map-note" data-i18n="note.ensemble" data-i18n-model="{_esc(model_name)}">
                         {_esc(model_name)} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp;
-                        Navy line = ensemble mean &nbsp;·&nbsp; ★ = initial position
+                        Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position
                     </p>
                 </div>""")
 
@@ -927,7 +932,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 侵襲機率、強度預報（每模式一張，另加 1000 成員）
         strike_html = plume_html = ""
-        strike_items = _model_images(models, 'strike_map_path', 'strike_1000_path')
+        strike_items = _model_images(models, 'strike_map_path', 'strike_1000_path', label_key='ens_name')
         if strike_items:
             sec_id = f"sec-{key_prefix}-strike"
             sections.append((sec_id, 'sub.strike', 'Strike Prob.'))
@@ -957,7 +962,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             sec_id = f"sec-{key_prefix}-score"
             sections.append((sec_id, 'sub.score', 'Verification'))
             order = [x for m in models if isinstance(m, dict)
-                     for x in (m.get('model'), m.get('det_name')) if x] + ['JTWC']
+                     for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x] + ['JTWC']
             det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
             # 預設「所有颱風・同質樣本」：樣本最多、比較也最公平
             body = _score_block(f"{key_prefix}-score",
@@ -1014,7 +1019,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         for m in models:
             if not isinstance(m, dict):
                 continue
-            for lbl, p in ((m.get('model'), m.get('trend_path')), (m.get('det_name'), m.get('det_trend_path'))):
+            for lbl, p in ((m.get('ens_name') or m.get('model'), m.get('trend_path')),
+                           (m.get('det_name'), m.get('det_trend_path'))):
                 if lbl and p and os.path.exists(p):
                     trend_items.append((lbl, p))
         if trend_items:
@@ -1034,7 +1040,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
-                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS-ENS / ECMWF-ENS)',
+                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
                 f"{track_id} Intensity Forecast")
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
@@ -1044,7 +1050,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             if not isinstance(m, dict):
                 continue
             if m.get('city_strike'):
-                city_cols.append((m.get('model', 'WN2-C r2'), m['city_strike']))
+                city_cols.append((m.get('ens_name') or m.get('model', 'WN2-C r2'), m['city_strike']))
             if m.get('city_strike_det') and m.get('det_name'):
                 city_cols.append((m['det_name'], m['city_strike_det'], True))
         city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
@@ -1216,7 +1222,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
-                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS-ENS / ECMWF-ENS"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
@@ -1337,7 +1343,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
-                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS Ensemble Forecast System · Western Pacific</small>
+                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
         <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
@@ -2653,7 +2659,7 @@ const I18N = {
   en: {
     'doc.title':        "Pillar's Tropical Cyclone Forecast",
     'brand.title':      "Pillar's Tropical Cyclone Forecast",
-    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS Ensemble Forecast System · Western Pacific',
+    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
     'header.updated':   'Updated',
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
@@ -2723,7 +2729,7 @@ const I18N = {
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
     'score.all':        'All storms (last 90 days)',
-    'score.pending':    'Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.',
+    'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
     'note.score':       'Mean distance (km) between each forecast position and the JTWC warning position at the same time &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.tab.allst.all': 'All storms · all forecasts',
@@ -2744,7 +2750,7 @@ const I18N = {
     'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
-    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS-ENS / ECMWF-ENS)',
+    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
     'sub.cities':     'Landfall & Cities',
     'panel.cities':   'Taiwan Landfall &amp; City Strike Probability',
     'cities.grp.land': 'Taiwan landfall',
@@ -2778,7 +2784,7 @@ const I18N = {
     'pl.next':          'Next frame',
     'kbd.hint':         '<kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek',
     'panel.ensemble':   'Ensemble Track Forecast',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; ★ = initial position',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
     'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
@@ -2814,7 +2820,7 @@ const I18N = {
   zh: {
     'doc.title':        'Pillar 熱帶氣旋預報',
     'brand.title':      'Pillar 熱帶氣旋預報',
-    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS 即時系集預報系統 · 西北太平洋',
+    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
     'header.updated':   '更新於',
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
@@ -2905,7 +2911,7 @@ const I18N = {
     'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
-    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS-ENS／ECMWF-ENS）',
+    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF）',
     'sub.cities':     '登陸與城市',
     'panel.cities':   '登陸臺灣與城市侵襲機率',
     'cities.grp.land': '登陸臺灣',
@@ -2939,7 +2945,7 @@ const I18N = {
     'pl.next':          '下一格',
     'kbd.hint':         '<kbd>空白鍵</kbd> 播放／暫停 &nbsp;<kbd>←</kbd><kbd>→</kbd> 逐格',
     'panel.ensemble':   '系集路徑預報',
-    'note.ensemble':    '{model} &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; ★＝起始位置',
+    'note.ensemble':    '{model} &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
     'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
@@ -3337,7 +3343,7 @@ async function initTrackMap(box) {
                         .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
-            // 決定報（AIFS-ENS／ECMWF-ENS 才有）：琥珀色粗線，沒有時把開關藏起來
+            // 決定報（AIFS／ECMWF 才有）：琥珀色粗線，沒有時把開關藏起來
             const hasDet = d.det && d.det.length > 1;
             showD.closest('label').style.display = hasDet ? '' : 'none';
             if (hasDet && showD.checked) {

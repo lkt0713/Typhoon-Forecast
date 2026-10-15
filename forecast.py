@@ -163,7 +163,8 @@ MODEL_CONFIGS = [
         "fetcher": "ecmwf",
         "ecmwf_model": "AIFS",
         "local_prefix": "AIFS",
-        "display": "AIFS-ENS",
+        "display": "AIFS",             # 系集＋決定報一起出現的地方（路徑圖、動畫、強度、互動地圖）
+        "ens_name": "AIFS-ENS",        # 只有系集的產品（侵襲機率、系集平均趨勢、城市表、成績單、潛勢）
         "ensemble_dir": AIFS_ENSEMBLE_DIR,
         "mean_dir": AIFS_MEAN_DIR,
         "det_dir": AIFS_DET_DIR,
@@ -178,11 +179,12 @@ MODEL_CONFIGS = [
         "fetcher": "ecmwf",
         "ecmwf_model": "IFS",
         "local_prefix": "ECMWF",
-        "display": "ECMWF-ENS",
+        "display": "ECMWF",
+        "ens_name": "ECMWF-ENS",
         "ensemble_dir": IFS_ENSEMBLE_DIR,
         "mean_dir": IFS_MEAN_DIR,
         "det_dir": IFS_DET_DIR,
-        "det_label": "HRES (deterministic)",
+        "det_label": "ECMWF HRES (deterministic)",
         "det_name": "ECMWF HRES",
         "cyc_dir": IFS_CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential_ECMWF.png",
@@ -616,6 +618,9 @@ def _style_legend(leg) -> None:
 # 領先點標註（+Nh／強度）離標記中心的經緯度偏移。+0h 時這個標註就落在颱風
 # 符號旁邊，偏移太小會被符號的旋臂壓到，所以留得比 24h 小標籤寬一些。
 LABEL_OFFSET = 0.95
+# 平均路徑終點有「+Nh／強度」標註框；離終點這麼近（度）的 24 h 時間標籤不畫，
+# 不然路徑最後往回勾時（如 ECMWF 偶爾的鉤狀尾巴）兩個標籤會疊在一起
+END_LABEL_CLEAR_DEG = 2.5
 
 
 def _label_box(alpha: float = 0.92) -> dict:
@@ -670,27 +675,21 @@ def _setup_plain_axes(ax, extent, label_size: int = 9):
 
 
 def _set_map_titles(ax, main: str, right: str = '', main_size: int = 14, right_size: int = 9):
-    """左標題放主資訊、右標題放初始時間與成員數。
+    """主標題（粗體）＋副標（灰色），兩行都靠左，副標貼在軸框正上方。
 
-    靠左對齊比置中更接近作業型產品的排版，也讓兩段資訊不必擠成一行。
+    原本副標放右上角，模式名稱一長（如 ECMWF-ENS）就跟主標題撞在一起；改成兩行後
+    與侵襲機率、強度、趨勢圖同一套排版。right 裡的換行與「·」一律接成一行副標。
     """
     ax.set_title(main, loc='left', fontsize=main_size, fontweight='bold',
-                 color=TEXT_DARK, pad=10)
+                 color=TEXT_DARK, pad=10 + right_size * 1.9 if right else 10)
     if right:
-        rt = ax.set_title(right, loc='right', fontsize=right_size, color=TEXT_MUTED, pad=10)
-        # 地圖範圍被裁成接近正方形時（例如路徑碰到 180°E），軸寬不夠放兩段標題，
-        # 右標題會壓在主標題上。量一下實際寬度，撞到就把「 · 」分段改成換行。
-        if '·' in right:
-            fig = ax.figure
-            renderer = fig.canvas.get_renderer()
-            main_bb = ax.title.get_window_extent(renderer)
-            right_bb = rt.get_window_extent(renderer)
-            if right_bb.x0 < main_bb.x1 + 12:
-                rt.set_text('\n'.join(s.strip() for s in right.split('·')))
+        parts = [p.strip() for p in re.split(r'\n|·', right) if p.strip()]
+        ax.text(0, 1.012, '  ·  '.join(parts), transform=ax.transAxes, ha='left', va='bottom',
+                fontsize=right_size + 0.5, color=TEXT_MUTED)
 
 
 def _watermark(ax, side: str = 'right') -> None:
-    """署名。side 決定貼左下或右下 —— 路徑圖右下角被強度圖例佔著，只能放左下。"""
+    """署名，side 決定貼左下或右下。"""
     x, ha = (0.995, 'right') if side == 'right' else (0.005, 'left')
     ax.text(x, 0.008, 'By Pillar', transform=ax.transAxes,
             ha=ha, va='bottom', fontsize=7, style='italic',
@@ -1057,7 +1056,7 @@ def extract_current_info(df: pd.DataFrame) -> dict:
         'r34_nw': r34_nw,
     }
 
-def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None) -> list:
+def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, output_dir: str, max_frames: int = 72, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None, mean_name: str | None = None) -> list:
     """生成預報軌跡演變的幀序列，用於網頁動畫生成。與靜態地圖保持一致的風格。
 
     det_df／det_label 的意義與 plot_forecast_map 相同。
@@ -1168,7 +1167,9 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 # +Nh 時間標籤
                 for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
                     fh = int((pt['valid_time'] - init_time).total_seconds() / 3600)
-                    if fh == 0 or fh == last_fh:
+                    if (fh == 0 or last_fh - fh < 24
+                            or np.hypot(marker_lons[i] - last_mean_lon, pt['lat'] - last_mean_pt['lat'])
+                            < END_LABEL_CLEAR_DEG):
                         continue
                     ax.text(marker_lons[i] + 0.4, pt['lat'] + 0.4, f'+{fh}h',
                             fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
@@ -1188,7 +1189,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                             upto=pd.to_datetime(current_time), label_end=False)
 
         # ── 圖例 ──────────────────────────────────────────────────────────────
-        _track_source_legend(ax, model_name, fontsize=8, ms=10,
+        _track_source_legend(ax, mean_name or model_name, fontsize=8, ms=10,
                              det_label=det_label if has_det else None,
                              intensity_style='marker')
 
@@ -1845,6 +1846,11 @@ TREND_CMAP_COLORS = ['#7EC4E8', '#4A8FD6', '#5B5BC2', '#3B2F8F']   # 天藍 → 
 TREND_DET_COLORS = ['#F4C46A', '#E8963A', '#D0622A', '#9C3B12']   # 決定報：金黃 → 赭紅
 
 
+def _ens_name(cfg: dict) -> str:
+    """只有系集的產品用的名稱（AIFS-ENS／ECMWF-ENS）；WN 系列與 GENC 就是 display。"""
+    return cfg.get('ens_name') or cfg['display']
+
+
 def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list:
     """這顆颱風在此模式下所有期數的系集平均（det=True 為決定報）：[(init_time, df), ...]，舊 → 新。"""
     src_dir = cfg.get("det_dir") if det else cfg["mean_dir"]
@@ -1853,7 +1859,7 @@ def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list
         return []
     found = {}
     # ① 路徑校驗存檔：lead_h → valid_time
-    name = cfg['det_name'] if det else cfg['display']
+    name = cfg['det_name'] if det else _ens_name(cfg)
     slugs = [str(n).replace(' ', '~') for n in
              [name] + [old for old, new in VERIF_LEGACY_NAMES.items() if new == name]]
     fdir = os.path.join(VERIF_DIR, 'fcst')
@@ -2019,7 +2025,8 @@ def archive_verification(storms: list) -> None:
     os.makedirs(odir, exist_ok=True)
     seen_jtwc = set()
     for s in storms:
-        tid, model, mdf, it = s['track_id'], s.get('model'), s.get('mean_df'), s.get('init_time')
+        tid, mdf, it = s['track_id'], s.get('mean_df'), s.get('init_time')
+        model = s.get('ens_name') or s.get('model')     # 存的是系集平均
         if mdf is not None and not mdf.empty and it is not None:
             slug = str(model).replace(' ', '~')   # 檔名不放空格
             p = os.path.join(fdir, f"{slug}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
@@ -2174,7 +2181,7 @@ def write_tracks_json(storms: list) -> None:
         next(s for s in storms if s['track_id'] == tid)['tracks_json'] = path
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None):
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None, mean_name: str | None = None):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。
 
     det_df 有值時（ECMWF／AIFS）再疊一條決定報路徑；det_label 是圖例文字。
@@ -2254,7 +2261,9 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
         # +24h、+48h… 文字標籤（白色描邊，壓在成員點上仍讀得到）
         for i, (_, pt) in enumerate(pts_24h_mean.iterrows()):
             fh = int((pt['valid_time'] - init_time).total_seconds() / 3600)
-            if fh == 0 or fh == last_fh:
+            if (fh == 0 or last_fh - fh < 24
+                    or np.hypot(marker_lons[i] - last_mean_lon, pt['lat'] - last_mean_pt['lat'])
+                    < END_LABEL_CLEAR_DEG):
                 continue
             ax.text(marker_lons[i] + 0.4, pt['lat'] + 0.4, f'+{fh}h',
                     fontsize=6.5, color=TEXT_DARK, fontweight='bold', zorder=6,
@@ -2274,7 +2283,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
         _draw_det_track(ax, det_df, init_time, use_360, kw)
 
     # 圖例
-    _track_source_legend(ax, model_name, fontsize=9, ms=11,
+    _track_source_legend(ax, mean_name or model_name, fontsize=9, ms=11,
                          det_label=det_label if has_det else None)
 
 
@@ -2284,7 +2293,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
                     f"{model_name}  ·  {track_id}  Ensemble Track Forecast",
                     f"Init {init_str}" + (f"  ·  {n_members} members" if n_members else ""),
                     main_size=15, right_size=9)
-    _watermark(ax, side='left')
+    _watermark(ax, side='right')
     plt.tight_layout(pad=0.6)
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
@@ -2301,27 +2310,27 @@ COMPARE_STYLES = {
     'WN2-C r2':   '#1B4F9C',
     'WN2-C r1':   '#5B8DC8',
     'GENC':      '#1FA97E',
-    'AIFS-ENS':      '#7A3FA8',
-    'AIFS-ENS-DET':  '#C2569B',
-    'ECMWF-ENS':     '#B3123F',
-    'ECMWF-ENS-DET': '#B45309',
+    'AIFS':      '#7A3FA8',
+    'AIFS-DET':  '#C2569B',
+    'ECMWF':     '#B3123F',
+    'ECMWF-DET': '#B45309',
 }
 # 畫線順序：後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在四條 WNC／GENC 的最後。
 COMPARE_ORDER = ['WN3-C', 'WN2-C r1', 'GENC', 'WN2-C r2',
-                 'AIFS-ENS', 'AIFS-ENS-DET', 'ECMWF-ENS', 'ECMWF-ENS-DET']
+                 'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 # 圖例順序與畫線順序刻意分開：圖例照模式輩分排（WNC3 → WNC2-r2 → WNC2-r1 →
 # GENC → ECMWF → AIFS），疊圖先後則由 COMPARE_ORDER 決定。
 COMPARE_LEGEND_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'GENC',
-                        'AIFS-ENS', 'AIFS-ENS-DET', 'ECMWF-ENS', 'ECMWF-ENS-DET']
+                        'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 COMPARE_LABELS = {
     'WN3-C': 'WN3-C Mean',
     'WN2-C r2': 'WN2-C r2 Mean',
     'WN2-C r1': 'WN2-C r1 Mean',
     'GENC': 'GENC Mean',
-    'AIFS-ENS': 'AIFS-ENS Mean',
-    'AIFS-ENS-DET': 'AIFS-single',
-    'ECMWF-ENS': 'ECMWF-ENS Mean',
-    'ECMWF-ENS-DET': 'ECMWF HRES',
+    'AIFS': 'AIFS-ENS Mean',
+    'AIFS-DET': 'AIFS-single',
+    'ECMWF': 'ECMWF-ENS Mean',
+    'ECMWF-DET': 'ECMWF HRES',
 }
 
 
@@ -2407,7 +2416,7 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
                                      lw=2.4, solid_capstyle='butt'))
         labels.append(drawn[key])
 
-    leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Model Mean Tracks',
+    leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Mean Tracks & Deterministic Runs',
                     fontsize=8, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.8, handletextpad=0.7, **LEGEND_KW)
     _style_legend(leg)
@@ -2417,7 +2426,7 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
                     f"Multi-Model Comparison  ·  {track_id}",
                     "Mean tracks + deterministic runs  ·  hollow dots = 24 h steps",
                     main_size=15, right_size=9)
-    _watermark(ax, side='left')
+    _watermark(ax, side='right')
     plt.tight_layout(pad=0.6)
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
@@ -2427,7 +2436,7 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
 
 # 資料來源標註：WNC 系列與 GENC 來自 Weather Lab，ECMWF／AIFS 來自 ECMWF Open Data
 # （授權不同，見 ecmwf_bufr 模組說明），圖上不能一律掛 DeepMind。
-ECMWF_MODELS = {'ECMWF-ENS', 'AIFS-ENS'}
+ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
 
 
 def _data_source(model_name: str) -> str:
@@ -3274,7 +3283,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
         # 時距用潛勢檔自己的 cycle 推：ECMWF 兩邊的 cycle 會脫鉤，而 IFS 的
         # 06Z／18Z 只跑 144h，拿系集檔的 cycle 去算會在標題寫錯時距
         genesis_map_path = plot_genesis_potential_map(
-            cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=display,
+            cyc_csv_path, os.path.join(OUTPUT_DIR, cfg["genesis_png"]), model_name=_ens_name(cfg),
             range_hours=_genesis_range_hours(cfg, _cycle_from_stamp(cyc_csv_path) or cycle))
 
     # 逐颱風產出：路徑圖、JTWC 官方圖、動畫幀序列與 GIF
@@ -3313,7 +3322,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
 
             save_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Map.png")
             plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display,
-                              det_df=det_df, det_label=det_label)
+                              det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg))
 
             # 侵襲機率圖：加分項，失敗只略過這張
             strike_path, city_strike = None, None
@@ -3323,7 +3332,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 strike_path = plot_strike_probability(
                     member_tracks, init_time, tid,
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Strike_Probability.png"),
-                    model_name=display)
+                    model_name=_ens_name(cfg))
             except Exception as e:
                 print(f"[{display}-STRIKE] 侵襲機率圖失敗，略過: {e}")
 
@@ -3351,7 +3360,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             try:
                 trend_path = plot_track_trend(
                     load_trend_means(cfg, cycle, tid), tid,
-                    os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Track_Trend.png"), model_name=display)
+                    os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Track_Trend.png"), model_name=_ens_name(cfg))
             except Exception as e:
                 print(f"[{display}-TREND] 趨勢圖失敗，略過: {e}")
             det_trend_path = None
@@ -3377,7 +3386,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                         os.remove(os.path.join(frames_dir, _old))
             frame_paths = generate_frame_sequence(df, mean_df, init_time, tid, frames_dir,
                                                   max_frames=72, model_name=display,
-                                                  det_df=det_df, det_label=det_label)
+                                                  det_df=det_df, det_label=det_label,
+                                                  mean_name=_ens_name(cfg))
 
             # 預報 GIF 已停產：網頁播放器用的是幀，GIF 沒有地方引用，每輪卻佔 ~57 MB。
             # 停產前留下的舊檔在這裡順手刪掉
@@ -3391,6 +3401,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             storms.append({
                 'track_id': tid,
                 'model': display,
+                'ens_name': _ens_name(cfg),
                 'forecast_map_path': save_path,
                 'strike_map_path': strike_path,
                 'city_strike': city_strike,
@@ -3464,7 +3475,7 @@ def main():
             continue
         if genesis_map_path:
             # 帶上 display 名稱：網頁端要用它當分頁標籤，從檔名反猜既脆弱又容易撞名
-            genesis_maps.append((cfg["display"], genesis_map_path))
+            genesis_maps.append((_ens_name(cfg), genesis_map_path))
         storms.extend(model_storms)
 
     # WNC2 1000 成員路徑聚類圖：放在潛勢頁當一個分頁。加分項，失敗不影響其他產品
