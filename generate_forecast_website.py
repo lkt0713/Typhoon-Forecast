@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.2.6"
+SITE_VERSION = "5.3.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -244,33 +244,151 @@ def _model_images(models: list, key: str, key_1000: str) -> list[tuple[str, str]
     return [(lbl, p) for lbl, p in items if p and os.path.exists(p)]
 
 
-def _score_table(card: dict, order: list[str]) -> str:
-    """模式路徑誤差表：card = {model: {lead: [km, n]}}（lead 可能是 str，來自 JSON）。"""
-    leads = [24, 48, 72, 96, 120]
+SCORE_LEADS = [24, 48, 72, 96, 120]
+SCORE_MIN_N = 3          # 少於這個樣本數不參與排名、淡化顯示
+# 折線圖各模式顏色：深淺主題都看得清楚；決定報虛線、JTWC 點線
+SCORE_COLORS = {
+    'WN3-C': '#4C9BE8', 'WN2-C r2': '#2DB7A3', 'WN2-C r1': '#7FB5D9', 'GENC': '#63C26B',
+    'AIFS-ENS': '#A06CD5', 'AIFS-single': '#C98BD9', 'ECMWF-ENS': '#E0465E',
+    'ECMWF HRES': '#F08A3C', 'JTWC': '#9AA6B2',
+}
+
+
+def _score_get(card: dict, m: str, ld: int):
+    d = card.get(m) or {}
+    return d.get(ld) or d.get(str(ld))       # 來自 JSON 時鍵是字串
+
+
+def _score_heat(rel: float) -> str:
+    """0（最好）→ 1（最差）：綠 → 黃 → 紅。"""
+    stops = [(0.0, (46, 158, 91)), (0.5, (224, 180, 58)), (1.0, (217, 70, 58))]
+    rel = min(max(rel, 0.0), 1.0)
+    for (a, ca), (b, cb) in zip(stops, stops[1:]):
+        if rel <= b:
+            t = (rel - a) / (b - a)
+            return '#%02x%02x%02x' % tuple(round(x + (y - x) * t) for x, y in zip(ca, cb))
+    return '#d9463a'
+
+
+def _score_groups(models: list, det_names: set) -> list:
+    """(群組鍵, 預設標題, 副標鍵, 預設副標, [模式]) —— 系集平均／決定報／官方預報。"""
+    ens = [m for m in models if m not in det_names and m != 'JTWC']
+    det = [m for m in models if m in det_names]
+    off = [m for m in models if m == 'JTWC']
+    return [g for g in (
+        ('score.grp.ens', 'Ensemble mean', None, '', ens),
+        ('score.grp.det', 'Deterministic', 'score.grp.det.sub',
+         'single run — usually less accurate than an ensemble mean', det),
+        ('score.grp.jtwc', 'Official (JTWC)', 'score.grp.jtwc.sub',
+         'verified against its own warning positions, which flatters JTWC — not ranked', off)) if g[4]]
+
+
+def _score_table(card: dict, order: list[str], det_names: set) -> str:
+    """模式路徑誤差表：card = {model: {lead: [km, n]}}。
+
+    每個預報時數各自比較：n ≥ SCORE_MIN_N 的格子依誤差由綠（最好）到紅（最差）上色，
+    最好的標 ★、其餘標比最好多幾 %；樣本不足的格子淡化、不參與排名。
+    """
     models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
     if not models:
         return ''
-    # 每個時數的最小誤差加粗，一眼看出誰最準
-    best = {}
-    for ld in leads:
-        vals = [card[m].get(ld) or card[m].get(str(ld)) for m in models]
-        vals = [v[0] for v in vals if v]
-        best[ld] = min(vals) if vals else None
+    rank = {}
+    for ld in SCORE_LEADS:
+        # JTWC 用自己的警報位置當實況、數字偏有利，不跟模式一起排名
+        vals = [v[0] for m in models if m != 'JTWC' and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
+        rank[ld] = (min(vals), max(vals)) if vals else None
+    span = len(SCORE_LEADS) + 1
     rows = []
-    for m in models:
-        cells = []
-        for ld in leads:
-            v = card[m].get(ld) or card[m].get(str(ld))
-            if not v:
-                cells.append('<td class="c-nil">—</td>')
-                continue
-            cls = ' class="c-best"' if best[ld] is not None and v[0] == best[ld] else ''
-            cells.append(f'<td{cls}>{v[0]:.0f}<span class="eta">n={v[1]}</span></td>')
-        rows.append(f'<tr><td class="c-name">{_esc(m)}</td>{"".join(cells)}</tr>')
-    head = ''.join(f'<th>{ld} h</th>' for ld in leads)
+    for gk, gtxt, sk, stxt, ms in _score_groups(models, det_names):
+        sub = f'<small data-i18n="{sk}">{stxt}</small>' if sk else ''
+        rows.append(f'<tr class="grp"><td colspan="{span}"><span data-i18n="{gk}">{gtxt}</span>{sub}</td></tr>')
+        for m in ms:
+            cells = []
+            for ld in SCORE_LEADS:
+                v = _score_get(card, m, ld)
+                if not v:
+                    cells.append('<td class="c-nil">—</td>')
+                    continue
+                km, n = v
+                if m == 'JTWC' and n >= SCORE_MIN_N:
+                    cells.append(f'<td class="c-ref">{km:.0f}<span class="eta">n={n}</span></td>')
+                    continue
+                if n < SCORE_MIN_N or rank[ld] is None:
+                    cells.append(f'<td class="c-low" title="n &lt; {SCORE_MIN_N}">{km:.0f}'
+                                 f'<span class="eta">n={n}</span></td>')
+                    continue
+                lo, hi = rank[ld]
+                rel = (km - lo) / (hi - lo) if hi > lo else 0.0
+                tag = '★' if km == lo else f'+{(km - lo) / lo * 100:.0f}%'
+                bg = _score_heat(rel)
+                r_, g_, b_ = (int(bg[i:i + 2], 16) for i in (1, 3, 5))
+                fg = '#16324F' if 0.299 * r_ + 0.587 * g_ + 0.114 * b_ > 150 else '#fff'
+                cells.append(f'<td style="background:{bg};color:{fg};">{km:.0f}'
+                             f'<span class="eta">n={n} · {tag}</span></td>')
+            name_cls = 'c-name c-detname' if m in det_names else 'c-name'
+            rows.append(f'<tr><td class="{name_cls}">{_esc(m)}</td>{"".join(cells)}</tr>')
+    head = ''.join(f'<th>{ld} h<span class="eta">km</span></th>' for ld in SCORE_LEADS)
     return (f'<div class="city-table-wrap"><table class="city-table score-table">'
             f'<thead><tr><th data-i18n="score.model">Model</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def _score_chart(card: dict, order: list[str], det_names: set) -> str:
+    """平均路徑誤差隨預報時數的折線圖（inline SVG，跟著網站深淺主題變色）。"""
+    models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
+    pts = {m: [(ld, v[0], v[1]) for ld in SCORE_LEADS if (v := _score_get(card, m, ld))] for m in models}
+    pts = {m: p for m, p in pts.items() if p}
+    if not pts:
+        return ''
+    W, H, L, R, T, B = 900, 300, 52, 16, 12, 34
+    ymax = max(e for p in pts.values() for _, e, _ in p) * 1.1
+    step = 50 if ymax <= 400 else 100
+    ymax = (int(ymax // step) + 1) * step
+    x = lambda ld: L + (ld - SCORE_LEADS[0]) / (SCORE_LEADS[-1] - SCORE_LEADS[0]) * (W - L - R)
+    y = lambda e: T + (1 - e / ymax) * (H - T - B)
+    g = []
+    for k in range(0, ymax + 1, step):
+        g.append(f'<line x1="{L}" x2="{W - R}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)" stroke-width="1"/>'
+                 f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{k}</text>')
+    for ld in SCORE_LEADS:
+        g.append(f'<text x="{x(ld):.1f}" y="{H - 12}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{ld} h</text>')
+    for m, p in pts.items():
+        c = SCORE_COLORS.get(m, '#9AA6B2')
+        dash = ' stroke-dasharray="6 4"' if m in det_names else (' stroke-dasharray="2 4"' if m == 'JTWC' else '')
+        path = ' '.join(f'{x(ld):.1f},{y(e):.1f}' for ld, e, _ in p)
+        g.append(f'<polyline points="{path}" fill="none" stroke="{c}" stroke-width="2.2"{dash}/>')
+        for ld, e, n in p:
+            fill = c if n >= SCORE_MIN_N else 'none'
+            g.append(f'<circle cx="{x(ld):.1f}" cy="{y(e):.1f}" r="3.6" fill="{fill}" stroke="{c}" stroke-width="1.6">'
+                     f'<title>{_esc(m)} · {ld} h · {e:.0f} km · n={n}</title></circle>')
+    legend = ''.join(
+        f'<span><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
+        f'{";opacity:.55" if m in det_names or m == "JTWC" else ""}"></i>{_esc(m)}</span>' for m in pts)
+    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="score.chart.y">Mean track error (km)</div>'
+            f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Track error by forecast hour">{"".join(g)}</svg>'
+            f'<div class="sc-legend">{legend}</div></div>')
+
+
+def _score_block(track_key: str, scope_cards: list, order: list[str], det_names: set) -> str:
+    """成績區塊：分頁（範圍 × 樣本）＋每頁折線圖與表格。scope_cards = [(範圍鍵, card), ...]。"""
+    tabs, panels = [], []
+    for scope, card in scope_cards:
+        for sample in ('homog', 'all'):
+            c = (card or {}).get(sample) or {}
+            if not c:
+                continue
+            key = f'{scope}-{sample}'
+            first = not panels
+            tabs.append(f'<button class="model-tab-btn{" active" if first else ""}" role="tab" '
+                        f'data-track="{_esc(track_key)}" data-model="{key}">'
+                        f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
+            hide = '' if first else ' style="display:none;"'
+            panels.append(f'<div class="model-panel" data-track="{_esc(track_key)}" data-model="{key}"{hide}>'
+                          f'{_score_chart(c, order, det_names)}{_score_table(c, order, det_names)}</div>')
+    if not panels:
+        return ''
+    return (f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{"".join(tabs)}</div>'
+            + ''.join(panels))
 
 
 def _city_table(cols: list[tuple]) -> str:
@@ -834,12 +952,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             sections.append((sec_id, 'sub.score', 'Verification'))
             order = [x for m in models if isinstance(m, dict)
                      for x in (m.get('model'), m.get('det_name')) if x] + ['JTWC']
-            t_storm = _score_table(_card_m.get('scorecard') or {}, order)
-            t_all = _score_table(_card_m.get('scorecard_all') or {}, order)
-            body = (t_storm or '<p class="map-note" data-i18n="score.pending">Collecting data — the first '
-                    'errors appear once this storm has been tracked for 24 hours after a forecast.</p>')
-            if t_all:
-                body += f'<h4 class="score-sub" data-i18n="score.all">All storms (last 90 days)</h4>{t_all}'
+            det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
+            # 預設「所有颱風・同質樣本」：樣本最多、比較也最公平
+            body = _score_block(f"{key_prefix}-score",
+                                [('allst', _card_m.get('scorecard_all')), ('storm', _card_m.get('scorecard'))],
+                                order, det_names)
+            if not body:
+                body = ('<p class="map-note" data-i18n="score.pending">Collecting data — the first '
+                        'errors appear once a forecast has been out for 24 hours.</p>')
             score_html = f"""
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
@@ -848,9 +968,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {body}
                 <p class="map-note" data-i18n="note.score">
-                    Mean distance (km) between each model's forecast position (ensemble mean; JTWC = official forecast)
-                    and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified
-                    &nbsp;·&nbsp; Bold = smallest error
+                    Mean distance (km) between each forecast position and the JTWC warning position at the same time
+                    &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison)
+                    &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best
+                    &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
             </div>"""
 
@@ -1774,9 +1895,15 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map .tm-init b { color: var(--text); font-weight: 750; }
 .track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
-.score-table td { background: var(--surface-2); color: var(--text); font-weight: 600; }
-.score-table td.c-best { background: var(--accent-lo); color: var(--accent); font-weight: 800; }
-.score-sub { margin: 16px 0 6px; font-size: .9em; color: var(--text-2); }
+.score-table td { font-weight: 750; }
+.score-table td.c-low { background: var(--surface-2); color: var(--text-2); opacity: .55; font-weight: 600; }
+.score-table td.c-detname { color: #E8963A; }
+.score-table td.c-ref { background: var(--surface-2); color: var(--text); }
+.score-chart { margin: 4px 0 14px; }
+.score-chart svg { width: 100%; height: auto; display: block; }
+.score-chart .sc-axis { font-size: .78em; color: var(--text-2); margin-bottom: 2px; }
+.score-chart .sc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8em; color: var(--text-2); margin-top: 4px; }
+.score-chart .sc-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
 /* 決定報：外框＋琥珀字，不用實心色塊，免得跟 60–70% 的橘色機率格混淆 */
 .city-table td.c-det { background: var(--surface-2); color: #E8963A; box-shadow: inset 0 0 0 2px #B45309; }
@@ -2589,7 +2716,17 @@ const I18N = {
     'score.model':      'Model',
     'score.all':        'All storms (last 90 days)',
     'score.pending':    'Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.',
-    'note.score':       'Mean distance (km) between each model\'s forecast position (ensemble mean; JTWC = official forecast) and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified &nbsp;·&nbsp; Bold = smallest error',
+    'note.score':       'Mean distance (km) between each forecast position and the JTWC warning position at the same time &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
+    'score.tab.allst.homog': 'All storms · homogeneous',
+    'score.tab.allst.all': 'All storms · all forecasts',
+    'score.tab.storm.homog': 'This storm · homogeneous',
+    'score.tab.storm.all': 'This storm · all forecasts',
+    'score.grp.ens': 'Ensemble mean',
+    'score.grp.det': 'Deterministic',
+    'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
+    'score.grp.jtwc': 'Official (JTWC)',
+    'score.grp.jtwc.sub': 'verified against its own warning positions, which flatters JTWC — not ranked',
+    'score.chart.y': 'Mean track error (km)',
     'sub.strikex':      'By Period',
     'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
@@ -2740,7 +2877,17 @@ const I18N = {
     'score.model':      '模式',
     'score.all':        '所有颱風合計（近 90 天）',
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
-    'note.score':       '各模式預報位置（系集平均；JTWC＝官方預報）與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; n＝已校驗的預報數 &nbsp;·&nbsp; 粗體＝誤差最小',
+    'note.score':       '各預報位置與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
+    'score.tab.allst.homog': '所有颱風・同質樣本',
+    'score.tab.allst.all': '所有颱風・全部樣本',
+    'score.tab.storm.homog': '這顆颱風・同質樣本',
+    'score.tab.storm.all': '這顆颱風・全部樣本',
+    'score.grp.ens': '系集平均',
+    'score.grp.det': '決定報',
+    'score.grp.det.sub': '單一路徑，通常不如系集平均準',
+    'score.grp.jtwc': '官方預報（JTWC）',
+    'score.grp.jtwc.sub': '以 JTWC 自己的警報位置為實況，數字會偏有利，不參與排名',
+    'score.chart.y': '平均路徑誤差（公里）',
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',

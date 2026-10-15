@@ -2069,7 +2069,12 @@ def archive_verification(storms: list) -> None:
 
 
 def compute_scorecard() -> dict:
-    """{track_id: {model: {lead: [平均誤差 km, 樣本數]}}}；另有 '_all' 為所有颱風合計。"""
+    """路徑誤差成績單：{範圍: {'all': {model: {lead: [平均 km, n]}}, 'homog': {...}}}。
+
+    範圍為 track_id，或 '_all'（所有颱風合計）。'all' 用各模式全部校驗得到的預報；
+    'homog' 是同質樣本：同一颱風、同一起報時間、同一預報時數上，這顆颱風有出現的
+    模式全部都有預報才算進來。各模式碰到的情境相同，平均誤差才能直接比較。
+    """
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     if not os.path.isdir(fdir) or not os.path.isdir(odir):
         return {}
@@ -2079,7 +2084,7 @@ def compute_scorecard() -> dict:
             o = pd.read_csv(os.path.join(odir, name))
             o['t'] = pd.to_datetime(o['time'], utc=True)
             obs[name[:-4]] = o
-    errs: dict = {}
+    recs = []      # (track_id, model, 起報 YYYYmmddHH, 預報時數, 誤差 km)
     seen: set = set()
     for name in sorted(os.listdir(fdir)):
         m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
@@ -2108,10 +2113,31 @@ def compute_scorecard() -> dict:
             # 經度內插前先展開，跨換日線也不會內插到地球另一邊
             flon = float(np.interp(lead, f['lead_h'], np.unwrap(np.radians(f['lon'])) * 180 / np.pi))
             e = float(_haversine_km(ob['lat'], ob['lon'] % 360, flat, flon % 360))
-            for key in (tid, '_all'):
-                errs.setdefault(key, {}).setdefault(model, {}).setdefault(lead, []).append(e)
-    return {k: {mdl: {ld: [round(float(np.mean(v)), 0), len(v)] for ld, v in leads.items()}
-                for mdl, leads in d.items()} for k, d in errs.items()}
+            recs.append((tid, model, m.group(3), lead, e))
+
+    def _agg(rs):
+        out: dict = {}
+        for _, mdl, _, ld, e in rs:
+            out.setdefault(mdl, {}).setdefault(ld, []).append(e)
+        return {mdl: {ld: [round(float(np.mean(v)), 0), len(v)] for ld, v in d.items()}
+                for mdl, d in out.items()}
+
+    def _homog(rs):
+        # 每顆颱風、每個時數各自要求「該颱風出現過的模式全到」：只在某些颱風才有的模式
+        # （例如 GENC）不會把其他颱風的樣本整個擋掉
+        present: dict = {}
+        cases: dict = {}
+        for t, mdl, ini, ld, _ in rs:
+            present.setdefault((t, ld), set()).add(mdl)
+            cases.setdefault((t, ini, ld), set()).add(mdl)
+        ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
+        return [r for r in rs if (r[0], r[2], r[3]) in ok]
+
+    card = {}
+    for scope in sorted({r[0] for r in recs}) + (['_all'] if recs else []):
+        rs = recs if scope == '_all' else [r for r in recs if r[0] == scope]
+        card[scope] = {'all': _agg(rs), 'homog': _agg(_homog(rs))}
+    return card
 
 
 # ── 互動式地圖資料 ───────────────────────────────────────────────────────
