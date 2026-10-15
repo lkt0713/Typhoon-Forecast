@@ -163,7 +163,7 @@ MODEL_CONFIGS = [
         "fetcher": "ecmwf",
         "ecmwf_model": "AIFS",
         "local_prefix": "AIFS",
-        "display": "AIFS",
+        "display": "AIFS-ENS",
         "ensemble_dir": AIFS_ENSEMBLE_DIR,
         "mean_dir": AIFS_MEAN_DIR,
         "det_dir": AIFS_DET_DIR,
@@ -178,7 +178,7 @@ MODEL_CONFIGS = [
         "fetcher": "ecmwf",
         "ecmwf_model": "IFS",
         "local_prefix": "ECMWF",
-        "display": "ECMWF",
+        "display": "ECMWF-ENS",
         "ensemble_dir": IFS_ENSEMBLE_DIR,
         "mean_dir": IFS_MEAN_DIR,
         "det_dir": IFS_DET_DIR,
@@ -1853,16 +1853,18 @@ def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list
         return []
     found = {}
     # ① 路徑校驗存檔：lead_h → valid_time
-    slug = str(cfg['det_name'] if det else cfg['display']).replace(' ', '~')
+    name = cfg['det_name'] if det else cfg['display']
+    slugs = [str(n).replace(' ', '~') for n in
+             [name] + [old for old, new in VERIF_LEGACY_NAMES.items() if new == name]]
     fdir = os.path.join(VERIF_DIR, 'fcst')
     if os.path.isdir(fdir):
-        for name in os.listdir(fdir):
-            m = re.match(rf"{re.escape(slug)}_{re.escape(track_id)}_(\d{{10}})\.csv$", name)
+        for fname in os.listdir(fdir):
+            m = re.match(rf"(?:{'|'.join(map(re.escape, slugs))})_{re.escape(track_id)}_(\d{{10}})\.csv$", fname)
             if not m:
                 continue
             it = pd.Timestamp(datetime.strptime(m.group(1), '%Y%m%d%H'), tz='UTC')
             try:
-                f = pd.read_csv(os.path.join(fdir, name)).dropna()
+                f = pd.read_csv(os.path.join(fdir, fname)).dropna()
             except Exception:
                 continue
             if f.empty:
@@ -1978,6 +1980,8 @@ VERIF_DIR = os.path.join(OUTPUT_DIR, 'verification')
 VERIF_LEADS = [24, 48, 72, 96, 120]
 VERIF_MATCH_H = 1.5       # 實況時間與預報時間最多差多少小時算對得上
 VERIF_KEEP_DAYS = 90
+# 改名前存下的校驗檔用舊顯示名稱；讀回時對應到新名稱，成績與趨勢才不會斷成兩段
+VERIF_LEGACY_NAMES = {'AIFS': 'AIFS-ENS', 'ECMWF': 'ECMWF-ENS'}
 
 
 def _jtwc_warning_time(jtwc: dict, now: datetime | None = None) -> pd.Timestamp | None:
@@ -2076,11 +2080,17 @@ def compute_scorecard() -> dict:
             o['t'] = pd.to_datetime(o['time'], utc=True)
             obs[name[:-4]] = o
     errs: dict = {}
-    for name in os.listdir(fdir):
+    seen: set = set()
+    for name in sorted(os.listdir(fdir)):
         m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
         if not m or m.group(2) not in obs:
             continue
         model, tid = m.group(1).replace('~', ' '), m.group(2)
+        model = VERIF_LEGACY_NAMES.get(model, model)
+        # 改名那一期新舊名稱各存了一份，同一模式／颱風／期數只算一次
+        if (model, tid, m.group(3)) in seen:
+            continue
+        seen.add((model, tid, m.group(3)))
         init = pd.Timestamp(datetime.strptime(m.group(3), '%Y%m%d%H'), tz='UTC')
         f = pd.read_csv(os.path.join(fdir, name)).dropna()
         if len(f) < 2:
@@ -2265,27 +2275,27 @@ COMPARE_STYLES = {
     'WN2-C r2':   '#1B4F9C',
     'WN2-C r1':   '#5B8DC8',
     'GENC':      '#1FA97E',
-    'AIFS':      '#7A3FA8',
-    'AIFS-DET':  '#C2569B',
-    'ECMWF':     '#B3123F',
-    'ECMWF-DET': '#B45309',
+    'AIFS-ENS':      '#7A3FA8',
+    'AIFS-ENS-DET':  '#C2569B',
+    'ECMWF-ENS':     '#B3123F',
+    'ECMWF-ENS-DET': '#B45309',
 }
 # 畫線順序：後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在四條 WNC／GENC 的最後。
 COMPARE_ORDER = ['WN3-C', 'WN2-C r1', 'GENC', 'WN2-C r2',
-                 'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
+                 'AIFS-ENS', 'AIFS-ENS-DET', 'ECMWF-ENS', 'ECMWF-ENS-DET']
 # 圖例順序與畫線順序刻意分開：圖例照模式輩分排（WNC3 → WNC2-r2 → WNC2-r1 →
 # GENC → ECMWF → AIFS），疊圖先後則由 COMPARE_ORDER 決定。
 COMPARE_LEGEND_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'GENC',
-                        'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
+                        'AIFS-ENS', 'AIFS-ENS-DET', 'ECMWF-ENS', 'ECMWF-ENS-DET']
 COMPARE_LABELS = {
     'WN3-C': 'WN3-C Mean',
     'WN2-C r2': 'WN2-C r2 Mean',
     'WN2-C r1': 'WN2-C r1 Mean',
     'GENC': 'GENC Mean',
-    'AIFS': 'AIFS-ENS Mean',
-    'AIFS-DET': 'AIFS-single',
-    'ECMWF': 'ECMWF ENS Mean',
-    'ECMWF-DET': 'ECMWF HRES',
+    'AIFS-ENS': 'AIFS-ENS Mean',
+    'AIFS-ENS-DET': 'AIFS-single',
+    'ECMWF-ENS': 'ECMWF-ENS Mean',
+    'ECMWF-ENS-DET': 'ECMWF HRES',
 }
 
 
@@ -2391,7 +2401,7 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
 
 # 資料來源標註：WNC 系列與 GENC 來自 Weather Lab，ECMWF／AIFS 來自 ECMWF Open Data
 # （授權不同，見 ecmwf_bufr 模組說明），圖上不能一律掛 DeepMind。
-ECMWF_MODELS = {'ECMWF', 'AIFS'}
+ECMWF_MODELS = {'ECMWF-ENS', 'AIFS-ENS'}
 
 
 def _data_source(model_name: str) -> str:

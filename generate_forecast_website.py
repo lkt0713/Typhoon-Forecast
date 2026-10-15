@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.2.5"
+SITE_VERSION = "5.2.6"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -51,8 +51,8 @@ KNOWN_MODELS = [
     ('WN2-C r2', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('WN2-C r1', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('GENC', 'Google DeepMind', 'WeatherNext · Ensemble'),
-    ('AIFS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
-    ('ECMWF', 'ECMWF', 'IFS ENS + HRES'),
+    ('AIFS-ENS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
+    ('ECMWF-ENS', 'ECMWF', 'IFS ENS + HRES'),
 ]
 
 
@@ -76,7 +76,7 @@ def ss_category(kt):
 
 # ECMWF／AIFS 來自 ECMWF Open Data（CC-BY，授權與 WeatherNext 不同），
 # 其餘模式來自 Weather Lab；圖說的來源字串不能寫死成 DeepMind。
-ECMWF_MODELS = {'ECMWF', 'AIFS'}
+ECMWF_MODELS = {'ECMWF-ENS', 'AIFS-ENS'}
 
 # 潛勢頁上的 WNC2 1000 成員路徑聚類圖：是 WNC2 的另一種產品而非獨立模式，
 # 不算進「N 個模式」，圖說也不同
@@ -907,7 +907,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
-                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
+                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS-ENS / ECMWF-ENS)',
                 f"{track_id} Intensity Forecast")
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
@@ -1089,7 +1089,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
-                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS-ENS / ECMWF-ENS"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
@@ -1210,7 +1210,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
-                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
+                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
         <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
@@ -2518,7 +2518,7 @@ const I18N = {
   en: {
     'doc.title':        "Pillar's Tropical Cyclone Forecast",
     'brand.title':      "Pillar's Tropical Cyclone Forecast",
-    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS Ensemble Forecast System · Western Pacific',
     'header.updated':   'Updated',
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
@@ -2599,7 +2599,7 @@ const I18N = {
     'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
-    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
+    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS-ENS / ECMWF-ENS)',
     'sub.cities':     'Landfall & Cities',
     'panel.cities':   'Taiwan Landfall &amp; City Strike Probability',
     'cities.grp.land': 'Taiwan landfall',
@@ -2669,7 +2669,7 @@ const I18N = {
   zh: {
     'doc.title':        'Pillar 熱帶氣旋預報',
     'brand.title':      'Pillar 熱帶氣旋預報',
-    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS-ENS / ECMWF-ENS 即時系集預報系統 · 西北太平洋',
     'header.updated':   '更新於',
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
@@ -2750,7 +2750,7 @@ const I18N = {
     'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
-    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF）',
+    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS-ENS／ECMWF-ENS）',
     'sub.cities':     '登陸與城市',
     'panel.cities':   '登陸臺灣與城市侵襲機率',
     'cities.grp.land': '登陸臺灣',
@@ -3182,7 +3182,7 @@ async function initTrackMap(box) {
                         .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
-            // 決定報（AIFS／ECMWF 才有）：琥珀色粗線，沒有時把開關藏起來
+            // 決定報（AIFS-ENS／ECMWF-ENS 才有）：琥珀色粗線，沒有時把開關藏起來
             const hasDet = d.det && d.det.length > 1;
             showD.closest('label').style.display = hasDet ? '' : 'none';
             if (hasDet && showD.checked) {
