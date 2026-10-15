@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.3.2"
+SITE_VERSION = "5.3.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -239,6 +239,25 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
             </div>"""
 
 
+def _place_1000(items: list, label=lambda x: x) -> list:
+    """WN2-C 1000 一律排在 WN2-C r1 之後；該颱風沒有 r1 時接在最後一個 WN 系列之後。
+
+    1000 成員版沒有自己的 storm dict，各清單都是最後才補上，順序要另外排。
+    items 可以是名稱或 tuple，label 取出名稱。
+    """
+    rest = [x for x in items if label(x) != CLUSTER_LABEL]
+    k1000 = [x for x in items if label(x) == CLUSTER_LABEL]
+    if not k1000:
+        return list(items)
+    names = [label(x) for x in rest]
+    if 'WN2-C r1' in names:
+        pos = names.index('WN2-C r1') + 1
+    else:
+        wn = [i for i, n in enumerate(names) if str(n).startswith('WN')]
+        pos = wn[-1] + 1 if wn else len(rest)
+    return rest[:pos] + k1000 + rest[pos:]
+
+
 def _model_images(models: list, key: str, key_1000: str, label_key: str = 'model') -> list[tuple[str, str]]:
     """各模式 storm dict 的 key 圖檔，再加上掛在第一個 dict 的 1000 成員圖（存在者）。
 
@@ -247,7 +266,7 @@ def _model_images(models: list, key: str, key_1000: str, label_key: str = 'model
     items = [(m.get(label_key) or m.get('model', 'WN2-C r2'), m.get(key)) for m in models if isinstance(m, dict)]
     items += [(CLUSTER_LABEL, m.get(key_1000)) for m in models
               if isinstance(m, dict) and m.get(key_1000)][:1]
-    return [(lbl, p) for lbl, p in items if p and os.path.exists(p)]
+    return _place_1000([(lbl, p) for lbl, p in items if p and os.path.exists(p)], label=lambda x: x[0])
 
 
 SCORE_LEADS = [24, 48, 72, 96, 120]
@@ -552,9 +571,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             'models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)],
             # 首頁颱風卡片列的模式：多算 1000 成員版（它沒有自己的動畫／路徑圖分頁，
             # 不能放進上面的 models，那份清單颱風頁拿去產生模式分頁）
-            'tile_models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)]
-                           + ([CLUSTER_LABEL] if any(isinstance(m, dict) and m.get('strike_1000_path')
-                                                     for m in models) else []),
+            'tile_models': _place_1000(
+                [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)]
+                + ([CLUSTER_LABEL] if any(isinstance(m, dict) and m.get('strike_1000_path')
+                                          for m in models) else [])),
             # 3D 地球用：颱風位置只用 JTWC；路徑優先用 JTWC 官方預報，沒有才退回模式系集平均
             'lat': _coord(jtwc_data.get('latitude')),
             'lon': _coord(jtwc_data.get('longitude')),
@@ -587,6 +607,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if not (_gpath and os.path.exists(_gpath)):
             continue
         _genesis_entries.append((_model_label, os.path.basename(_gpath)))
+
+    _genesis_entries = _place_1000(_genesis_entries, label=lambda e: e[0])
 
     # 路由順序同時決定導覽列排列與換頁動畫的方向（往右的頁面從右邊滑入）
     routes = ['overview'] + [f'storm/{tid}' for tid in order]
@@ -1060,6 +1082,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 city_cols.append((m['det_name'], m['city_strike_det'], True))
         city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
                       for m in models if isinstance(m, dict) and m.get('city_strike_1000')][:1]
+        city_cols = _place_1000(city_cols, label=lambda c: c[0])
         table = _city_table(city_cols) if city_cols else ''
         if table:
             sec_id = f"sec-{key_prefix}-cities"
