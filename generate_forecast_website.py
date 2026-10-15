@@ -81,8 +81,8 @@ ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
 # 只有系集的產品（如生成潛勢）用 -ENS 名稱；首頁模式卡是 AIFS／ECMWF，亮燈時對回去
 ENS_SYSTEM = {'AIFS-ENS': 'AIFS', 'ECMWF-ENS': 'ECMWF'}
 
-# 潛勢頁上的 WNC2 1000 成員路徑聚類圖：是 WNC2 的另一種產品而非獨立模式，
-# 不算進「N 個模式」，圖說也不同
+# 潛勢頁上的 WN2-C 1000 成員路徑聚類圖：算進「N 個模式」（全站一律 7 個），
+# 但圖說不同，也不放進左右拖曳的比較器（聚類圖與其他潛勢圖畫法不同，對不齊）
 CLUSTER_LABEL = 'WN2-C 1000'
 
 
@@ -691,7 +691,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
     genesis_teaser = ""
-    _n_genesis_models = sum(lbl != CLUSTER_LABEL for lbl, _ in _genesis_entries)
+    _n_genesis_models = len(_genesis_entries)      # 含 WN2-C 1000，與首頁的模式數一致
     if _genesis_entries:
         chips = "".join(f'<span class="mini-chip">{_esc(lbl)}</span>' for lbl, _ in _genesis_entries)
         genesis_teaser = f"""
