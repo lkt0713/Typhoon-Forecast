@@ -640,13 +640,13 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
     海面先加、陸地後加：兩者的預設 zorder 同為 -1，後加入者疊在上面；反過來
     （原本的順序）會讓半透明海面蓋住陸地，整張圖發灰。
 
-    海岸線 zorder 1.3：壓在成員路徑（0.9～1.15）之上、平均路徑（3.9）之下，
-    成員再密集，台灣等島嶼的輪廓也不會消失。
+    海岸線 zorder 2.5：壓在所有成員線與成員圈（路徑圖 0.9～1.15、潛勢圖 1～2）
+    之上、平均路徑（3.9）之下，成員再密集，台灣等島嶼的輪廓也不會消失。
     """
     ax.set_extent(extent, crs=ccrs.PlateCarree())
     ax.add_feature(cfeature.OCEAN, facecolor=BASEMAP['ocean'])
     ax.add_feature(cfeature.LAND, facecolor=BASEMAP['land'])
-    ax.coastlines(resolution='50m', linewidth=0.7, color=BASEMAP['coast'], zorder=1.3)
+    ax.coastlines(resolution='50m', linewidth=0.7, color=BASEMAP['coast'], zorder=2.5)
     ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor=BASEMAP['border'], zorder=0.6)
     gl = ax.gridlines(draw_labels=True, linewidth=0.5, color=BASEMAP['grid'],
                       alpha=0.8, linestyle=(0, (2, 3)))
@@ -1146,7 +1146,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
                 last_lon = _normalize_lon_values([last_pt['lon']], use_360=use_360)[0]
                 _scatter_members(ax, [last_lon], [last_pt['lat']],
                                  [COLOR_MAP.get(cat, COLOR_MAP['Unknown'])], kw,
-                                 size=50, alpha=0.9, zorder=1.15, lw=1.5)
+                                 size=22, alpha=0.9, zorder=1.15, lw=1.0)
 
         # ── 平均軌跡 + 24h 標記 ───────────────────────────────────────────────
         mean_subset = mean_df[mean_df['valid_time'] <= current_time].sort_values('valid_time')
@@ -1854,19 +1854,19 @@ def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = 
         mslps = g['minimum_sea_level_pressure_hpa'].to_numpy()
 
         # 軌跡連線（淡灰）
-        ax.plot(lons, lats, color=TRACK_LINE, linewidth=1.85, alpha=0.35,
+        ax.plot(lons, lats, color=TRACK_LINE, linewidth=1.0, alpha=0.35,
                 zorder=1, solid_capstyle='round', **kw)
 
         # MSLP 著色圓點：達暴風強度者實心、未達者空心（整條軌跡一次 scatter，
         # 避免逐點繪製拖慢速度）
         colors = [_mslp_to_color(float(m)) for m in mslps]
         _scatter_members(ax, lons, lats, colors, kw,
-                         size=34, alpha=0.85, zorder=2, lw=1.2)
+                         size=14, alpha=0.75, zorder=2, lw=0.8)
 
     # 圖例（MSLP 色階）
     legend_handles = []
     for _, color, label in MSLP_COLOR_BINS:
-        h = mlines.Line2D([], [], marker='o', ms=7.5, ls='',
+        h = mlines.Line2D([], [], marker='o', ms=6, ls='',
                           markerfacecolor='none', markeredgecolor=color,
                           markeredgewidth=1.4, color=color, label=label)
         legend_handles.append(h)
