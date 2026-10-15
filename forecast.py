@@ -1943,7 +1943,16 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     cb = fig.colorbar(sm, ax=ax, orientation='horizontal', pad=0.06, fraction=0.04,
                       aspect=45, shrink=0.8)
-    cb.ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
+    # 刻度只標真的有資料的起報時間：期數多時等距挑（最多約 8 個，頭尾一定標），
+    # 每一期另畫小刻度。最後兩個標籤太近時拿掉倒數第二個，免得字疊在一起
+    step = max(1, int(np.ceil((len(tnum) - 1) / 7)))
+    idx = list(range(0, len(tnum), step))
+    if idx[-1] != len(tnum) - 1:
+        if len(idx) > 1:
+            idx.pop()
+        idx.append(len(tnum) - 1)
+    cb.set_ticks([tnum[i] for i in idx])
+    cb.ax.xaxis.set_ticks(tnum, minor=True)
     cb.ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %HZ'))
     cb.set_label('Init time (older → newer)', color=TEXT_MUTED, fontsize=9)
     cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
