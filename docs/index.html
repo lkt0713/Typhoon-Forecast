@@ -502,9 +502,15 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map .tm-init b { color: var(--text); font-weight: 750; }
 .track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
-.score-table td { background: var(--surface-2); color: var(--text); font-weight: 600; }
-.score-table td.c-best { background: var(--accent-lo); color: var(--accent); font-weight: 800; }
-.score-sub { margin: 16px 0 6px; font-size: .9em; color: var(--text-2); }
+.score-table td { font-weight: 750; }
+.score-table td.c-low { background: var(--surface-2); color: var(--text-2); opacity: .55; font-weight: 600; }
+.score-table td.c-detname { color: #E8963A; }
+.score-table td.c-ref { background: var(--surface-2); color: var(--text); }
+.score-chart { margin: 4px 0 14px; }
+.score-chart svg { width: 100%; height: auto; display: block; }
+.score-chart .sc-axis { font-size: .78em; color: var(--text-2); margin-bottom: 2px; }
+.score-chart .sc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8em; color: var(--text-2); margin-top: 4px; }
+.score-chart .sc-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
 /* 決定報：外框＋琥珀字，不用實心色塊，免得跟 60–70% 的橘色機率格混淆 */
 .city-table td.c-det { background: var(--surface-2); color: #E8963A; box-shadow: inset 0 0 0 2px #B45309; }
@@ -1039,6 +1045,8 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .teaser-body { border-left: 1px solid var(--border); padding: 34px; }
 .mini-chip { background: none; }
 .model-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+/* 7 個模式：桌機固定一排 4 張（4＋3），不會剩一兩張孤零零掉到下一排 */
+@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(4, 1fr); } }
 .model-card { border-width: 0 1px 1px 0; padding: 24px; }
 .model-card:hover { background: var(--surface-2); }
 .model-name { font-weight: 500; font-size: 1.6em; letter-spacing: .04em; }
@@ -1183,14 +1191,14 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link nav-storm" href="#/storm/WP282026" data-route="storm/WP282026"><span class="nav-dot" style="--c:#8A97A6"></span><span class="storm-name">TWENTYNINE</span></a><a class="nav-link nav-storm" href="#/storm/WP292026" data-route="storm/WP292026"><span class="nav-dot" style="--c:#8A97A6"></span><span class="storm-name">CHAMPI</span></a><div class="nav-drop"><button class="nav-link nav-drop-btn" type="button" aria-haspopup="true" aria-expanded="false" data-route-prefix="storm/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.4"/><path d="M19.5 7.5C17.6 4.3 13.4 3 10 4.2M4.5 16.5C6.4 19.7 10.6 21 14 19.8M7.2 4.9C4.2 6.9 3.1 10.5 4 13.6M16.8 19.1c3-2 4.1-5.6 3.2-8.7"/></svg><span data-i18n="nav.storms">Storms</span><em class="nd-count">2</em><svg class="nd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="nav-menu" role="menu"><a class="nav-menu-item" role="menuitem" href="#/storm/WP292026" data-route="storm/WP292026"><span class="nav-dot" style="--c:#8A97A6"></span><span class="storm-name">CHAMPI</span><span class="nm-cat" style="background:#8A97A6;color:#0D2033">TD</span><span class="nm-kt mono">30 kt</span></a><a class="nav-menu-item" role="menuitem" href="#/storm/WP282026" data-route="storm/WP282026"><span class="nav-dot" style="--c:#8A97A6"></span><span class="storm-name">TWENTYNINE</span><span class="nm-cat" style="background:#8A97A6;color:#0D2033">TD</span><span class="nm-kt mono">20 kt</span></a></div></div><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-10-15 17:09:02">
+            <div class="update-badge" id="update-badge" data-full="2026-10-15 17:37:46">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-10-15</span> 17:09<span class="ub-long">:02</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-10-15</span> 17:37<span class="ub-long">:46</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v5.2.6</span>
+            <span class="version-badge" title="Site version / 網站版本">v5.3.1</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -1213,14 +1221,14 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <span class="sep">·</span><span class="mono">10.9°N, 158.4°E</span>
                 </p>
                 <p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="2"
-                   data-i18n-models="6">2 active system(s) · ensemble guidance from 6 models, refreshed every 30 minutes.</p>
+                   data-i18n-models="7">2 active system(s) · ensemble guidance from 7 models, refreshed every 30 minutes.</p>
                 <div class="hero-cta">
                     <a class="btn-primary" href="#/storm/WP292026"><span data-i18n="hero.cta.storm">Open forecast</span> <span aria-hidden="true">→</span></a>
                     <a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>
                 </div>
                 <div class="hero-meta">
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">10-15</span> 17:09</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">10-15</span> 17:37</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">2</span></div>
                 </div>
             </div>
@@ -1229,7 +1237,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         
         <div class="marquee" aria-hidden="true">
             <div class="strip"><span class="mq" style="--c:#8A97A6">TWENTYNINE</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">TWENTYNINE</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">TWENTYNINE</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">TWENTYNINE</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#8A97A6">CHAMPI</span><span class="mq o">Typhoon Forecast</span></div>
-            <div class="strip reverse"><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">GENC</span><span class="mq o">AIFS-ENS</span><span class="mq">ECMWF-ENS</span><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">GENC</span><span class="mq o">AIFS-ENS</span><span class="mq">ECMWF-ENS</span></div>
+            <div class="strip reverse"><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">WN2-C 1000</span><span class="mq o">GENC</span><span class="mq">AIFS-ENS</span><span class="mq o">ECMWF-ENS</span><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">WN2-C 1000</span><span class="mq o">GENC</span><span class="mq">AIFS-ENS</span><span class="mq o">ECMWF-ENS</span></div>
         </div>
         
         <div class="statement">
@@ -1317,6 +1325,11 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <div class="model-name">WN2-C r1<span class="model-state" title=""></span></div>
                     <div class="model-org">Google DeepMind</div>
                     <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WN2-C 1000<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · 1000 members</div>
                 </div>
                 <div class="model-card reveal on">
                     <div class="model-name">GENC<span class="model-state" title=""></span></div>
@@ -1738,11 +1751,12 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <span class="panel-icon">🏁</span>
                     <span data-i18n="panel.score">Track Error by Model</span>
                 </div>
-                <p class="map-note" data-i18n="score.pending">Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.</p>
+                <p class="map-note" data-i18n="score.pending">Collecting data — the first errors appear once a forecast has been out for 24 hours.</p>
                 <p class="map-note" data-i18n="note.score">
-                    Mean distance (km) between each model's forecast position (ensemble mean; JTWC = official forecast)
-                    and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified
-                    &nbsp;·&nbsp; Bold = smallest error
+                    Mean distance (km) between each forecast position and the JTWC warning position at the same time
+                    &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison)
+                    &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best
+                    &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
             </div>
         </div>
@@ -2198,11 +2212,12 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <span class="panel-icon">🏁</span>
                     <span data-i18n="panel.score">Track Error by Model</span>
                 </div>
-                <p class="map-note" data-i18n="score.pending">Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.</p>
+                <p class="map-note" data-i18n="score.pending">Collecting data — the first errors appear once a forecast has been out for 24 hours.</p>
                 <p class="map-note" data-i18n="note.score">
-                    Mean distance (km) between each model's forecast position (ensemble mean; JTWC = official forecast)
-                    and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified
-                    &nbsp;·&nbsp; Bold = smallest error
+                    Mean distance (km) between each forecast position and the JTWC warning position at the same time
+                    &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison)
+                    &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best
+                    &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
             </div>
         </div>
@@ -2396,7 +2411,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP282026", "storm/WP292026", "genesis", "about"], "updatedIso": "2026-10-15T17:09:02+08:00", "hero": {"rgb": "179,187,197", "strength": 0.15}, "trackIds": "WP282026 / WP292026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "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", "focus": "WP292026", "storms": [{"id": "WP282026", "name": "TWENTYNINE", "lat": 22.5, "lon": 139.7, "kt": 20.0, "color": "#8A97A6", "track": [[22.5, 139.7, 20, 0], [23.1, 137.9, 20, 12], [23.3, 136.1, 15, 24]]}, {"id": "WP292026", "name": "CHAMPI", "lat": 10.9, "lon": 158.4, "kt": 30.0, "color": "#8A97A6", "track": [[10.9, 158.4, 30, 0], [11.3, 156.0, 35, 12], [11.8, 153.4, 45, 24], [12.2, 150.9, 55, 36], [12.8, 148.3, 65, 48], [13.3, 145.7, 80, 60], [13.9, 143.3, 95, 72], [15.3, 138.6, 125, 96], [17.3, 134.0, 125, 120]]}]}}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP282026", "storm/WP292026", "genesis", "about"], "updatedIso": "2026-10-15T17:37:46+08:00", "hero": {"rgb": "179,187,197", "strength": 0.15}, "trackIds": "WP282026 / WP292026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "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", "focus": "WP292026", "storms": [{"id": "WP282026", "name": "TWENTYNINE", "lat": 22.5, "lon": 139.7, "kt": 20.0, "color": "#8A97A6", "track": [[22.5, 139.7, 20, 0], [23.1, 137.9, 20, 12], [23.3, 136.1, 15, 24]]}, {"id": "WP292026", "name": "CHAMPI", "lat": 10.9, "lon": 158.4, "kt": 30.0, "color": "#8A97A6", "track": [[10.9, 158.4, 30, 0], [11.3, 156.0, 35, 12], [11.8, 153.4, 45, 24], [12.2, 150.9, 55, 36], [12.8, 148.3, 65, 48], [13.3, 145.7, 80, 60], [13.9, 143.3, 95, 72], [15.3, 138.6, 125, 96], [17.3, 134.0, 125, 120]]}]}}</script>
     <script>
 (function () {
 'use strict';
@@ -2544,7 +2559,17 @@ const I18N = {
     'score.model':      'Model',
     'score.all':        'All storms (last 90 days)',
     'score.pending':    'Collecting data — the first errors appear once this storm has been tracked for 24 hours after a forecast.',
-    'note.score':       'Mean distance (km) between each model\'s forecast position (ensemble mean; JTWC = official forecast) and the JTWC warning position at the same time &nbsp;·&nbsp; n = number of forecasts verified &nbsp;·&nbsp; Bold = smallest error',
+    'note.score':       'Mean distance (km) between each forecast position and the JTWC warning position at the same time &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
+    'score.tab.allst.homog': 'All storms · homogeneous',
+    'score.tab.allst.all': 'All storms · all forecasts',
+    'score.tab.storm.homog': 'This storm · homogeneous',
+    'score.tab.storm.all': 'This storm · all forecasts',
+    'score.grp.ens': 'Ensemble mean',
+    'score.grp.det': 'Deterministic',
+    'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
+    'score.grp.jtwc': 'Official (JTWC)',
+    'score.grp.jtwc.sub': 'verified against its own warning positions, which flatters JTWC — not ranked',
+    'score.chart.y': 'Mean track error (km)',
     'sub.strikex':      'By Period',
     'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
@@ -2695,7 +2720,17 @@ const I18N = {
     'score.model':      '模式',
     'score.all':        '所有颱風合計（近 90 天）',
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
-    'note.score':       '各模式預報位置（系集平均；JTWC＝官方預報）與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; n＝已校驗的預報數 &nbsp;·&nbsp; 粗體＝誤差最小',
+    'note.score':       '各預報位置與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
+    'score.tab.allst.homog': '所有颱風・同質樣本',
+    'score.tab.allst.all': '所有颱風・全部樣本',
+    'score.tab.storm.homog': '這顆颱風・同質樣本',
+    'score.tab.storm.all': '這顆颱風・全部樣本',
+    'score.grp.ens': '系集平均',
+    'score.grp.det': '決定報',
+    'score.grp.det.sub': '單一路徑，通常不如系集平均準',
+    'score.grp.jtwc': '官方預報（JTWC）',
+    'score.grp.jtwc.sub': '以 JTWC 自己的警報位置為實況，數字會偏有利，不參與排名',
+    'score.chart.y': '平均路徑誤差（公里）',
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
