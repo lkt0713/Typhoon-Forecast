@@ -17,12 +17,6 @@ from matplotlib.offsetbox import DrawingArea # type: ignore
 import matplotlib.ticker as mticker # type: ignore
 import re
 
-try:
-    from PIL import Image # type: ignore
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-
 # Target timestamp — auto-derived from current UTC time.
 # WNC data is available ~6h45m after cycle time, so we subtract that
 # and round down to the nearest 6-hour boundary (00/06/12/18Z).
@@ -3384,10 +3378,11 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                     # .png 是改存 WebP 前的舊幀，一併清掉
                     if _old.startswith("frame_") and _old.endswith((".png", ".webp")):
                         os.remove(os.path.join(frames_dir, _old))
-            frame_paths = generate_frame_sequence(df, mean_df, init_time, tid, frames_dir,
-                                                  max_frames=72, model_name=display,
-                                                  det_df=det_df, det_label=det_label,
-                                                  mean_name=_ens_name(cfg))
+            # 幀存成 WebP 給網頁播放器；GIF 已停產，不需要回傳的路徑清單
+            generate_frame_sequence(df, mean_df, init_time, tid, frames_dir,
+                                    max_frames=72, model_name=display,
+                                    det_df=det_df, det_label=det_label,
+                                    mean_name=_ens_name(cfg))
 
             # 預報 GIF 已停產：網頁播放器用的是幀，GIF 沒有地方引用，每輪卻佔 ~57 MB。
             # 停產前留下的舊檔在這裡順手刪掉
