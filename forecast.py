@@ -468,6 +468,24 @@ def _draw_member_track(ax, g, use_360: bool, kw, lw: float = 1.0,
                                      capstyle='round', joinstyle='round', **kw))
 
 
+def _intensity_legend(ax, style: str = 'marker', fontsize: float = 8, ms: float = 7.0):
+    """強度圖例放在地圖正下方（軸外）、排成一列。
+
+    原本貼在右下角，颱風從東南方生成時起點與早期成員正好被它蓋住；放軸外就
+    不論路徑走哪都擋不到。y 要壓在經度刻度標籤底下，-0.045 是 8 pt 標籤的高度。
+    """
+    leg = ax.legend(handles=_intensity_legend_handles(ms=ms, style=style),
+                    loc='upper center', bbox_to_anchor=(0.5, -0.045),
+                    fontsize=fontsize, ncol=7, borderpad=0.45, columnspacing=1.4,
+                    handlelength=1.4 if style == 'line' else 0.9, handletextpad=0.4,
+                    markerscale=0.85, title='Intensity', title_fontsize=fontsize,
+                    alignment='center', **LEGEND_KW)
+    # 不能 add_artist：那會把 clip path 設成軸框，軸外的圖例整個被裁掉。
+    # 留在 ax.legend_ 上（呼叫端須是最後一個 ax.legend）就不受裁切。
+    _style_legend(leg)
+    return leg
+
+
 def _intensity_legend_handles(ms: float = 7.0, style: str = 'marker') -> list:
     """強度圖例：與地圖一致，只用顏色分強度。
 
@@ -1185,13 +1203,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
         _track_source_legend(ax, model_name, fontsize=8, ms=10,
                              det_label=det_label if has_det else None)
 
-        int_leg = ax.legend(handles=_intensity_legend_handles(ms=6), loc='lower right',
-                            bbox_to_anchor=(0.995, 0.005), title='Intensity',
-                            fontsize=7, ncol=4, borderpad=0.6, labelspacing=0.28,
-                            handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
-                            markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
-        _style_legend(int_leg)
-        ax.add_artist(int_leg)
+        _intensity_legend(ax, style='marker', fontsize=7, ms=6)
 
         # ── 標題 ──────────────────────────────────────────────────────────────
         time_str = pd.to_datetime(current_time).strftime('%Y-%m-%d %H:%M UTC')
@@ -1617,14 +1629,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     _track_source_legend(ax, model_name, fontsize=9, ms=11,
                          det_label=det_label if has_det else None)
 
-    int_leg = ax.legend(handles=_intensity_legend_handles(ms=7, style='line'),
-                        loc='lower right',
-                        bbox_to_anchor=(0.995, 0.005), title='Intensity',
-                        fontsize=8, ncol=4, borderpad=0.6, labelspacing=0.3,
-                        handlelength=1.4, handletextpad=0.35, columnspacing=1.0,
-                        markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
-    _style_legend(int_leg)
-    ax.add_artist(int_leg)
+    _intensity_legend(ax, style='line', fontsize=8, ms=7)
 
     n_members = int(df['sample'].nunique()) if 'sample' in df.columns else 0
     init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
