@@ -441,12 +441,46 @@ def _scatter_members(ax, lons, lats, colors, kw, size=11.0,
                marker='o', linewidths=lw, alpha=alpha, zorder=zorder, **kw)
 
 
-def _intensity_legend_handles(ms: float = 7.0) -> list:
-    """強度圖例：與地圖一致，一律空心圈，只用顏色分強度。"""
+def _draw_member_track(ax, g, use_360: bool, kw, lw: float = 1.0,
+                       alpha: float = 0.75, zorder: float = 0.9) -> None:
+    """單一成員路徑：依強度逐段著色的細線。
+
+    早期是「灰線 + 每 6h 空心圈」，64 個成員在台灣附近疊成一整片色塊，連陸地
+    與海岸線都被蓋掉。改成細的彩色線段後強度仍讀得出來，線與線之間還留得下
+    底圖；每段顏色取起點強度。經度跳超過 180° 的段（換日線）直接略過。
+    """
+    from matplotlib.collections import LineCollection  # type: ignore
+    lons = _normalize_lon_values(g['lon'].to_numpy(), use_360=use_360)
+    lats = g['lat'].to_numpy(dtype=float)
+    winds = (g['wind'] if 'wind' in g.columns
+             else pd.Series(np.nan, index=g.index)).to_numpy()
+    valid = ~(np.isnan(lons) | np.isnan(lats))
+    lons, lats, winds = lons[valid], lats[valid], winds[valid]
+    if lons.size < 2:
+        return
+    pts = np.column_stack([lons, lats])
+    segs = np.stack([pts[:-1], pts[1:]], axis=1)
+    keep = np.abs(np.diff(lons)) <= 180.0
+    colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds[:-1]]
+    colors = [c for c, k in zip(colors, keep) if k]
+    ax.add_collection(LineCollection(segs[keep], colors=colors, linewidths=lw,
+                                     alpha=alpha, zorder=zorder,
+                                     capstyle='round', joinstyle='round', **kw))
+
+
+def _intensity_legend_handles(ms: float = 7.0, style: str = 'marker') -> list:
+    """強度圖例：與地圖一致，只用顏色分強度。
+
+    style='marker' 為空心圈（點狀圖用）；'line' 為短色線（成員改畫彩色線的路徑圖用）。
+    """
+    cats = ['TD', 'TS', 'Cat1', 'Cat2', 'Cat3', 'Cat4', 'Cat5']
+    if style == 'line':
+        return [mlines.Line2D([], [], color=COLOR_MAP[cat], lw=2.4, label=cat)
+                for cat in cats]
     return [mlines.Line2D([], [], marker='o', ms=ms, ls='', label=cat,
                           markerfacecolor='none', markeredgecolor=COLOR_MAP[cat],
                           markeredgewidth=1.1, color=COLOR_MAP[cat])
-            for cat in ['TD', 'TS', 'Cat1', 'Cat2', 'Cat3', 'Cat4', 'Cat5']]
+            for cat in cats]
 
 
 def _cyclone_marker_path(turns: float = 0.62, r_core: float = 0.30,
@@ -530,8 +564,11 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
     det_label 有值時多一列決定報（ECMWF HRES／AIFS-single）；WNC 系列沒有
     對應產品，維持原本的四列。
     """
+    # 成員線依強度著色，圖例用三段彩色短線並排暗示「顏色＝強度」
+    member_handle = tuple(mlines.Line2D([], [], color=COLOR_MAP[c], lw=2.0)
+                          for c in ('TS', 'Cat2', 'Cat4'))
     handles = [
-        mlines.Line2D([], [], color=TRACK_LINE, lw=1.85),
+        member_handle,
         mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=3.7,
                       markerfacecolor='white', markeredgecolor=MEAN_COLOR,
                       markeredgewidth=1.4),
@@ -550,7 +587,9 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Track Source',
                     fontsize=fontsize, borderpad=0.7, labelspacing=0.42,
                     handlelength=1.4, handletextpad=0.7,
-                    handler_map={tuple: HandlerTuple(ndivide=1, pad=0)}, **LEGEND_KW)
+                    handler_map={tuple: HandlerTuple(ndivide=1, pad=0),
+                                 member_handle: HandlerTuple(ndivide=None, pad=0)},
+                    **LEGEND_KW)
     _style_legend(leg)
     ax.add_artist(leg)
     return leg
@@ -582,11 +621,14 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
 
     海面先加、陸地後加：兩者的預設 zorder 同為 -1，後加入者疊在上面；反過來
     （原本的順序）會讓半透明海面蓋住陸地，整張圖發灰。
+
+    海岸線 zorder 1.3：壓在成員路徑（0.9～1.15）之上、平均路徑（3.9）之下，
+    成員再密集，台灣等島嶼的輪廓也不會消失。
     """
     ax.set_extent(extent, crs=ccrs.PlateCarree())
     ax.add_feature(cfeature.OCEAN, facecolor=BASEMAP['ocean'])
     ax.add_feature(cfeature.LAND, facecolor=BASEMAP['land'])
-    ax.coastlines(resolution='50m', linewidth=0.7, color=BASEMAP['coast'], zorder=0.6)
+    ax.coastlines(resolution='50m', linewidth=0.7, color=BASEMAP['coast'], zorder=1.3)
     ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor=BASEMAP['border'], zorder=0.6)
     gl = ax.gridlines(draw_labels=True, linewidth=0.5, color=BASEMAP['grid'],
                       alpha=0.8, linestyle=(0, (2, 3)))
@@ -1079,11 +1121,7 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
         for sid, g in df.groupby("sample"):
             g = g[g['valid_time'] <= current_time].sort_values('valid_time')
             if not g.empty:
-                lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
-                lats = g["lat"].to_numpy()
-                for seg_lon, seg_lat in _split_track_segments(lons, lats):
-                    ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.85, alpha=0.55,
-                            zorder=0.9, solid_capstyle='round', **kw)
+                _draw_member_track(ax, g, use_360, kw, lw=0.9, alpha=0.75)
                 last_pt = g.iloc[-1]
                 wind = last_pt.get('wind', np.nan)
                 cat = ss_category(wind)
@@ -1518,22 +1556,10 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     # 不確定性圓錐（ensemble spread）
     _draw_uncertainty_cone(ax, df, mean_df, init_time, use_360, kw)
 
-    # 每個 member（灰色線）與 6h 強度標記（彩色點）
+    # 每個 member：依強度著色的細線
     for _sid, g in df.groupby("sample"):
-        g = g.sort_values('valid_time')
-        lons = _normalize_lon_values(g["lon"].to_numpy(), use_360=use_360)
-        lats = g["lat"].to_numpy()
-        for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            ax.plot(seg_lon, seg_lat, color=TRACK_LINE, linewidth=1.85, alpha=0.5,
-                    zorder=0.9, solid_capstyle='round', **kw)
-        pts_6h = get_6h_markers(g, init_time)
-        if not pts_6h.empty:
-            marker_lons = _normalize_lon_values(pts_6h['lon'].to_numpy(), use_360=use_360)
-            winds = (pts_6h['wind'] if 'wind' in pts_6h.columns
-                     else pd.Series(np.nan, index=pts_6h.index)).to_numpy()
-            colors = [COLOR_MAP.get(ss_category(w), COLOR_MAP['Unknown']) for w in winds]
-            _scatter_members(ax, marker_lons, pts_6h['lat'].to_numpy(), colors, kw,
-                             size=32, alpha=0.85, zorder=1.15, lw=1.15)
+        _draw_member_track(ax, g.sort_values('valid_time'), use_360, kw,
+                           lw=0.9, alpha=0.75)
 
     # 起始位置星形標記
     if not mean_df.empty:
@@ -1591,10 +1617,11 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     _track_source_legend(ax, model_name, fontsize=9, ms=11,
                          det_label=det_label if has_det else None)
 
-    int_leg = ax.legend(handles=_intensity_legend_handles(ms=7), loc='lower right',
+    int_leg = ax.legend(handles=_intensity_legend_handles(ms=7, style='line'),
+                        loc='lower right',
                         bbox_to_anchor=(0.995, 0.005), title='Intensity',
                         fontsize=8, ncol=4, borderpad=0.6, labelspacing=0.3,
-                        handlelength=0.9, handletextpad=0.35, columnspacing=1.0,
+                        handlelength=1.4, handletextpad=0.35, columnspacing=1.0,
                         markerscale=0.85, borderaxespad=0.5, **LEGEND_KW)
     _style_legend(int_leg)
     ax.add_artist(int_leg)
