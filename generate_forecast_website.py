@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.3.0"
+SITE_VERSION = "5.3.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -50,6 +50,7 @@ KNOWN_MODELS = [
     ('WN3-C', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('WN2-C r2', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('WN2-C r1', 'Google DeepMind', 'WeatherNext · Ensemble'),
+    ('WN2-C 1000', 'Google DeepMind', 'WeatherNext · 1000 members'),
     ('GENC', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('AIFS-ENS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
     ('ECMWF-ENS', 'ECMWF', 'IFS ENS + HRES'),
@@ -587,6 +588,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     for info in infos.values():
         active_models.update(info['models'])
     active_models.update(lbl for lbl, _ in _genesis_entries if lbl != CLUSTER_LABEL)
+    # 1000 成員版沒有自己的 storm dict（產品掛在各颱風第一個模式上），另外判斷：
+    # 有任一颱風的 1000 成員侵襲機率圖、或潛勢頁有路徑聚類圖，首頁就算它一個模式
+    if (any(lbl == CLUSTER_LABEL for lbl, _ in _genesis_entries)
+            or any(isinstance(s, dict) and s.get('strike_1000_path') for s in storms)):
+        active_models.add(CLUSTER_LABEL)
 
     # ═════════════════════════════════════════════════════════════════
     #  總覽頁
@@ -2438,6 +2444,8 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .teaser-body { border-left: 1px solid var(--border); padding: 34px; }
 .mini-chip { background: none; }
 .model-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+/* 7 個模式：桌機固定一排 4 張（4＋3），不會剩一兩張孤零零掉到下一排 */
+@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(4, 1fr); } }
 .model-card { border-width: 0 1px 1px 0; padding: 24px; }
 .model-card:hover { background: var(--surface-2); }
 .model-name { font-weight: 500; font-size: 1.6em; letter-spacing: .04em; }
