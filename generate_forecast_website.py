@@ -550,6 +550,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
             'models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)],
+            # 首頁颱風卡片列的模式：多算 1000 成員版（它沒有自己的動畫／路徑圖分頁，
+            # 不能放進上面的 models，那份清單颱風頁拿去產生模式分頁）
+            'tile_models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)]
+                           + ([CLUSTER_LABEL] if any(isinstance(m, dict) and m.get('strike_1000_path')
+                                                     for m in models) else []),
             # 3D 地球用：颱風位置只用 JTWC；路徑優先用 JTWC 官方預報，沒有才退回模式系集平均
             'lat': _coord(jtwc_data.get('latitude')),
             'lon': _coord(jtwc_data.get('longitude')),
@@ -667,7 +672,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                             <dl class="tile-facts">
                                 <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['pos'])}</dd></div>
                                 <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">{_esc(info['time'])}</dd></div>
-                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models">{' · '.join(f'<span>{_esc(m)}</span>' for m in info['models'])}</dd></div>
+                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models">{' · '.join(f'<span>{_esc(m)}</span>' for m in info.get('tile_models', info['models']))}</dd></div>
                             </dl>
                         </div>
                         <div class="gauge" data-kt="{kt}" style="--cat:{info['color']}"></div>
@@ -1343,7 +1348,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
-                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
+                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
         <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
@@ -1376,7 +1381,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
                 <p data-i18n="footer.desc">
                     Ensemble track forecasts from DeepMind WeatherNext —
-                    WN3-C, WN2-C r2, WN2-C r1 &amp; GENC — and from ECMWF Open Data —
+                    WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data —
                     AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
                     Official intensity guidance from JTWC. Data refreshed automatically.
                 </p>
@@ -2659,7 +2664,7 @@ const I18N = {
   en: {
     'doc.title':        "Pillar's Tropical Cyclone Forecast",
     'brand.title':      "Pillar's Tropical Cyclone Forecast",
-    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
     'header.updated':   'Updated',
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
@@ -2804,7 +2809,7 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
@@ -2820,7 +2825,7 @@ const I18N = {
   zh: {
     'doc.title':        'Pillar 熱帶氣旋預報',
     'brand.title':      'Pillar 熱帶氣旋預報',
-    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
     'header.updated':   '更新於',
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
@@ -2965,7 +2970,7 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
