@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.2.2"
+SITE_VERSION = "5.2.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -306,8 +306,11 @@ def _city_table(cols: list[tuple]) -> str:
     if not rows:
         return ''
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
-    head = ''.join(f'<th>{_esc(m)}' + (f'<span class="eta">≤{d["_max_h"]} h</span>' if d.get('_max_h') else '')
-                   + '</th>' for m, d, *_ in cols)
+    def _th_sub(d):
+        parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
+        parts = [p for p in parts if p]
+        return f'<span class="eta">{_esc(" · ".join(parts))}</span>' if parts else ''
+    head = ''.join(f'<th>{_esc(m)}{_th_sub(d)}</th>' for m, d, *_ in cols)
     return (f'<div class="city-table-wrap"><table class="city-table">'
             f'<thead><tr><th data-i18n="cities.city">City</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
@@ -851,6 +854,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="track-map" data-src="{_esc(os.path.basename(_tj))}">
                     <div class="tm-controls">
                         <select class="tm-model" aria-label="Model"></select>
+                        <span class="tm-init"><span data-i18n="tmap.init">Init</span> <b class="tm-init-val"></b></span>
                         <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
                         <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
                         <label class="tm-det-wrap"><input type="checkbox" class="tm-det" checked> <span data-i18n="tmap.det">Deterministic</span></label>
@@ -1743,6 +1747,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .city-table td.c-nil { color: var(--text-2); background: var(--surface-2); font-weight: 500; }
 .track-map .tm-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; font-size: .88em; color: var(--text-2); }
 .track-map select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font: inherit; font-weight: 700; }
+.track-map .tm-init { color: var(--text-2); }
+.track-map .tm-init b { color: var(--text); font-weight: 750; }
 .track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .score-table td { background: var(--surface-2); color: var(--text); font-weight: 600; }
@@ -2548,6 +2554,7 @@ const I18N = {
     'tmap.members':     'Members',
     'tmap.mean':        'Mean',
     'tmap.det':         'Deterministic',
+    'tmap.init':        'Init',
     'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
@@ -2568,7 +2575,7 @@ const I18N = {
     'sub.cities':     'Cities',
     'panel.cities':   'City Strike Probability',
     'cities.city':    'City',
-    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; ≤ N h under a model = its forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
     'city.kaohsiung':    'Kaohsiung',
@@ -2693,6 +2700,7 @@ const I18N = {
     'tmap.members':     '成員',
     'tmap.mean':        '平均',
     'tmap.det':         '決定報',
+    'tmap.init':        '起報',
     'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
@@ -2713,7 +2721,7 @@ const I18N = {
     'sub.cities':     '城市',
     'panel.cities':   '城市侵襲機率',
     'cities.city':    '城市',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下的 ≤ N h＝預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
     'city.taichung':     '臺中',
     'city.kaohsiung':    '高雄',
@@ -3150,7 +3158,14 @@ async function initTrackMap(box) {
             }
             if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
         }
-        sel.onchange = () => draw(true);
+        // 選單旁顯示該模式的起報時間（各模式不一定同一期）
+        const initVal = box.querySelector('.tm-init-val');
+        const showInit = () => {
+            const d = new Date(data.inits[sel.value] || data.init);
+            initVal.textContent = `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
+        };
+        showInit();
+        sel.onchange = () => { showInit(); draw(true); };
         showM.onchange = () => draw(false);
         showA.onchange = () => draw(false);
         showD.onchange = () => draw(false);

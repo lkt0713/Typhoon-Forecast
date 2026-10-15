@@ -1616,6 +1616,7 @@ def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> di
     # 網頁在表頭標出來
     hs = [float(np.nanmax(h)) for _, _, h in tracks if len(h)]
     out['_max_h'] = int(round(max(hs))) if hs else None
+    out['_init'] = init.strftime('%m/%d %HZ')   # 表頭顯示起報時間，各模式不一定同一期
     return out
 
 
