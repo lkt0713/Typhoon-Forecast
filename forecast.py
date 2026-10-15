@@ -1530,8 +1530,8 @@ STRIKE_CITIES = [
 ]
 
 
-# 台灣本島簡化輪廓（經度, 緯度），給「登陸台灣」判斷用。只求不漏不多算到
-# 幾十公里的精度；離島（澎湖、金馬、蘭嶼）不算本島登陸。
+# 台灣本島簡化輪廓（經度, 緯度）：data/taiwan_main_island.json 讀不到時的備援
+# （與實際海岸線最大偏差約 12 km）。離島（澎湖、金馬、蘭嶼）不算本島登陸。
 TAIWAN_OUTLINE = [
     (121.54, 25.30), (121.93, 25.02), (121.87, 24.60), (121.60, 24.00), (121.50, 23.50),
     (121.15, 22.75), (120.89, 22.30), (120.85, 21.90), (120.70, 21.95), (120.62, 22.30),
@@ -1540,10 +1540,33 @@ TAIWAN_OUTLINE = [
 ]
 
 
+_TAIWAN_PATH = None
+
+
+def _taiwan_path():
+    """台灣本島輪廓的 matplotlib Path。
+
+    優先讀 data/taiwan_main_island.json（Natural Earth 1:10m 本島，簡化到 0.01°，
+    與原始海岸線最大偏差約 1 km）；檔案讀不到才退回上面的 18 點簡化輪廓（偏差約 12 km）。
+    """
+    global _TAIWAN_PATH
+    if _TAIWAN_PATH is None:
+        import json
+        from matplotlib.path import Path as _MplPath  # type: ignore
+        pts = TAIWAN_OUTLINE
+        try:
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'taiwan_main_island.json')
+            with open(p, encoding='utf-8') as fh:
+                pts = [tuple(xy) for xy in json.load(fh)['lonlat']]
+        except Exception as e:
+            print(f"[LANDFALL] 讀不到台灣輪廓檔，改用簡化輪廓: {e}")
+        _TAIWAN_PATH = _MplPath(pts)
+    return _TAIWAN_PATH
+
+
 def taiwan_landfall_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
     """路徑中心進入台灣本島的成員比例與首次登陸時間中位數（格式同 city_strike_stats）。"""
-    from matplotlib.path import Path as _MplPath  # type: ignore
-    poly = _MplPath(TAIWAN_OUTLINE)
+    poly = _taiwan_path()
     first = []
     for x, y, h in tracks:
         xs, ys, hs = _densify_track(np.asarray(x, dtype=float) % 360.0, y, h)
@@ -1793,32 +1816,52 @@ def paired_member_series(df: pd.DataFrame, init_time) -> list:
     return _member_series([g.sort_values('_h') for _, g in d.groupby('sample')])
 
 
-# ── 前幾報趨勢比較 ───────────────────────────────────────────────────────
-# 最近 TREND_CYCLES 期（每 6 h 一期）的系集平均路徑疊在一起，看預報往哪邊修正。
-# 舊 → 新由淺灰漸深到平均路徑的深海軍藍。
-TREND_CYCLES = 5
-TREND_COLORS = ['#C9D3DE', '#9DB2C9', '#6B8DB3', '#3A6390', '#16324F']
+# ── 預報趨勢（從第一報到最新一報）──────────────────────────────────────
+# 這顆颱風所有期數的系集平均路徑疊在一起，看預報一路往哪邊修正。來源合併兩處：
+# 下載目錄（只留最近 KEEP_CYCLES 期）與路徑校驗存檔（每期一份、留 VERIF_KEEP_DAYS 天），
+# 後者讓颱風壽命超過三天時也能畫到第一報。舊 → 新由淺灰漸深到深海軍藍。
+TREND_CMAP_COLORS = ['#D5DEE8', '#8FA6C1', '#4C72A0', '#16324F']
 
 
 def load_trend_means(cfg: dict, cycle, track_id: str) -> list:
-    """讀最近 TREND_CYCLES 期中含此颱風的系集平均：[(init_time, mean_df), ...]，舊 → 新。"""
-    out = []
-    for k in range(TREND_CYCLES - 1, -1, -1):
-        stamp = _cycle_stamp(cycle - timedelta(hours=6 * k))
-        p = os.path.join(cfg["mean_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
-        if not os.path.exists(p):
+    """這顆颱風在此模式下所有期數的系集平均：[(init_time, mean_df), ...]，舊 → 新。"""
+    found = {}
+    # ① 路徑校驗存檔：lead_h → valid_time
+    slug = str(cfg['display']).replace(' ', '~')
+    fdir = os.path.join(VERIF_DIR, 'fcst')
+    if os.path.isdir(fdir):
+        for name in os.listdir(fdir):
+            m = re.match(rf"{re.escape(slug)}_{re.escape(track_id)}_(\d{{10}})\.csv$", name)
+            if not m:
+                continue
+            it = pd.Timestamp(datetime.strptime(m.group(1), '%Y%m%d%H'), tz='UTC')
+            try:
+                f = pd.read_csv(os.path.join(fdir, name)).dropna()
+            except Exception:
+                continue
+            if f.empty:
+                continue
+            found[it] = pd.DataFrame({'valid_time': it + pd.to_timedelta(f['lead_h'], unit='h'),
+                                      'lat': f['lat'], 'lon': f['lon']})
+    # ② 下載目錄（含本期；同一期以下載檔為準，資料較完整）
+    name_re = re.compile(rf"^{re.escape(cfg['local_prefix'])}_\d{{4}}_\d{{2}}_\d{{2}}T\d{{2}}_00_paired\.csv$")
+    for name in sorted(os.listdir(cfg["mean_dir"])) if os.path.isdir(cfg["mean_dir"]) else []:
+        if not name_re.match(name):
             continue
         try:
-            mdf, it = load_forecast_dataframe(p, track_id)
+            mdf, it = load_forecast_dataframe(os.path.join(cfg["mean_dir"], name), track_id)
         except Exception:
-            continue    # 該期沒有這顆颱風（剛生成）或檔案有問題就略過
-        if not mdf.empty:
-            out.append((it, mdf))
-    return out
+            continue    # 該期沒有這顆颱風（還沒生成或已消散）
+        if not mdf.empty and it is not None:
+            found[pd.to_datetime(it)] = mdf
+    cyc = pd.Timestamp(cycle).tz_convert('UTC') if pd.Timestamp(cycle).tzinfo else pd.Timestamp(cycle, tz='UTC')
+    return [(it, found[it]) for it in sorted(found) if it <= cyc]
 
 
 def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: str) -> str | None:
-    """前幾報的系集平均路徑疊圖；少於兩期時不畫（回 None）。"""
+    """所有期數的系集平均路徑疊圖；少於兩期時不畫（回 None）。"""
+    import matplotlib.dates as mdates  # type: ignore
+    from matplotlib.colors import LinearSegmentedColormap, Normalize  # type: ignore
     if len(entries) < 2:
         return None
     all_lons = np.concatenate([e[1]['lon'].to_numpy() for e in entries])
@@ -1826,7 +1869,7 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
     extent, use_360 = _auto_extent(all_lats, all_lons, pad_deg=3)
     extent = _fit_extent_to_aspect(extent, FIG_AR, use_360)
     if HAS_CARTOPY:
-        fig = plt.figure(figsize=(10, 7), facecolor='white')
+        fig = plt.figure(figsize=(10, 7.6), facecolor='white')
         proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
         ax = plt.axes(projection=proj)
         _setup_basemap(ax, extent)
@@ -1837,42 +1880,57 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
         _setup_plain_axes(ax, extent)
         kw = {}
 
-    colors = TREND_COLORS[-len(entries):]
-    handles, labels = [], []
-    for (it, mdf), color in zip(entries, colors):
+    cmap = LinearSegmentedColormap.from_list('trend', TREND_CMAP_COLORS)
+    tnum = [mdates.date2num(pd.to_datetime(it)) for it, _ in entries]
+    norm = Normalize(tnum[0], tnum[-1])
+    for k, ((it, mdf), tn) in enumerate(zip(entries, tnum)):
         mdf = mdf.sort_values('valid_time')
         lons = _normalize_lon_values(mdf['lon'].to_numpy(), use_360=use_360)
         lats = mdf['lat'].to_numpy()
-        newest = color == colors[-1]
+        newest = k == len(entries) - 1
+        color = MEAN_COLOR if newest else cmap(norm(tn))
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
             if newest:
-                ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.85,
+                ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.9,
                         solid_capstyle='round', zorder=3.9, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 2.2,
-                    solid_capstyle='round', zorder=4 if newest else 3, **kw)
-        pts = get_24h_markers(mdf, it)
-        if not pts.empty:
-            ax.scatter(_normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360), pts['lat'],
-                       marker='o', s=30 if newest else 18, facecolors='white', edgecolors=color,
-                       linewidths=1.3, zorder=5 if newest else 3.5, **kw)
-        handles.append(mlines.Line2D([], [], color=color, lw=3.4 if newest else 2.2,
-                                     marker='o', ms=5, markerfacecolor='white',
-                                     markeredgecolor=color))
-        labels.append(pd.to_datetime(it).strftime('%m/%d %HZ') + ('  (latest)' if newest else ''))
-    leg = ax.legend(handles, labels, loc='upper left', title='Init time (mean track)',
-                    fontsize=9, borderpad=0.7, labelspacing=0.42, handlelength=2.0,
-                    alignment='left', **LEGEND_KW)
+            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 1.4,
+                    alpha=1.0 if newest else 0.9, solid_capstyle='round',
+                    zorder=4 if newest else 3, **kw)
+        if newest:
+            pts = get_24h_markers(mdf, it)
+            if not pts.empty:
+                ax.scatter(_normalize_lon_values(pts['lon'].to_numpy(), use_360=use_360), pts['lat'],
+                           marker='o', s=34, facecolors='white', edgecolors=MEAN_COLOR,
+                           linewidths=1.4, zorder=5, **kw)
+
+    first_s = pd.to_datetime(entries[0][0]).strftime('%m/%d %HZ')
+    last_s = pd.to_datetime(entries[-1][0]).strftime('%m/%d %HZ')
+    handles = [mlines.Line2D([], [], color=MEAN_COLOR, lw=3.4, marker='o', ms=5,
+                             markerfacecolor='white', markeredgecolor=MEAN_COLOR),
+               mlines.Line2D([], [], color=cmap(0.5), lw=1.4)]
+    leg = ax.legend(handles, [f'Latest  {last_s}', f'Earlier cycles (from {first_s})'],
+                    loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42,
+                    handlelength=2.0, **LEGEND_KW)
     _style_legend(leg)
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cb = fig.colorbar(sm, ax=ax, orientation='horizontal', pad=0.06, fraction=0.04,
+                      aspect=45, shrink=0.8)
+    cb.ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
+    cb.ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %HZ'))
+    cb.set_label('Init time (older → newer)', color=TEXT_MUTED, fontsize=9)
+    cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
+    cb.outline.set_edgecolor(BOX_EDGE)
 
     ax.set_title(f"{model_name}  ·  {track_id}  Track Trend", loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, f"Ensemble mean tracks from the last {len(entries)} cycles  ·  "
-            "Hollow dots = 24-hr steps", transform=ax.transAxes,
+    ax.text(0, 1.012, f"Ensemble mean tracks of all {len(entries)} cycles  ·  {first_s} → {last_s}  ·  "
+            "Hollow dots = 24-hr steps of the latest", transform=ax.transAxes,
             ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
     plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
-    print(f"[TREND] 已儲存趨勢圖：{save_path}")
+    print(f"[TREND] 已儲存趨勢圖：{save_path}（{len(entries)} 期）")
     return save_path
 
 

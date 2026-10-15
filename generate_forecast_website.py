@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.0.0"
+SITE_VERSION = "5.1.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -860,8 +860,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             trend_html = _tabbed_image_panel(
                 sec_id, f"{key_prefix}-trend", '🧭', 'panel.trend', 'Track Trend',
                 trend_items, 'note.trend',
-                'Ensemble mean tracks from recent cycles, older = lighter &nbsp;·&nbsp; '
-                'Shows which way successive forecasts are shifting',
+                'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter '
+                '&nbsp;·&nbsp; Shows which way successive forecasts have shifted',
                 f"{track_id} Track Trend")
         plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
         if plume_items:
@@ -2536,7 +2536,7 @@ const I18N = {
     'city.tw_landfall': 'Taiwan landfall',
     'sub.trend':        'Trend',
     'panel.trend':      'Track Trend',
-    'note.trend':       'Ensemble mean tracks from recent cycles, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts are shifting',
+    'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
     'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h',
@@ -2680,7 +2680,7 @@ const I18N = {
     'city.tw_landfall': '登陸台灣',
     'sub.trend':        '趨勢',
     'panel.trend':      '預報趨勢',
-    'note.trend':       '最近幾期的系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看連續幾報的預報往哪個方向修正',
+    'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
     'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt',
