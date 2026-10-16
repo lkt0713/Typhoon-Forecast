@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.8.1"
+SITE_VERSION = "5.9.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -219,6 +219,14 @@ CITY_COLORS = ['#A9D6F5', '#5E9DDB', '#3B6DB3', '#3F9C55', '#9CC64E',
 CITY_DARK_TEXT = {0, 4, 5, 6}   # 淺色底用深字，其餘用白字
 
 
+def _pair(a: str, b: str) -> str:
+    """兩個圖卡都有時，電腦版並排成一排（與系集路徑／JTWC 同一套 maps-grid，
+    ≤1100px 自動回到一欄，手機版不變）；只有一個就照原樣。"""
+    if a.strip() and b.strip():
+        return f'<div class="maps-grid">{a}{b}</div>'
+    return a + b
+
+
 def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, title: str,
                         items: list[tuple[str, str]], note_key: str, note: str, alt: str) -> str:
     """一個 panel：上方模式分頁（只有一個時改成標籤）＋每模式一張圖＋說明。
@@ -401,25 +409,42 @@ def _score_chart(card: dict, order: list[str], det_names: set) -> str:
 
 
 def _score_block(track_key: str, scope_cards: list, order: list[str], det_names: set) -> str:
-    """成績區塊：分頁（範圍 × 樣本）＋每頁折線圖與表格。scope_cards = [(範圍鍵, card), ...]。"""
-    tabs, panels = [], []
+    """成績區塊：分頁（範圍 × 樣本）＋每頁折線圖與表格。scope_cards = [(範圍鍵, card), ...]。
+
+    內容完全相同的分頁合併成一個，免得四個分頁點來點去都一樣：同質＝全部（每期各模式
+    都到齊）時只留一個；只有一顆颱風有資料時「這顆颱風」與「所有颱風」也相同。
+    """
+    items, notes = [], []
     for scope, card in scope_cards:
-        for sample in ('homog', 'all'):
-            c = (card or {}).get(sample) or {}
-            if not c:
+        h, a = (card or {}).get('homog') or {}, (card or {}).get('all') or {}
+        cands = ([('same', h)] if h and h == a else
+                 [(smp, c) for smp, c in (('homog', h), ('all', a)) if c])
+        for sample, c in cands:
+            if any(c == prev for _, _, prev in items):
+                if scope == 'storm' and 'score.onestorm' not in notes:
+                    notes.append('score.onestorm')
                 continue
-            key = f'{scope}-{sample}'
-            first = not panels
-            tabs.append(f'<button class="model-tab-btn{" active" if first else ""}" role="tab" '
-                        f'data-track="{_esc(track_key)}" data-model="{key}">'
-                        f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
-            hide = '' if first else ' style="display:none;"'
-            panels.append(f'<div class="model-panel" data-track="{_esc(track_key)}" data-model="{key}"{hide}>'
-                          f'{_score_chart(c, order, det_names)}{_score_table(c, order, det_names)}</div>')
-    if not panels:
+            if sample == 'same' and 'score.same' not in notes:
+                notes.append('score.same')
+            items.append((scope, sample, c))
+    if not items:
         return ''
-    return (f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{"".join(tabs)}</div>'
-            + ''.join(panels))
+    note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
+                'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.'}
+    tabs, panels = [], []
+    for i, (scope, sample, c) in enumerate(items):
+        key = f'{scope}-{sample}'
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+                    f'data-track="{_esc(track_key)}" data-model="{key}">'
+                    f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
+        hide = '' if i == 0 else ' style="display:none;"'
+        panels.append(f'<div class="model-panel" data-track="{_esc(track_key)}" data-model="{key}"{hide}>'
+                      f'{_score_chart(c, order, det_names)}{_score_table(c, order, det_names)}</div>')
+    head = (f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{"".join(tabs)}</div>'
+            if len(tabs) > 1 else
+            f'<div class="model-label" data-i18n="score.tab.{items[0][0]}.{items[0][1]}">{items[0][0]}</div>')
+    head += ''.join(f'<p class="map-note" style="margin:0 0 10px;" data-i18n="{k}">{note_txt[k]}</p>' for k in notes)
+    return head + ''.join(panels)
 
 
 def _city_table(cols: list[tuple]) -> str:
@@ -649,7 +674,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <span class="sep">·</span><span class="mono">{_esc(lead['pos'])}</span>
                 </p>
                 <p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"
-                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · ensemble guidance from {len(active_models)} models, refreshed every 30 minutes.</p>
+                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · ensemble guidance from {len(active_models)} models, refreshed every 10 minutes.</p>
                 <div class="hero-cta">
                     <a class="btn-primary" href="#/storm/{_esc(lead['id'])}"><span data-i18n="hero.cta.storm">Open forecast</span> <span aria-hidden="true">→</span></a>
                     {'<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>' if _genesis_entries else ''}
@@ -714,7 +739,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="calm-sea" aria-hidden="true"><span></span><span></span><span></span></div>
                 <div>
                     <div class="empty-title" data-i18n="empty.title">No Active Systems</div>
-                    <p class="empty-desc" data-i18n="empty.desc">Nothing is spinning up right now. This page refreshes automatically every 30 minutes.</p>
+                    <p class="empty-desc" data-i18n="empty.desc">Nothing is spinning up right now. This page refreshes automatically every 10 minutes.</p>
                 </div>
             </div>"""
 
@@ -760,7 +785,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <div class="statement">
             <p class="words" data-i18n="statement">We track tropical cyclones at the intersection between
             <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member,
-            every 30 minutes, side by side with the official forecast.</p>
+            every 10 minutes, side by side with the official forecast.</p>
         </div>"""
 
     overview_view = f"""
@@ -1135,15 +1160,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="stat-grid">{stats_html}</div>
             {scale_html}
             <nav class="subnav" aria-label="Sections">{subnav}</nav>
-            {cmp_html}
-            {anim_html}
+            {_pair(cmp_html, anim_html)}
             {maps_html}
             {tmap_html}
-            {strike_html}
-            {extra_html}
+            {_pair(strike_html, extra_html)}
             {cities_html}
-            {trend_html}
-            {plume_html}
+            {_pair(trend_html, plume_html)}
             {score_html}
         </div>
     </section>""")
@@ -1244,7 +1266,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 30 minutes, next to the official JTWC forecast.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 10 minutes, next to the official JTWC forecast.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -2531,6 +2553,8 @@ html[lang^="zh"] .panel-header { font-size: 1.3em; letter-spacing: .08em; }
 .panel-icon { display: none; }
 .kbd-hint { font-family: 'Montserrat', sans-serif; text-transform: none; letter-spacing: 0; }
 .map-note { font-weight: 300; }
+/* 深色模式的圖說：--text-3 配細字在黑底上太暗，改亮一階、字重回到一般 */
+[data-theme="dark"] .map-note { color: #aeb5be; font-weight: 400; }
 .model-label { background: var(--text); color: var(--bg); font-weight: 500; letter-spacing: .1em; }
 .seg { background: transparent; padding: 0; gap: 0; }
 .model-tab-btn { font-weight: 500; letter-spacing: .1em; padding: 10px 18px; }
@@ -2711,13 +2735,13 @@ const I18N = {
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
-    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 30 minutes.',
+    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
     'hero.updated':     'Data updated',
     'hero.active':      'Active systems',
-    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 30 minutes, side by side with the official forecast.',
+    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 10 minutes, side by side with the official forecast.',
     'sec.active.kicker':'Live',
     'sec.active':       'Active systems',
     'sec.genesis.kicker':'Outlook',
@@ -2733,7 +2757,7 @@ const I18N = {
     'empty.title':      'No Active Systems',
     'empty.status':     'Status',
     'empty.await':      'Awaiting data…',
-    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 30 minutes.',
+    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 10 minutes.',
     'storm.subtitle':   'Western Pacific Tropical Cyclone',
     'badge.live':       'LIVE',
     'catname.TD':       'Tropical Depression',
@@ -2773,6 +2797,10 @@ const I18N = {
     'score.tab.allst.all': 'All storms · all forecasts',
     'score.tab.storm.homog': 'This storm · homogeneous',
     'score.tab.storm.all': 'This storm · all forecasts',
+    'score.tab.allst.same': 'All storms',
+    'score.tab.storm.same': 'This storm',
+    'score.same':       'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
+    'score.onestorm':   'Only this storm has verified forecasts so far, so it matches the all-storms total.',
     'score.grp.ens': 'Ensemble mean',
     'score.grp.det': 'Deterministic',
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
@@ -2830,7 +2858,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 30 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a track-error scorecard.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a track-error scorecard.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -2873,13 +2901,13 @@ const I18N = {
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
-    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 30 分鐘更新。',
+    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
     'hero.updated':     '資料更新',
     'hero.active':      '活躍系統',
-    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 30 分鐘更新，與官方預報並列呈現。',
+    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 10 分鐘更新，與官方預報並列呈現。',
     'sec.active.kicker':'即時',
     'sec.active':       '活躍系統',
     'sec.genesis.kicker':'展望',
@@ -2895,7 +2923,7 @@ const I18N = {
     'empty.title':      '目前無活躍系統',
     'empty.status':     '狀態',
     'empty.await':      '等待資料中…',
-    'empty.desc':       '目前沒有發展中的系統，每 30 分鐘自動更新',
+    'empty.desc':       '目前沒有發展中的系統，每 10 分鐘自動更新',
     'storm.subtitle':   '西北太平洋熱帶氣旋',
     'badge.live':       '即時',
     'catname.TD':       '熱帶性低氣壓',
@@ -2935,6 +2963,10 @@ const I18N = {
     'score.tab.allst.all': '所有颱風・全部樣本',
     'score.tab.storm.homog': '這顆颱風・同質樣本',
     'score.tab.storm.all': '這顆颱風・全部樣本',
+    'score.tab.allst.same': '所有颱風',
+    'score.tab.storm.same': '這顆颱風',
+    'score.same':       '目前每一期各模式都到齊，同質樣本與全部樣本相同，合併顯示。',
+    'score.onestorm':   '目前只有這顆颱風有可校驗的預報，與所有颱風合計相同。',
     'score.grp.ens': '系集平均',
     'score.grp.det': '決定報',
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
@@ -2992,7 +3024,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 30 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報與模式路徑誤差。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報與模式路徑誤差。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -4412,14 +4444,13 @@ const Globe = (function () {
 //  更新時間：相對時間、倒數下一次自動重新整理、資料過時提示
 // ═════════════════════════════════════════════════════════════════
 const UPDATED = new Date(SITE.updatedIso);
-// 每半小時（HH:05 與 HH:35）自動重新整理
-// ——排程任務於 HH:00 與 HH:30 更新資料並推送，各留 5 分鐘緩衝
+// 每 10 分鐘（HH:05、HH:15…HH:55）自動重新整理，與雲端每 10 分鐘一輪的更新對齊
+const REFRESH_MIN = 10;
 function nextRefresh(now) {
     const next = new Date(now);
     const m = now.getMinutes();
-    if (m < 5)        next.setMinutes(5, 0, 0);
-    else if (m < 35)  next.setMinutes(35, 0, 0);
-    else { next.setHours(next.getHours() + 1); next.setMinutes(5, 0, 0); }
+    const slot = Math.floor((m - 5) / REFRESH_MIN) * REFRESH_MIN + 5 + REFRESH_MIN;   // 下一個 HH:x5
+    next.setMinutes(slot, 0, 0);    // slot 超過 59 時 Date 會自動進位到下一小時
     return next;
 }
 const REFRESH_AT = nextRefresh(new Date());
@@ -4433,12 +4464,12 @@ function tickClock() {
     const clk = $('#hero-clock');
     if (clk) clk.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
     const ring = $('.ring-fg');
-    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (30 * 60000))) * 100).toFixed(2);
+    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (REFRESH_MIN * 60000))) * 100).toFixed(2);
     const mins = Math.floor((now - UPDATED) / 60000);
     const rel = isNaN(mins) ? '' : mins < 1 ? t('rel.now') : mins < 60 ? t('rel.min', { n: mins }) : t('rel.hr', { n: Math.floor(mins / 60) });
     const badge = $('#update-badge');
     if (badge) {
-        const stale = mins > 75;
+        const stale = mins > 40;      // 10 分鐘一輪，有新資料時一輪約 15 分鐘，40 分鐘沒更新就算過時
         badge.classList.toggle('stale', stale);
         badge.title = t('header.updated') + ': ' + badge.dataset.full + ' · ' +
             (stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) }));

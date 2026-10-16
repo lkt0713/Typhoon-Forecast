@@ -1,6 +1,6 @@
 name: Auto update forecast
 
-# 在 GitHub 的雲端機器上每 30 分鐘跑一次 forecast.py，取代本機的
+# 在 GitHub 的雲端機器上每 10 分鐘跑一次 forecast.py，取代本機的
 # run_forecast.bat + 工作排程器，電腦關機時網站照樣更新。
 #
 # 注意：用 GITHUB_TOKEN 推送的 commit 不會觸發其他 workflow（GitHub 刻意
@@ -95,7 +95,7 @@ jobs:
           echo "[ERROR] push failed after retries"
           exit 1
 
-      # 每週把 main 壓成單一 commit：docs/ 每 30 分鐘重產一次圖檔，歷史只增不減
+      # 每週把 main 壓成單一 commit：docs/ 每 10 分鐘重產一次圖檔，歷史只增不減
       # （2026-10 已達 16 GB）。上次壓縮的 commit 以 tag squash-base 標記，滿 7 天
       # 才再壓。放在這個 job 裡而非獨立 workflow：同一 concurrency group 的獨立
       # workflow 排隊時會把接力排進來的下一輪擠掉（pending 只留一個）。
@@ -156,7 +156,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   # 備援接力：GitHub 的 schedule 常延遲或整輪跳過（本 workflow 加入後連續五輪
-  # 都沒被排程觸發），所以每輪結束時自己排好下一輪：等到本輪開始後約 30 分鐘，
+  # 都沒被排程觸發），所以每輪結束時自己排好下一輪：等到本輪開始後約 10 分鐘（實際工作約 7～15 分鐘，跑超過就立刻接下一輪），
   # 再用 workflow_dispatch 叫起下一輪（GITHUB_TOKEN 觸發 workflow_dispatch 是
   # GitHub 允許的例外）。schedule 仍保留，接力斷掉時靠它接回來。
   chain:
@@ -174,7 +174,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           started=$(gh run view ${{ github.run_id }} --json createdAt -q .createdAt)
-          wait=$(( $(date -d "$started" +%s) + 1800 - $(date +%s) ))
+          wait=$(( $(date -d "$started" +%s) + 600 - $(date +%s) ))
           if [ "$wait" -gt 0 ]; then
             echo "[INFO] Sleeping ${wait}s until the next slot"
             sleep "$wait"
