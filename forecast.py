@@ -18,10 +18,11 @@ import matplotlib.ticker as mticker # type: ignore
 import re
 
 # Target timestamp — auto-derived from current UTC time.
-# WNC data is available ~6h45m after cycle time, so we subtract that
-# and round down to the nearest 6-hour boundary (00/06/12/18Z).
+# 實測 2026-10-16 12Z 上架時間：WN2-C r2／r1（含潛勢）+6h15～6h20、GENC +7h05，
+# WN3-C 06Z 在 +6h50～7h20 之間（12Z、18Z 整期沒出）。原本等 6h45 才試，WN2-C 每期
+# 白等近半小時；改成 6h15，還沒上架的模式只是那一輪 404、退回前一期，10 分鐘後再試。
 def _latest_cycle() -> datetime:
-    adjusted = datetime.now(timezone.utc) - timedelta(hours=6, minutes=45)
+    adjusted = datetime.now(timezone.utc) - timedelta(hours=6, minutes=15)
     cycle_hour = (adjusted.hour // 6) * 6
     return adjusted.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
 
@@ -3059,11 +3060,20 @@ def _resolve_cycle(cfg: dict) -> tuple[datetime, str | None] | tuple[None, None]
         cycle = latest - timedelta(hours=6 * i)
         stamp = _cycle_stamp(cycle)
         path = os.path.join(cfg["ensemble_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
-        if os.path.exists(path):
+        mean_path = os.path.join(cfg["mean_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
+        if os.path.exists(path) and os.path.exists(mean_path):
             return cycle, path
         url = _remote_csv_url(cfg["remote"], "ensemble/paired", stamp)
-        if _download_file(url, path, f"{cfg['display']}-DL", allow_404=True):
+        if not (os.path.exists(path) or _download_file(url, path, f"{cfg['display']}-DL", allow_404=True)):
+            continue
+        # 平均檔與系集檔不一定同時上架：上架時間抓得很緊（_latest_cycle），剛好卡在中間
+        # 時平均檔是 404，以前會直接拋錯（WN2-C r2 是必要模式，整輪失敗）。這期先不用，
+        # 系集檔留著，下一輪平均檔到了就直接用
+        if os.path.exists(mean_path) or _download_file(
+                _remote_csv_url(cfg["remote"], "ensemble_mean/paired", stamp), mean_path,
+                f"{cfg['display']}-MEAN", allow_404=True):
             return cycle, path
+        print(f"[{cfg['display']}-DL] {stamp} 平均檔尚未上架，先用前一期")
     return None, None
 
 
