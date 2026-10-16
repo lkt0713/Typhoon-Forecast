@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.7.0"
+SITE_VERSION = "5.7.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1933,6 +1933,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .city-table td { padding: 6px 8px; text-align: center; border-radius: 7px; white-space: nowrap; font-weight: 750; }
 .city-table th:first-child, .city-table td.c-name { text-align: left; }
 .city-table td.c-name { color: var(--text); background: none; }
+/* 「臺灣本島」字數比城市名多，縮小一點免得把第一欄撐寬 */
+.city-table td.c-name[data-i18n="city.tw_landfall"] { font-size: .82em; }
 .city-table td.c-nil { color: var(--text-2); background: var(--surface-2); font-weight: 500; }
 .track-map .tm-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; font-size: .88em; color: var(--text-2); }
 .track-map select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font: inherit; font-weight: 700; }
