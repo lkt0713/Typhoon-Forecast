@@ -1792,8 +1792,9 @@ def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
         info.append(f"Peak wind median {np.median(peaks):.0f} kt "
                     f"(10–90%: {np.percentile(peaks, 10):.0f}–{np.percentile(peaks, 90):.0f})")
     if info:
-        ax_w.text(0.012, 0.975, '\n'.join(info), transform=ax_w.transAxes, ha='left', va='top',
-                  fontsize=8.5, color=TEXT_DARK, linespacing=1.4, bbox=_label_box(0.94), zorder=6)
+        # 放在標題列右側（軸框外）：不擋到峰值附近的成員線
+        ax_w.text(1, 1.015, '\n'.join(info), transform=ax_w.transAxes, ha='right', va='bottom',
+                  multialignment='right', fontsize=9, color=TEXT_DARK, linespacing=1.45)
     handles = [mlines.Line2D([], [], color=PLUME_MEMBER_COLOR, lw=1, alpha=0.6),
                mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4),
                mpatches.Patch(color=PLUME_BAND_COLOR, alpha=0.22)]
