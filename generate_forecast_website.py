@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.0.0"
+SITE_VERSION = "6.0.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -2291,7 +2291,7 @@ body {
 .btn-primary, .btn-primary:hover, .subnav button.active, .pc-main, .seg-ind, .storm-hero,
 .storm-tile, .panel, .stat, .model-card { box-shadow: none !important; }
 
-/* ── 自訂游標：外層跟著滑鼠平移，內層圓點縮放；整顆用 difference 混色 ── */
+/* ── 自訂游標：外層跟著滑鼠平移；整顆用 difference 混色 ── */
 html.has-cursor, html.has-cursor * { cursor: none !important; }
 html.has-cursor input[type="range"], html.has-cursor select, html.has-cursor .cmp-stage { cursor: auto !important; }
 #cursor {
@@ -2299,16 +2299,12 @@ html.has-cursor input[type="range"], html.has-cursor select, html.has-cursor .cm
     width: 0; height: 0; mix-blend-mode: difference;
     opacity: 0; transition: opacity .3s;
 }
+/* 圓點固定大小（原本按下時縮到的 11.2px，即 16px × 0.7），不隨懸停／按下縮放 */
 #cursor::before {
-    content: ""; position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%;
+    content: ""; position: absolute; left: -5.6px; top: -5.6px; width: 11.2px; height: 11.2px; border-radius: 50%;
     background: #fff;
-    transition: transform .45s cubic-bezier(.16,1,.3,1);
 }
 #cursor.on { opacity: 1; }
-#cursor.big::before  { transform: scale(3.4); }
-#cursor.zoom::before { transform: scale(5.5); }
-#cursor.press::before { transform: scale(.7); }
-#cursor.big.press::before { transform: scale(2.8); }
 
 /* ── Header：黑色毛玻璃 ── */
 header { background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); padding: 0 32px; }
