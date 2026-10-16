@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.5.0"
+SITE_VERSION = "5.5.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3357,29 +3357,30 @@ async function initTrackMap(box) {
                 const pts = unwrap(raw);
                 for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
-                    L.polyline([[a[0], a[1]], [b[0], b[1]]], {color: TM_COLORS[tmCat(a[2])], weight: 1.6, opacity: .75})
+                    L.polyline([[a[0], a[1]], [b[0], b[1]]], {color: TM_COLORS[tmCat(a[2])], weight: 1.3, opacity: .7})
                         .bindTooltip(`#${i + 1} · ${fmt(m, a[3])} · ${a[2] ?? '–'} kt`, {sticky: true}).addTo(layer);
                 }
                 pts.forEach(p => bounds.push([p[0], p[1]]));
             });
             if (showA.checked && d.mean.length) {
                 const pts = unwrap(d.mean), ll = pts.map(p => [p[0], p[1]]);
-                L.polyline(ll, {color: '#fff', weight: 7, opacity: .85}).addTo(layer);
-                L.polyline(ll, {color: '#16324F', weight: 4}).addTo(layer);
+                // 線細一點、白邊淡一點：與靜態圖一致，經過臺灣時陸地輪廓仍看得到
+                L.polyline(ll, {color: '#fff', weight: 4.6, opacity: .6}).addTo(layer);
+                L.polyline(ll, {color: '#16324F', weight: 2.8, opacity: .9}).addTo(layer);
                 pts.filter(p => p[3] % 24 === 0).forEach(p =>
-                    L.circleMarker([p[0], p[1]], {radius: 5, color: '#16324F', weight: 2, fillColor: '#fff', fillOpacity: 1})
+                    L.circleMarker([p[0], p[1]], {radius: 4, color: '#16324F', weight: 1.6, fillColor: '#fff', fillOpacity: 1})
                         .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
-            // 決定報（AIFS／ECMWF 才有）：琥珀色粗線，沒有時把開關藏起來
+            // 決定報（AIFS／ECMWF 才有）：琥珀色線，沒有時把開關藏起來
             const hasDet = d.det && d.det.length > 1;
             showD.closest('label').style.display = hasDet ? '' : 'none';
             if (hasDet && showD.checked) {
                 const pts = unwrap(d.det), ll = pts.map(p => [p[0], p[1]]);
-                L.polyline(ll, {color: '#fff', weight: 6, opacity: .85}).addTo(layer);
-                L.polyline(ll, {color: '#B45309', weight: 3.4}).bindTooltip(d.det_name || 'Deterministic', {sticky: true}).addTo(layer);
+                L.polyline(ll, {color: '#fff', weight: 4.4, opacity: .6}).addTo(layer);
+                L.polyline(ll, {color: '#B45309', weight: 2.6, opacity: .9}).bindTooltip(d.det_name || 'Deterministic', {sticky: true}).addTo(layer);
                 pts.filter(p => p[3] % 24 === 0).forEach(p =>
-                    L.circleMarker([p[0], p[1]], {radius: 4.5, color: '#B45309', weight: 2, fillColor: '#fff', fillOpacity: 1})
+                    L.circleMarker([p[0], p[1]], {radius: 3.8, color: '#B45309', weight: 1.6, fillColor: '#fff', fillOpacity: 1})
                         .bindTooltip(`${d.det_name || 'DET'} +${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }

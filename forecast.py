@@ -1936,9 +1936,9 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
 
     first_s = pd.to_datetime(entries[0][0]).strftime('%m/%d %HZ')
     last_s = pd.to_datetime(entries[-1][0]).strftime('%m/%d %HZ')
-    handles = [mlines.Line2D([], [], color=latest_color, lw=3.4, marker='o', ms=5,
+    handles = [mlines.Line2D([], [], color=latest_color, lw=2.6, marker='o', ms=5,
                              markerfacecolor='white', markeredgecolor=latest_color),
-               mlines.Line2D([], [], color=cmap(0.5), lw=1.8)]
+               mlines.Line2D([], [], color=cmap(0.5), lw=1.6)]
     leg = ax.legend(handles, [f'Latest  {last_s}', f'Earlier cycles (from {first_s})'],
                     loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42,
                     handlelength=2.0, **LEGEND_KW)
