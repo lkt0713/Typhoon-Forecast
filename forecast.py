@@ -1811,6 +1811,10 @@ def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
         plt.close(fig)
         return None, None
     ymax = ax_w.get_ylim()[1]
+    # 決定報可能比所有成員都強（實測 AIGFS 決定報 >100 kt、成員最高 75 kt），
+    # 上限要把它算進去，否則線會衝出圖框
+    if det is not None and np.isfinite(det[1]).any():
+        ymax = max(ymax, float(np.nanmax(det[1])) * 1.15)   # 多留一截給右上角的圖例
     for cat, lo, hi in INTENSITY_BANDS:
         if lo >= ymax:
             break
@@ -1832,6 +1836,10 @@ def plot_intensity_plume(series: list, init_time, track_id: str, save_path: str,
                          lw=4.2, alpha=0.9, zorder=4.9)
                 ax_.plot(init + pd.to_timedelta(det[0][ok], unit='h'), v[ok], color=DET_COLOR,
                          lw=2.2, zorder=5)
+        p = det[2][np.isfinite(det[2])]
+        if has_p and p.size:
+            lo, hi = ax_p.get_ylim()
+            ax_p.set_ylim(min(lo, float(p.min()) - 3), max(hi, float(p.max()) + 3))
     ri = rapid_intensification_prob(series, n_total=n)
     peaks = np.array([np.nanmax(w) for _, w, _ in series if np.isfinite(w).any()])
     info = []
