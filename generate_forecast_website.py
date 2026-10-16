@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.9.3"
+SITE_VERSION = "5.9.4"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3380,10 +3380,11 @@ async function initTrackMap(box) {
         const showD = box.querySelector('.tm-det');
         Object.keys(data.models).forEach(m => sel.add(new Option(m, m)));
         const pad = n => String(n).padStart(2, '0');
-        const fmt = (m, h) => {
-            const d = new Date(new Date(data.inits[m] || data.init).getTime() + h * 3600e3);
+        const fmtAt = (iso, h) => {
+            const d = new Date(new Date(iso).getTime() + h * 3600e3);
             return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
         };
+        const fmt = (m, h) => fmtAt(data.inits[m] || data.init, h);
         // 經度展開：跨換日線時不會連到地球另一邊
         const unwrap = pts => {
             let prev = null;
@@ -3416,7 +3417,7 @@ async function initTrackMap(box) {
                         .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
-            // 決定報（AIFS／ECMWF 才有）：琥珀色線，沒有時把開關藏起來
+            // 決定報（AIFS／ECMWF／AIGFS／GFS 才有）：琥珀色線，沒有時把開關藏起來
             const hasDet = d.det && d.det.length > 1;
             showD.closest('label').style.display = hasDet ? '' : 'none';
             if (hasDet && showD.checked) {
@@ -3425,7 +3426,7 @@ async function initTrackMap(box) {
                 L.polyline(ll, {color: '#B45309', weight: 2.6, opacity: .9}).bindTooltip(d.det_name || 'Deterministic', {sticky: true}).addTo(layer);
                 pts.filter(p => p[3] % 24 === 0).forEach(p =>
                     L.circleMarker([p[0], p[1]], {radius: 3.8, color: '#B45309', weight: 1.6, fillColor: '#fff', fillOpacity: 1})
-                        .bindTooltip(`${d.det_name || 'DET'} +${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
+                        .bindTooltip(`${d.det_name || 'DET'} +${p[3]}h · ${d.det_init ? fmtAt(d.det_init, p[3]) : fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
                 ll.forEach(p => bounds.push(p));
             }
             if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
@@ -3433,8 +3434,11 @@ async function initTrackMap(box) {
         // 選單旁顯示該模式的起報時間（各模式不一定同一期）
         const initVal = box.querySelector('.tm-init-val');
         const showInit = () => {
-            const d = new Date(data.inits[sel.value] || data.init);
-            initVal.textContent = `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
+            const init = data.inits[sel.value] || data.init;
+            const md = data.models[sel.value] || {};
+            // 決定報比系集新一期時一併標出，免得以為兩條線是同一期
+            initVal.textContent = fmtAt(init, 0) + (md.det_init && md.det_init !== init
+                ? ` · ${md.det_name || 'DET'} ${fmtAt(md.det_init, 0)}` : '');
         };
         showInit();
         sel.onchange = () => { showInit(); draw(true); };

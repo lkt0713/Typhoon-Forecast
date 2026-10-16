@@ -1319,6 +1319,12 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
     if d.empty:
         return
 
+    # 決定報可能比系集新一期：24h 圓點與「DET +Nh」照它自己的起報時間算
+    if init_time is not None and 'init_time' in d.columns:
+        own = pd.to_datetime(d['init_time'].iloc[0], errors='coerce', utc=True)
+        if pd.notna(own):
+            init_time = own
+
     lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
     lats = d['lat'].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(lons, lats):
@@ -3599,7 +3605,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Intensity_Plume.png"),
                     model_name=display,
                     det=paired_member_series(det_df, init_time)[0] if has_det else None,
-                    det_name=det_name)
+                    det_name=(f"{det_name} · {pd.Timestamp(det_init):%d/%HZ}"
+                              if has_det and pd.Timestamp(det_init) != pd.Timestamp(init_time) else det_name))
             except Exception as e:
                 print(f"[{display}-PLUME] 強度羽狀圖失敗，略過: {e}")
 
@@ -3662,7 +3669,9 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'track_points': {
                     'members': [_track_points(g, init_time) for _, g in df.groupby('sample')],
                     'mean': _track_points(mean_df, init_time),
-                    'det': _track_points(det_df, init_time) if has_det else [],
+                    'det': _track_points(det_df, det_init) if has_det else [],
+                    'det_init': (pd.Timestamp(det_init).strftime('%Y-%m-%dT%H:%M:%SZ')
+                                 if has_det else None),
                     'det_name': det_name if has_det else None},
                 'ri_prob': ri_prob,
                 'current_info': current_info,
