@@ -13,6 +13,9 @@ a-deck（一行一個 (暴風, 時距, 風圈)），暴風編號直接沿用 JTW
 上架時間（實測 2026-10-16 00Z）：AIGFS +4h03、AIGEFS +4h39、GFS +4h45、
 GEFS +5h31，都比 WeatherNext（+6h45）與 ECMWF（+6～8h）早。
 
+GEFS 另有生成追蹤（genesis/ 目錄，各成員 storms.*.atcf_gen.altg.*），連模式自己
+生出來的擾動一起追，只到 120h，用來畫潛勢總覽；AIGEFS 沒有這個產品。
+
 NOAA 的資料屬美國政府公有領域，網頁仍標示來源。
 """
 
@@ -215,4 +218,110 @@ def fetch_deterministic(model: str, cycle: datetime, cfg: dict,
     _write_csv(_to_paired(det, cycle),
                os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv"),
                f"{model} deterministic")
+    return True
+
+
+# ── 生成潛勢（只有 GEFS）─────────────────────────────────────────────────
+
+GENESIS = {"GFS": ("gefs", ["ac00"] + [f"ap{i:02d}" for i in range(1, 31)])}
+
+
+def parse_atcf_gen(text: str, member: int, year: int) -> pd.DataFrame:
+    """生成追蹤的 ATCF 變體 → long format。
+
+    比一般 a-deck 多一欄（第 3 欄是擾動的識別字串），編號欄有兩種：已命名的颱風
+    是 'WP, 29W'，模式自己生成的擾動是 'TG, 0018'（每個成員各自編號）。前者對回
+    JTWC 編號，後者沿用 TG 編號當 track_id，與 Weather Lab 潛勢檔的做法一致。
+    """
+    rows, seen = [], set()
+    for line in text.splitlines():
+        f = [x.strip() for x in line.split(",")]
+        if len(f) < 11:
+            continue
+        basin, sid = f[0], f[1]
+        try:
+            tau = int(f[6])
+        except ValueError:
+            continue
+        if basin == "TG":
+            tid = f"TG{sid}"
+        else:
+            num = re.match(r"(\d+)", sid)
+            if not num:
+                continue
+            tid = f"{basin}{int(num.group(1)):02d}{year}"
+        if (tid, tau) in seen:
+            continue
+        seen.add((tid, tau))
+        try:
+            lat, lon = _latlon(f[7]), _latlon(f[8])
+        except (ValueError, IndexError):
+            continue
+        lon = ((lon + 180.0) % 360.0) - 180.0
+        wind = float(f[9]) if f[9].lstrip("-").isdigit() and int(f[9]) > 0 else float("nan")
+        mslp = float(f[10]) if f[10].lstrip("-").isdigit() and int(f[10]) > 0 else float("nan")
+        rows.append({"track_id": tid, "name": tid, "member": member, "step": tau,
+                     "lat": lat, "lon": lon, "mslp_hpa": mslp, "wind_kt": wind})
+    return pd.DataFrame(rows, columns=["track_id", "name", "member", "step",
+                                       "lat", "lon", "mslp_hpa", "wind_kt"])
+
+
+def _drop_land_genesis(tracks: pd.DataFrame) -> pd.DataFrame:
+    """去掉起點在陸地上的 TG 擾動。
+
+    NCEP 的生成追蹤連陸上的熱低壓也追（實測 2026-10-16 06Z 四川盆地一團 >1000 hPa
+    的低壓），那不是熱帶擾動；Weather Lab 的潛勢檔沒有這種東西。已命名的颱風不動。
+    """
+    if tracks.empty:
+        return tracks
+    try:
+        import cartopy.io.shapereader as shpreader
+        from shapely.geometry import Point
+        from shapely.ops import unary_union
+        from shapely.prepared import prep
+        land = prep(unary_union(list(shpreader.Reader(
+            shpreader.natural_earth("50m", "physical", "land")).geometries())))
+    except Exception as e:
+        print(f"[NOAA-GENESIS] 讀不到陸地範圍，不過濾: {e}")
+        return tracks
+    keys = ["track_id", "member"]
+    first = tracks.sort_values("step").groupby(keys).first().reset_index()
+    on_land = {(r.track_id, r.member) for r in first.itertuples()
+               if r.track_id.startswith("TG") and land.contains(Point(r.lon, r.lat))}
+    if not on_land:
+        return tracks
+    print(f"[NOAA-GENESIS] 去掉 {len(on_land)} 條起點在陸地上的擾動")
+    mask = [(t, m) not in on_land for t, m in zip(tracks["track_id"], tracks["member"])]
+    return tracks[mask]
+
+
+def fetch_genesis(model: str, cycle: datetime, cfg: dict) -> bool:
+    """下載某 cycle 全部成員的生成追蹤，寫出潛勢 CSV；尚未上架（或不齊）回 False。"""
+    if model not in GENESIS or not cfg.get("cyc_dir"):
+        return False
+    system, codes = GENESIS[model]
+    url = f"{BASE_URL}/{system}.{cycle:%Y%m%d}/{cycle:%H}/genesis/"
+    resp = _get(url)
+    if resp.status_code == 404:
+        return False
+    resp.raise_for_status()
+    names = set(re.findall(r'href="([^"/?]+)"', resp.text))
+    fname = lambda c: f"storms.{c}.atcf_gen.altg.{cycle:%Y%m%d%H}"
+    wanted = [c for c in codes if fname(c) in names]
+    if len(wanted) < len(codes):
+        print(f"[{model}-GENESIS] {cycle:%Y-%m-%d %HZ} 只上架 {len(wanted)}/{len(codes)}，等下一輪")
+        return False
+    parts = []
+    for i, code in enumerate(wanted):
+        r = _get(url + fname(code))
+        if r.status_code == 404:
+            continue
+        r.raise_for_status()
+        parts.append(parse_atcf_gen(r.text, member=i, year=cycle.year))
+    tracks = pd.concat(parts, ignore_index=True) if parts else parse_atcf_gen("", 0, cycle.year)
+    tracks = _drop_land_genesis(tracks)
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    _write_csv(_to_paired(tracks, cycle),
+               os.path.join(cfg["cyc_dir"], f"{cfg['local_prefix']}_{stamp}_cyclogenesis.csv"),
+               f"{model} genesis")
     return True

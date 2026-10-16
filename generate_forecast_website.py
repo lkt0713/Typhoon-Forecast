@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.7.2"
+SITE_VERSION = "5.8.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -80,10 +80,11 @@ def ss_category(kt):
 # ECMWF／AIFS 來自 ECMWF Open Data（CC-BY，授權與 WeatherNext 不同），
 # 其餘模式來自 Weather Lab；圖說的來源字串不能寫死成 DeepMind。
 ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
+NOAA_MODELS = {'GFS', 'AIGFS', 'GEFS', 'AIGEFS'}
 # 只有系集的產品（如生成潛勢）用 -ENS 名稱；首頁模式卡是 AIFS／ECMWF，亮燈時對回去
 ENS_SYSTEM = {'AIFS-ENS': 'AIFS', 'ECMWF-ENS': 'ECMWF', 'AIGEFS': 'AIGFS', 'GEFS': 'GFS'}
 
-# 潛勢頁上的 WN2-C 1000 成員路徑聚類圖：算進潛勢頁的「N 個模式」（7 個；NOAA 沒有潛勢產品），
+# 潛勢頁上的 WN2-C 1000 成員路徑聚類圖：算進潛勢頁的「N 個模式」（8 個；NOAA 只有 GEFS 有潛勢產品），
 # 但圖說不同，也不放進左右拖曳的比較器（聚類圖與其他潛勢圖畫法不同，對不齊）
 CLUSTER_LABEL = 'WN2-C 1000'
 
@@ -91,6 +92,8 @@ CLUSTER_LABEL = 'WN2-C 1000'
 def _genesis_source(model_label: str) -> str:
     if model_label in ECMWF_MODELS:
         return 'ECMWF Open Data'
+    if model_label in NOAA_MODELS:
+        return 'NOAA NCEP'
     return f'Google DeepMind {model_label}'
 
 
@@ -1157,7 +1160,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     f'members that produce the system; gray = sparse tracks. Data sourced from {src}.</p>')
         return (f'<p class="map-note" style="margin-top:0;" data-i18n="note.genesis" data-i18n-source="{src}">'
                 'Circles = ensemble members at each 6-hr step, colored by minimum sea level '
-                'pressure. Gray lines = individual ensemble tracks (0–360 h). '
+                'pressure. Gray lines = individual ensemble tracks (up to 360 h; GEFS 120 h). '
                 f'Data sourced from {src}.</p>')
 
     genesis_view = ""
@@ -1261,7 +1264,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
-                        <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data"></p></div>
+                        <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
                     </div>
                 </div>
                 <div class="panel reveal about-keys">
@@ -2823,7 +2826,7 @@ const I18N = {
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
     'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
-    'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (0–360 h). Data sourced from {source}.',
+    'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (up to 360 h; GEFS 120 h). Data sourced from {source}.',
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
@@ -2985,7 +2988,7 @@ const I18N = {
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
     'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
-    'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（0–360 小時）。資料來源：{source}。',
+    'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（最長 360 小時；GEFS 只到 120 小時）。資料來源：{source}。',
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',

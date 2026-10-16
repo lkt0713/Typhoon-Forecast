@@ -77,14 +77,15 @@ for _d in (IFS_ENSEMBLE_DIR, IFS_MEAN_DIR, IFS_DET_DIR, IFS_CYCLOGENESIS_DIR,
 # NOAA 兩個模式走 NOMADS 上 NCEP ens_tracker 的 ATCF 路徑檔（見 noaa_atcf）：
 # GFS   = 傳統物理模式（GEFS 系集 31 條 + GFS 決定報）
 # AIGFS = NOAA 的 AI 模式（AIGEFS 系集 31 條 + AIGFS 決定報）
-# 對方沒有對應的生成潛勢產品（AIGFS 根本沒有，GEFS 的格式不同），所以不畫潛勢圖。
+# 潛勢圖只有 GFS 有：GEFS 另有生成追蹤（只到 120h），AIGEFS 沒有對應產品。
 GEFS_ENSEMBLE_DIR = "noaa_gefs_downloads_2026"
+GEFS_CYCLOGENESIS_DIR = "noaa_gefs_cyclogenesis_2026"
 GEFS_MEAN_DIR = "noaa_gefs_ensemble_mean_downloads_2026"
 GFS_DET_DIR = "noaa_gfs_deterministic_2026"
 AIGEFS_ENSEMBLE_DIR = "noaa_aigefs_downloads_2026"
 AIGEFS_MEAN_DIR = "noaa_aigefs_ensemble_mean_downloads_2026"
 AIGFS_DET_DIR = "noaa_aigfs_deterministic_2026"
-for _d in (GEFS_ENSEMBLE_DIR, GEFS_MEAN_DIR, GFS_DET_DIR,
+for _d in (GEFS_ENSEMBLE_DIR, GEFS_MEAN_DIR, GFS_DET_DIR, GEFS_CYCLOGENESIS_DIR,
            AIGEFS_ENSEMBLE_DIR, AIGEFS_MEAN_DIR, AIGFS_DET_DIR):
     os.makedirs(_d, exist_ok=True)
 
@@ -229,8 +230,8 @@ MODEL_CONFIGS = [
         "det_dir": GFS_DET_DIR,
         "det_label": "GFS (deterministic)",
         "det_name": "GFS",
-        "cyc_dir": None,
-        "genesis_png": None,
+        "cyc_dir": GEFS_CYCLOGENESIS_DIR,
+        "genesis_png": "WP_Genesis_Potential_GFS.png",
         "output_prefix": "GFS_",
         "required": False,
     },
@@ -2122,6 +2123,42 @@ def archive_verification(storms: list) -> None:
                 pass
 
 
+def archive_noaa_backfill(storms: list) -> None:
+    """把 NOAA 補抓到的前幾期也存進校驗檔（已存在的不覆寫）。
+
+    同質樣本要求「這顆颱風出現過的模式全到」，新加入的模式若只從加入那期開始存，
+    之前每一期都會因為缺它而整期被踢出同質樣本（JTWC 當初就是這樣被拿掉的）。
+    NOMADS 留兩天，補抓的那幾期存進來，缺口就只剩更早、NOMADS 已刪掉的期數。
+    """
+    fdir = os.path.join(VERIF_DIR, 'fcst')
+    os.makedirs(fdir, exist_ok=True)
+    tids = {s['track_id'] for s in storms}
+    for cfg in MODEL_CONFIGS:
+        if cfg.get("fetcher") != "noaa":
+            continue
+        for src_dir, suffix, name in ((cfg["mean_dir"], "paired", _ens_name(cfg)),
+                                      (cfg.get("det_dir"), "deterministic", cfg.get("det_name"))):
+            if not (src_dir and name and os.path.isdir(src_dir)):
+                continue
+            for fn in os.listdir(src_dir):
+                if not (fn.startswith(f"{cfg['local_prefix']}_") and fn.endswith(f"_{suffix}.csv")):
+                    continue
+                init = _cycle_from_stamp(fn)
+                if init is None:
+                    continue
+                try:
+                    df = pd.read_csv(os.path.join(src_dir, fn), comment='#')
+                except Exception:
+                    continue
+                for tid in tids & set(df['track_id'].astype(str)):
+                    p = os.path.join(fdir, f"{str(name).replace(' ', '~')}_{tid}_{init:%Y%m%d%H}.csv")
+                    if os.path.exists(p):
+                        continue
+                    g = df[df['track_id'].astype(str) == tid].sort_values('lead_time_hours')
+                    pd.DataFrame({'lead_h': g['lead_time_hours'].astype(float).round(2),
+                                  'lat': g['lat'].round(3), 'lon': g['lon'].round(3)}).to_csv(p, index=False)
+
+
 def compute_scorecard() -> dict:
     """路徑誤差成績單：{範圍: {'all': {model: {lead: [平均 km, n]}}, 'homog': {...}}}。
 
@@ -2181,13 +2218,18 @@ def compute_scorecard() -> dict:
 
     def _homog(rs):
         # 每顆颱風、每個時數各自要求「該颱風出現過的模式全到」：只在某些颱風才有的模式
-        # （例如 GENC）不會把其他颱風的樣本整個擋掉
+        # （例如 GENC）不會把其他颱風的樣本整個擋掉。
+        # 中途才加入的模式（2026-10-16 加入的 AIGFS／GFS，NOMADS 只補得到兩天）在它
+        # 第一期之前不算缺席，否則較早的期數會整期被踢出同質樣本
         present: dict = {}
         cases: dict = {}
+        first: dict = {}
         for t, mdl, ini, ld, _ in rs:
             present.setdefault((t, ld), set()).add(mdl)
             cases.setdefault((t, ini, ld), set()).add(mdl)
-        ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
+            first[(t, mdl)] = min(first.get((t, mdl), ini), ini)
+        ok = {k for k, ms in cases.items()
+              if ms >= {m for m in present[(k[0], k[2])] if first[(k[0], m)] <= k[1]}}
         return [r for r in rs if (r[0], r[2], r[3]) in ok]
 
     card = {}
@@ -3099,6 +3141,12 @@ def _resolve_cycle_noaa(cfg: dict) -> tuple[datetime, str | None] | tuple[None, 
         except Exception:
             empty = True
         _backfill_noaa(cfg, cycle)
+        if cfg.get("cyc_dir") and not os.path.exists(os.path.join(
+                cfg["cyc_dir"], f"{cfg['local_prefix']}_{_cycle_stamp(cycle)}_cyclogenesis.csv")):
+            try:
+                noaa_atcf.fetch_genesis(cfg["noaa_model"], cycle, cfg)
+            except Exception as e:
+                print(f"[{cfg['display']}-GENESIS] 生成追蹤取用失敗，沿用舊檔: {e}")
         return cycle, (None if empty else path)
     return None, None
 
@@ -3218,8 +3266,8 @@ def _get_cyclogenesis_csv(cfg: dict, stamp: str) -> str | None:
     if not cfg.get("cyc_dir"):
         return None
     display = cfg["display"]
-    if cfg.get("fetcher") == "ecmwf":
-        # ECMWF 的潛勢檔是解 BUFR 時一併寫出的，沒有可下載的遠端來源；
+    if cfg.get("fetcher") in ("ecmwf", "noaa"):
+        # ECMWF／NOAA 的潛勢檔是轉檔時一併寫出的，沒有可下載的遠端來源；
         # 也不綁當期 stamp，理由見 _latest_local_cyclogenesis
         _, path = _latest_local_cyclogenesis(cfg)
         if path is None:
@@ -3405,6 +3453,8 @@ def _genesis_range_hours(cfg: dict, cycle: datetime) -> int:
     Weather Lab 的四個模式一律 360h；ECMWF 的 IFS 在 06Z／18Z 只跑 144h，
     標題寫死 360 會與圖上實際內容不符。
     """
+    if cfg.get("fetcher") == "noaa":
+        return 120      # NCEP 的生成追蹤只跑到 120h
     if cfg.get("fetcher") != "ecmwf":
         return 360
     import ecmwf_bufr
@@ -3779,6 +3829,7 @@ def main():
     # 加分項，失敗不影響其他產品
     try:
         archive_verification(storms)
+        archive_noaa_backfill(storms)
         card = compute_scorecard()
         for tid in dict.fromkeys(s['track_id'] for s in storms):
             head = next(s for s in storms if s['track_id'] == tid)
