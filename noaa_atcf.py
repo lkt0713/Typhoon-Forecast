@@ -91,9 +91,12 @@ def _get(url: str) -> requests.Response:
 
 
 def _list_dir(system: str, cycle: datetime) -> set[str] | None:
-    """tctrack 目錄裡的檔名；目錄還不存在時回 None。"""
+    """tctrack 目錄裡的檔名；目錄還不存在時回 None。
+
+    NOMADS 對還沒建立的目錄回 403 而不是 404（實測 2026-10-16 17:00 的 gefs 12Z），
+    兩者都當成尚未上架。"""
     resp = _get(_dir_url(system, cycle))
-    if resp.status_code == 404:
+    if resp.status_code in (403, 404):
         return None
     resp.raise_for_status()
     return set(re.findall(r'href="([^"/?]+)"', resp.text))
@@ -158,8 +161,9 @@ def fetch_ensemble(model: str, cycle: datetime, cfg: dict,
                    known_ids: set[str] | None = None) -> str:
     """下載某 cycle 的全部成員，寫出系集與平均 CSV。
 
-    以「平均檔（aemn／aimn）已上架」或「全部成員都在」當作這期跑完的記號：成員
-    檔是陸續寫進目錄的，太早來會只抓到一半。沒有颱風也照樣寫出（空的）CSV，
+    要等全部成員都在才收：成員檔是陸續寫進目錄的，NCEP 的平均檔不能當完成記號
+    （實測 GEFS 的 aemn 05:29 就寫出，ap06 到 05:30 才有）。起報 7 小時後還缺的
+    成員視為這期就是沒有（正常 +5h31 前全到），收下現有的。沒有颱風也照樣寫出（空的）CSV，
     檔案在就代表這期處理過，下一輪不會再花 31 次請求重抓。
 
     known_ids：只留這些編號（WNC2-r2 判定在西太的颱風），與 ECMWF 的配對範圍一致；
@@ -170,8 +174,8 @@ def fetch_ensemble(model: str, cycle: datetime, cfg: dict,
     if names is None:
         return FETCH_UNAVAILABLE
     wanted = [c for c in codes if _file_name(c, cycle) in names]
-    mean_code = "aemn" if system == "gefs" else "aimn"
-    if len(wanted) < len(codes) and _file_name(mean_code, cycle) not in names:
+    late = datetime.now(timezone.utc) - cycle > timedelta(hours=7)
+    if len(wanted) < len(codes) and not late:
         print(f"[{model}-ENS] {cycle:%Y-%m-%d %HZ} 成員只上架 {len(wanted)}/{len(codes)}，等下一輪")
         return FETCH_UNAVAILABLE
     if not wanted:
@@ -181,7 +185,7 @@ def fetch_ensemble(model: str, cycle: datetime, cfg: dict,
     parts = []
     for i, code in enumerate(wanted):
         resp = _get(_dir_url(system, cycle) + _file_name(code, cycle))
-        if resp.status_code == 404:
+        if resp.status_code in (403, 404):
             continue
         resp.raise_for_status()
         parts.append(parse_atcf(resp.text, member=i, year=cycle.year))
@@ -208,7 +212,7 @@ def fetch_deterministic(model: str, cycle: datetime, cfg: dict,
     """下載決定報並寫出 CSV；尚未上架回 False。沒有颱風也寫空檔（代表處理過）。"""
     system, code = PRODUCTS[model]["det"]
     resp = _get(_dir_url(system, cycle) + _file_name(code, cycle))
-    if resp.status_code == 404:
+    if resp.status_code in (403, 404):
         return False
     resp.raise_for_status()
     det = parse_atcf(resp.text, member=0, year=cycle.year)
@@ -302,7 +306,7 @@ def fetch_genesis(model: str, cycle: datetime, cfg: dict) -> bool:
     system, codes = GENESIS[model]
     url = f"{BASE_URL}/{system}.{cycle:%Y%m%d}/{cycle:%H}/genesis/"
     resp = _get(url)
-    if resp.status_code == 404:
+    if resp.status_code in (403, 404):
         return False
     resp.raise_for_status()
     names = set(re.findall(r'href="([^"/?]+)"', resp.text))
@@ -314,7 +318,7 @@ def fetch_genesis(model: str, cycle: datetime, cfg: dict) -> bool:
     parts = []
     for i, code in enumerate(wanted):
         r = _get(url + fname(code))
-        if r.status_code == 404:
+        if r.status_code in (403, 404):
             continue
         r.raise_for_status()
         parts.append(parse_atcf_gen(r.text, member=i, year=cycle.year))

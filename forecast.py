@@ -3199,7 +3199,7 @@ def _fetch_newer_det(cfg: dict, ens_cycle: datetime | None) -> None:
         det_path = os.path.join(cfg["det_dir"],
                                 f"{cfg['local_prefix']}_{_cycle_stamp(cycle)}_deterministic.csv")
         if os.path.exists(det_path):
-            return
+            break
         try:
             if fetcher == "ecmwf":
                 ok = ecmwf_bufr.fetch_deterministic_only(
@@ -3212,9 +3212,10 @@ def _fetch_newer_det(cfg: dict, ens_cycle: datetime | None) -> None:
             ok = False
         if ok:
             print(f"[{cfg['display']}-DET] 決定報 {_cycle_stamp(cycle)} 比系集新，先上")
-            return
+            break
         cycle -= timedelta(hours=6)
-    # 系集那期的決定報（NOAA 系集與決定報分開抓，這裡補；ECMWF 由 fetch_cycle 處理）
+    # 系集那期的決定報（NOAA 系集與決定報分開抓，這裡補；ECMWF 由 fetch_cycle 處理）。
+    # 不能因為上面抓到更新的就跳過：快取重建時系集那期會缺，趨勢圖與校驗少一期
     if fetcher == "noaa":
         det_path = os.path.join(cfg["det_dir"],
                                 f"{cfg['local_prefix']}_{_cycle_stamp(ens_cycle)}_deterministic.csv")

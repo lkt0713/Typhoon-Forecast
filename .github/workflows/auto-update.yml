@@ -49,9 +49,12 @@ jobs:
 
       # 下載目錄在 .gitignore 裡不進 repo；用 cache 在各輪之間保留，
       # _resolve_cycle 回溯舊 cycle 與潛勢圖的退路才有檔案可用。
-      # 每輪存一份新 key，還原時取最新一份。
+      # 還原與儲存分開：以前每輪都用 run_id 存一份新 key（約 93 MB），改成 10 分鐘
+      # 一輪後一天 144 份、遠超過 10 GB 上限而一直被淘汰（2026-10-16 已 115 份／10.75 GB）。
+      # 現在 key 取下載目錄檔案清單的雜湊，內容沒變就不重存；還原時取最新一份。
       - name: Restore download cache
-        uses: actions/cache@v4
+        id: restore
+        uses: actions/cache/restore@v4
         with:
           path: |
             deepmind_weather_*_2026/
@@ -60,7 +63,7 @@ jobs:
             ~/.local/share/cartopy
           # 前綴的 v2 是快取版本：快取內容壞掉時改這裡就能整批作廢（v1 裡有
           # pandas 3 修正前寫下的「ECMWF 18Z 無颱風」潛勢檔，會讓程式不再重抓 BUFR）
-          key: forecast-data-v2-${{ github.run_id }}
+          key: forecast-data-v2-restore
           restore-keys: forecast-data-v2-
 
       - name: Run forecast
@@ -69,6 +72,23 @@ jobs:
         env:
           TZ: Asia/Taipei
         run: python forecast.py
+
+      - name: Compute cache key
+        id: cachekey
+        run: |
+          h=$(find deepmind_weather_*_2026 ecmwf_*_2026 noaa_*_2026 -type f -printf '%p %s\n' 2>/dev/null | sort | sha256sum | cut -c1-16)
+          echo "key=forecast-data-v2-$h" >> "$GITHUB_OUTPUT"
+
+      - name: Save download cache
+        if: steps.cachekey.outputs.key != steps.restore.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            deepmind_weather_*_2026/
+            ecmwf_*_2026/
+            noaa_*_2026/
+            ~/.local/share/cartopy
+          key: ${{ steps.cachekey.outputs.key }}
 
       - name: Commit and push docs
         id: commit
