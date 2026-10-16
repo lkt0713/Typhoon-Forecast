@@ -555,14 +555,14 @@ def _track_source_legend(ax, model_name: str, fontsize: float = 9, ms: float = 1
                           for c in ('TS', 'Cat2', 'Cat4'))
     handles = [
         member_handle,
-        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=3.7,
+        mlines.Line2D([], [], color=MEAN_COLOR, marker='o', ms=ms * 0.55, lw=2.8,
                       markerfacecolor='white', markeredgecolor=MEAN_COLOR,
                       markeredgewidth=1.4),
     ]
     labels = ['Ensemble Members', f'{model_name} Mean']
     if det_label:
         handles.append(mlines.Line2D([], [], color=DET_COLOR, marker='o', ms=ms * 0.55,
-                                     lw=3.5, markerfacecolor='white',
+                                     lw=2.6, markerfacecolor='white',
                                      markeredgecolor=DET_COLOR, markeredgewidth=1.4))
         labels.append(det_label)
     handles.append(_init_legend_handle(ms))
@@ -630,7 +630,8 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
     （原本的順序）會讓半透明海面蓋住陸地，整張圖發灰。
 
     海岸線 zorder 2.5：壓在所有成員線與成員圈（路徑圖 0.9～1.15、潛勢圖 1～2）
-    之上、平均路徑（3.9）之下，成員再密集，臺灣等島嶼的輪廓也不會消失。
+    之上，連平均路徑／決定報（2.0～2.4）也壓在底下，成員與平均線再密集，
+    臺灣等島嶼的輪廓也不會消失；24h 圓點與標籤（5 以上）仍在海岸線之上。
     """
     ax.set_extent(extent, crs=ccrs.PlateCarree())
     ax.add_feature(cfeature.OCEAN, facecolor=BASEMAP['ocean'])
@@ -1138,10 +1139,10 @@ def generate_frame_sequence(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: 
             mean_lons = _normalize_lon_values(mean_subset["lon"].to_numpy(), use_360=use_360)
             mean_lats = mean_subset["lat"].to_numpy()
             for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
-                ax.plot(seg_lon, seg_lat, color='white', lw=6.3, alpha=0.85,
-                        solid_capstyle='round', zorder=3.9, **kw)
-                ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.7,
-                        solid_capstyle='round', zorder=4, **kw)
+                ax.plot(seg_lon, seg_lat, color='white', lw=4.6, alpha=0.7,
+                        solid_capstyle='round', zorder=2.0, **kw)
+                ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=2.8,
+                        solid_capstyle='round', zorder=2.2, **kw)
             last_mean_pt = mean_subset.iloc[-1]
             last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
             last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
@@ -1271,10 +1272,10 @@ def _draw_det_track(ax, det_df: pd.DataFrame, init_time: pd.Timestamp, use_360: 
     lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
     lats = d['lat'].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(lons, lats):
-        ax.plot(seg_lon, seg_lat, color='white', lw=5.9, alpha=0.85,
-                solid_capstyle='round', zorder=4.1, **kw)
-        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=3.5,
-                solid_capstyle='round', zorder=4.2, **kw)
+        ax.plot(seg_lon, seg_lat, color='white', lw=4.4, alpha=0.7,
+                solid_capstyle='round', zorder=2.25, **kw)
+        ax.plot(seg_lon, seg_lat, color=DET_COLOR, lw=2.6,
+                solid_capstyle='round', zorder=2.35, **kw)
 
     # 每 24 小時的空心圓點（與平均路徑同款，僅顏色不同）
     if init_time is not None:
@@ -1921,11 +1922,11 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
         color = latest_color if newest else cmap(norm(tn))
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
             if newest:
-                ax.plot(seg_lon, seg_lat, color='white', lw=5.6, alpha=0.9,
-                        solid_capstyle='round', zorder=3.9, **kw)
-            ax.plot(seg_lon, seg_lat, color=color, lw=3.4 if newest else 1.8,
+                ax.plot(seg_lon, seg_lat, color='white', lw=4.4, alpha=0.7,
+                        solid_capstyle='round', zorder=2.2, **kw)
+            ax.plot(seg_lon, seg_lat, color=color, lw=2.6 if newest else 1.6,
                     alpha=1.0, solid_capstyle='round',
-                    zorder=4 if newest else 3, **kw)
+                    zorder=2.3 if newest else 2.1, **kw)
         if newest:
             pts = get_24h_markers(mdf, it)
             if not pts.empty:
@@ -2233,10 +2234,10 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     mean_lats = mean_plot_df["lat"].to_numpy()
     for seg_lon, seg_lat in _split_track_segments(mean_lons, mean_lats):
         # 先鋪一層白色描邊：平均路徑穿過密集的成員點時才不會被淹沒
-        ax.plot(seg_lon, seg_lat, color='white', lw=6.3, alpha=0.85,
-                solid_capstyle='round', zorder=3.9, **kw)
-        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=3.7,
-                solid_capstyle='round', zorder=4, **kw)
+        ax.plot(seg_lon, seg_lat, color='white', lw=4.6, alpha=0.7,
+                solid_capstyle='round', zorder=2.0, **kw)
+        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=2.8,
+                solid_capstyle='round', zorder=2.2, **kw)
     last_mean_pt = mean_plot_df.sort_values('valid_time').iloc[-1]
     last_mean_lon = _normalize_lon_values([last_mean_pt['lon']], use_360=use_360)[0]
     last_fh = int(round((last_mean_pt['valid_time'] - init_time).total_seconds() / 3600.0))
@@ -2412,8 +2413,8 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         labels.append(drawn[key])
 
     leg = ax.legend(handles=handles, labels=labels, loc='upper left', title='Mean Tracks & Deterministic Runs',
-                    fontsize=8, borderpad=0.7, labelspacing=0.42,
-                    handlelength=1.8, handletextpad=0.7, **LEGEND_KW)
+                    fontsize=6.3, title_fontsize=7.2, borderpad=0.5, labelspacing=0.3,
+                    handlelength=1.4, handletextpad=0.5, **LEGEND_KW)
     _style_legend(leg)
     ax.add_artist(leg)
 
