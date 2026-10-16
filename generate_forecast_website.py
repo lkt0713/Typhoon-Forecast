@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.4.0"
+SITE_VERSION = "5.4.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -470,7 +470,7 @@ def _city_table(cols: list[tuple]) -> str:
         return f'<span class="eta">{_esc(" · ".join(parts))}</span>' if parts else ''
     head = ''.join(f'<th>{_esc(m)}{_th_sub(d)}</th>' for m, d, *_ in cols)
     return (f'<div class="city-table-wrap"><table class="city-table">'
-            f'<thead><tr><th data-i18n="cities.city">City</th>{head}</tr></thead>'
+            f'<thead><tr><th data-i18n="cities.city">Model</th>{head}</tr></thead>'
             f'<tbody>{body}</tbody></table></div>')
 
 
@@ -2785,7 +2785,7 @@ const I18N = {
     'cities.grp.land.sub': 'storm centre moves onto Taiwan\'s main island (outlying islands excluded)',
     'cities.grp.city': 'City strike',
     'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
-    'cities.city':    'City',
+    'cities.city':    'Model',
     'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
@@ -2946,7 +2946,7 @@ const I18N = {
     'cities.grp.land.sub': '颱風中心進入臺灣本島（不含離島）',
     'cities.grp.city': '城市侵襲',
     'cities.grp.city.sub': '路徑通過城市 1°（約 111 公里）以內',
-    'cities.city':    '城市',
+    'cities.city':    '模式',
     'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
     'city.taichung':     '臺中',
