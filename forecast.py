@@ -3614,7 +3614,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             if det_name and cfg.get('det_dir'):
                 try:
                     det_trend_path = plot_track_trend(
-                        load_trend_means(cfg, cycle, tid, det=True), tid,
+                        load_trend_means(cfg, max(pd.Timestamp(cycle), pd.Timestamp(det_init)) if has_det else cycle,
+                                     tid, det=True), tid,
                         os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Det_Track_Trend.png"),
                         model_name=det_name, colors=TREND_DET_COLORS, latest_color=DET_COLOR,
                         track_kind='Deterministic')
