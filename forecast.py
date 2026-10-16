@@ -74,6 +74,20 @@ for _d in (IFS_ENSEMBLE_DIR, IFS_MEAN_DIR, IFS_DET_DIR, IFS_CYCLOGENESIS_DIR,
            AIFS_ENSEMBLE_DIR, AIFS_MEAN_DIR, AIFS_DET_DIR, AIFS_CYCLOGENESIS_DIR):
     os.makedirs(_d, exist_ok=True)
 
+# NOAA 兩個模式走 NOMADS 上 NCEP ens_tracker 的 ATCF 路徑檔（見 noaa_atcf）：
+# GFS   = 傳統物理模式（GEFS 系集 31 條 + GFS 決定報）
+# AIGFS = NOAA 的 AI 模式（AIGEFS 系集 31 條 + AIGFS 決定報）
+# 對方沒有對應的生成潛勢產品（AIGFS 根本沒有，GEFS 的格式不同），所以不畫潛勢圖。
+GEFS_ENSEMBLE_DIR = "noaa_gefs_downloads_2026"
+GEFS_MEAN_DIR = "noaa_gefs_ensemble_mean_downloads_2026"
+GFS_DET_DIR = "noaa_gfs_deterministic_2026"
+AIGEFS_ENSEMBLE_DIR = "noaa_aigefs_downloads_2026"
+AIGEFS_MEAN_DIR = "noaa_aigefs_ensemble_mean_downloads_2026"
+AIGFS_DET_DIR = "noaa_aigfs_deterministic_2026"
+for _d in (GEFS_ENSEMBLE_DIR, GEFS_MEAN_DIR, GFS_DET_DIR,
+           AIGEFS_ENSEMBLE_DIR, AIGEFS_MEAN_DIR, AIGFS_DET_DIR):
+    os.makedirs(_d, exist_ok=True)
+
 # BUFR 原始檔只是轉檔的中間產物（每 cycle 約 2.6 MB），轉完即刪，
 # 不進 KEEP_CYCLES 的保留機制。
 ECMWF_SCRATCH_DIR = os.path.join("__pycache__", "ecmwf_bufr_raw")
@@ -183,6 +197,41 @@ MODEL_CONFIGS = [
         "cyc_dir": IFS_CYCLOGENESIS_DIR,
         "genesis_png": "WP_Genesis_Potential_ECMWF.png",
         "output_prefix": "ECMWF_",
+        "required": False,
+    },
+    {
+        # fetcher="noaa"：由 noaa_atcf 下載 NCEP 的 ATCF 路徑檔轉成 paired CSV。
+        # 編號直接是 JTWC 的，但仍只收 WNC2-r2 判定的颱風（與 ECMWF 一致），
+        # 所以同樣要排在 WNC2-r2 之後。
+        "fetcher": "noaa",
+        "noaa_model": "AIGFS",
+        "local_prefix": "AIGFS",
+        "display": "AIGFS",
+        "ens_name": "AIGEFS",
+        "ensemble_dir": AIGEFS_ENSEMBLE_DIR,
+        "mean_dir": AIGEFS_MEAN_DIR,
+        "det_dir": AIGFS_DET_DIR,
+        "det_label": "AIGFS (deterministic)",
+        "det_name": "AIGFS",
+        "cyc_dir": None,
+        "genesis_png": None,
+        "output_prefix": "AIGFS_",
+        "required": False,
+    },
+    {
+        "fetcher": "noaa",
+        "noaa_model": "GFS",
+        "local_prefix": "GFS",
+        "display": "GFS",
+        "ens_name": "GEFS",
+        "ensemble_dir": GEFS_ENSEMBLE_DIR,
+        "mean_dir": GEFS_MEAN_DIR,
+        "det_dir": GFS_DET_DIR,
+        "det_label": "GFS (deterministic)",
+        "det_name": "GFS",
+        "cyc_dir": None,
+        "genesis_png": None,
+        "output_prefix": "GFS_",
         "required": False,
     },
 ]
@@ -705,7 +754,7 @@ JTWC_FORECAST_URLS, JTWC_TEXT_URLS = _build_jtwc_urls(TARGET_TRACK_IDS)
 
 
 # 本次執行中已確認不存在的 JTWC 產品 URL。JTWC 對某顆颱風停止發布後，該產品在
-# 這次執行內不會突然冒出來，六個模式各問一次只是白費六個 request。
+# 這次執行內不會突然冒出來，每個模式各問一次只是白費好幾個 request。
 _JTWC_ABSENT: set[str] = set()
 
 
@@ -2030,11 +2079,12 @@ def archive_verification(storms: list) -> None:
                 lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
                 pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
                               'lon': mdf['lon'].round(3)}).to_csv(p, index=False)
-        ddf, dname = s.get('det_df'), s.get('det_name')
-        if ddf is not None and not ddf.empty and dname and it is not None:
-            p = os.path.join(fdir, f"{str(dname).replace(' ', '~')}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
+        # 決定報可能比系集新一期，存檔與時距都照它自己的起報時間
+        ddf, dname, dit = s.get('det_df'), s.get('det_name'), s.get('det_init_time') or it
+        if ddf is not None and not ddf.empty and dname and dit is not None:
+            p = os.path.join(fdir, f"{str(dname).replace(' ', '~')}_{tid}_{pd.to_datetime(dit):%Y%m%d%H}.csv")
             if not os.path.exists(p):
-                lead = (pd.to_datetime(ddf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
+                lead = (pd.to_datetime(ddf['valid_time']) - pd.to_datetime(dit)).dt.total_seconds() / 3600.0
                 pd.DataFrame({'lead_h': lead.round(2), 'lat': ddf['lat'].round(3),
                               'lon': ddf['lon'].round(3)}).to_csv(p, index=False)
         jt = (s.get('current_info') or {}).get('jtwc') or {}
@@ -2295,6 +2345,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 # 模式比較圖的線條配色。同一家族用相近色系、決定報用虛線，
 # 讓「哪些線來自同一個模式」一眼可辨：
 #   WNC 系列與 GENC → 冷色（藍綠）  ECMWF → 暖色（紅橘）  AIFS → 紫紅
+#   AIGFS → 青  GFS → 橄欖
 # 比較圖一律實線（含決定報）：八條線本來就靠顏色分辨，虛線只會讓
 # 短的那幾條看起來斷斷續續。各模式自己的分頁圖上，決定報仍是虛線。
 COMPARE_STYLES = {
@@ -2306,14 +2357,20 @@ COMPARE_STYLES = {
     'AIFS-DET':  '#C2569B',
     'ECMWF':     '#B3123F',
     'ECMWF-DET': '#B45309',
+    'AIGFS':     '#0E7490',
+    'AIGFS-DET': '#38B2D0',
+    'GFS':       '#5A6B12',
+    'GFS-DET':   '#9AA82E',
 }
 # 畫線順序：後畫的蓋在先畫的上面，所以主力 WNC2-r2 刻意排在四條 WNC／GENC 的最後。
-COMPARE_ORDER = ['WN3-C', 'WN2-C r1', 'GENC', 'WN2-C r2',
+COMPARE_ORDER = ['AIGFS', 'AIGFS-DET', 'GFS', 'GFS-DET',
+                 'WN3-C', 'WN2-C r1', 'GENC', 'WN2-C r2',
                  'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
 # 圖例順序與畫線順序刻意分開：圖例照模式輩分排（WNC3 → WNC2-r2 → WNC2-r1 →
 # GENC → ECMWF → AIFS），疊圖先後則由 COMPARE_ORDER 決定。
 COMPARE_LEGEND_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'GENC',
-                        'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET']
+                        'AIFS', 'AIFS-DET', 'ECMWF', 'ECMWF-DET',
+                        'AIGFS', 'AIGFS-DET', 'GFS', 'GFS-DET']
 COMPARE_LABELS = {
     'WN3-C': 'WN3-C Mean',
     'WN2-C r2': 'WN2-C r2 Mean',
@@ -2323,6 +2380,10 @@ COMPARE_LABELS = {
     'AIFS-DET': 'AIFS-single',
     'ECMWF': 'ECMWF-ENS Mean',
     'ECMWF-DET': 'ECMWF HRES',
+    'AIGFS': 'AIGEFS Mean',
+    'AIGFS-DET': 'AIGFS',
+    'GFS': 'GEFS Mean',
+    'GFS-DET': 'GFS',
 }
 
 
@@ -2376,7 +2437,7 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
         lons = _normalize_lon_values(d['lon'].to_numpy(), use_360=use_360)
         lats = d['lat'].to_numpy()
         for seg_lon, seg_lat in _split_track_segments(lons, lats):
-            # 線細一點、壓在海岸線（zorder 2.5）底下：八條線疊在臺灣附近時陸地輪廓仍看得到
+            # 線細一點、壓在海岸線（zorder 2.5）底下：十幾條線疊在臺灣附近時陸地輪廓仍看得到
             ax.plot(seg_lon, seg_lat, color='white', lw=3.6, alpha=0.6,
                     solid_capstyle='round', zorder=2.0, **kw)
             ax.plot(seg_lon, seg_lat, color=color, lw=2.2, alpha=0.9,
@@ -2430,11 +2491,15 @@ def plot_model_comparison_map(track_id: str, entries: dict, save_path: str,
 # 資料來源標註：WNC 系列與 GENC 來自 Weather Lab，ECMWF／AIFS 來自 ECMWF Open Data
 # （授權不同，見 ecmwf_bufr 模組說明），圖上不能一律掛 DeepMind。
 ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
+NOAA_MODELS = {'GFS', 'AIGFS', 'GEFS', 'AIGEFS'}
 
 
 def _data_source(model_name: str) -> str:
-    return ('ECMWF Open Data' if model_name in ECMWF_MODELS
-            else 'Google DeepMind Weather Lab')
+    if model_name in ECMWF_MODELS:
+        return 'ECMWF Open Data'
+    if model_name in NOAA_MODELS:
+        return 'NOAA NCEP'
+    return 'Google DeepMind Weather Lab'
 
 
 def plot_genesis_potential_map(csv_path: str, save_path: str, model_name: str = "WN2-C r2",
@@ -2925,7 +2990,13 @@ def _download_file(url: str, out_path: str, label: str, allow_404: bool = False)
 def _resolve_cycle(cfg: dict) -> tuple[datetime, str | None] | tuple[None, None]:
     """從最新 cycle 起往回逐 6 小時嘗試（最多 5 個），回傳 (cycle, ensemble CSV 路徑)。"""
     if cfg.get("fetcher") == "ecmwf":
-        return _resolve_cycle_ecmwf(cfg)
+        cycle, path = _resolve_cycle_ecmwf(cfg)
+        _fetch_newer_det(cfg, cycle)
+        return cycle, path
+    if cfg.get("fetcher") == "noaa":
+        cycle, path = _resolve_cycle_noaa(cfg)
+        _fetch_newer_det(cfg, cycle)
+        return cycle, path
 
     latest = _latest_cycle()
     for i in range(5):
@@ -2990,6 +3061,121 @@ def _resolve_cycle_ecmwf(cfg: dict) -> tuple[datetime, str | None] | tuple[None,
         if status == ecmwf_bufr.FETCH_NO_STORMS:
             return cycle, None
     return None, None
+
+
+def _resolve_cycle_noaa(cfg: dict) -> tuple[datetime, str | None] | tuple[None, None]:
+    """NOAA 版的 cycle 解析：下載 NCEP 的 ATCF 成員檔並就地轉成 paired CSV。
+
+    與 ECMWF 相同，「這期沒有颱風」照實回報、不往前找舊期；只有「尚未上架」才
+    回退。沒有颱風時 noaa_atcf 也會寫出空的系集檔，所以檔案在就代表這期處理過，
+    空檔則回 (cycle, None)。檔案收下全部 WP／CP／EP 颱風，只收 WNC2-r2 有的那幾顆
+    是 _process_model 的事：WNC 比 NOAA 晚上架，寫檔時就篩，新颱風會整期漏掉。
+    """
+    import noaa_atcf
+
+    latest = noaa_atcf.latest_cycle()
+    for i in range(5):
+        cycle = latest - timedelta(hours=6 * i)
+        path = os.path.join(cfg["ensemble_dir"],
+                            f"{cfg['local_prefix']}_{_cycle_stamp(cycle)}_paired.csv")
+        if not os.path.exists(path):
+            try:
+                status = noaa_atcf.fetch_ensemble(cfg["noaa_model"], cycle, cfg)
+            except Exception as e:
+                print(f"[{cfg['display']}-DL] cycle {_cycle_stamp(cycle)} 取用失敗: {e}")
+                continue
+            if status == noaa_atcf.FETCH_UNAVAILABLE:
+                continue
+        try:
+            empty = pd.read_csv(path, comment="#").empty
+        except Exception:
+            empty = True
+        _backfill_noaa(cfg, cycle)
+        return cycle, (None if empty else path)
+    return None, None
+
+
+# 補抓往前幾期（NOMADS 留兩天）：趨勢圖要有前幾期的平均路徑才畫得出來，
+# 不補的話新加入的模式要等一兩天才有趨勢圖。檔案在就略過，所以只有第一次會真的下載。
+NOAA_BACKFILL_CYCLES = 6
+
+
+def _backfill_noaa(cfg: dict, latest: datetime) -> None:
+    import noaa_atcf
+    for i in range(1, NOAA_BACKFILL_CYCLES + 1):
+        cycle = latest - timedelta(hours=6 * i)
+        stamp = _cycle_stamp(cycle)
+        try:
+            if not os.path.exists(os.path.join(cfg["ensemble_dir"],
+                                               f"{cfg['local_prefix']}_{stamp}_paired.csv")):
+                noaa_atcf.fetch_ensemble(cfg["noaa_model"], cycle, cfg)
+            if not os.path.exists(os.path.join(cfg["det_dir"],
+                                               f"{cfg['local_prefix']}_{stamp}_deterministic.csv")):
+                noaa_atcf.fetch_deterministic(cfg["noaa_model"], cycle, cfg)
+        except Exception as e:
+            print(f"[{cfg['display']}-BACKFILL] {stamp} 補抓失敗，略過: {e}")
+
+
+def _fetch_newer_det(cfg: dict, ens_cycle: datetime | None) -> None:
+    """抓比系集更新的決定報：決定報比系集早上架（ECMWF 早 30～60 分、NOAA 早
+    約 50 分），等系集到齊才一起抓，等於白白晚一截。
+
+    從最新一期往回找到系集那期為止，碰到已有的檔或抓到一期就停（更舊的不需要）。
+    檔名照決定報自己的 cycle，_process_model 再逐颱風挑最新的一份。
+    """
+    if ens_cycle is None or not cfg.get("det_dir"):
+        return
+    fetcher = cfg.get("fetcher")
+    if fetcher == "ecmwf":
+        import ecmwf_bufr
+        latest = ecmwf_bufr.latest_cycle()
+    else:
+        import noaa_atcf
+        latest = noaa_atcf.latest_cycle()
+    cycle = latest
+    while cycle > ens_cycle:
+        det_path = os.path.join(cfg["det_dir"],
+                                f"{cfg['local_prefix']}_{_cycle_stamp(cycle)}_deterministic.csv")
+        if os.path.exists(det_path):
+            return
+        try:
+            if fetcher == "ecmwf":
+                ok = ecmwf_bufr.fetch_deterministic_only(
+                    cfg["ecmwf_model"], cycle, cfg, ref_mean_dir=MEAN_DIR, ref_prefix="WNC2-r2",
+                    scratch_dir=ECMWF_SCRATCH_DIR)
+            else:
+                ok = noaa_atcf.fetch_deterministic(cfg["noaa_model"], cycle, cfg)
+        except Exception as e:
+            print(f"[{cfg['display']}-DET] {_cycle_stamp(cycle)} 決定報取用失敗: {e}")
+            ok = False
+        if ok:
+            print(f"[{cfg['display']}-DET] 決定報 {_cycle_stamp(cycle)} 比系集新，先上")
+            return
+        cycle -= timedelta(hours=6)
+    # 系集那期的決定報（NOAA 系集與決定報分開抓，這裡補；ECMWF 由 fetch_cycle 處理）
+    if fetcher == "noaa":
+        det_path = os.path.join(cfg["det_dir"],
+                                f"{cfg['local_prefix']}_{_cycle_stamp(ens_cycle)}_deterministic.csv")
+        if not os.path.exists(det_path):
+            try:
+                noaa_atcf.fetch_deterministic(cfg["noaa_model"], ens_cycle, cfg)
+            except Exception as e:
+                print(f"[{cfg['display']}-DET] {_cycle_stamp(ens_cycle)} 決定報取用失敗: {e}")
+
+
+def _det_files(cfg: dict, ens_cycle: datetime) -> list[str]:
+    """不早於系集那期的決定報檔，新 → 舊。"""
+    d = cfg.get("det_dir")
+    if not d or not os.path.isdir(d):
+        return []
+    out = []
+    for name in os.listdir(d):
+        if not (name.startswith(f"{cfg['local_prefix']}_") and name.endswith("_deterministic.csv")):
+            continue
+        c = _cycle_from_stamp(name)
+        if c is not None and c >= ens_cycle:
+            out.append((c, os.path.join(d, name)))
+    return [p for _, p in sorted(out, reverse=True)]
 
 
 def _cycle_from_stamp(name: str) -> datetime | None:
@@ -3243,30 +3429,32 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
         print(f"[{display}] 回退至 cycle: {cycle.strftime('%Y-%m-%d %HZ')}")
     stamp = _cycle_stamp(cycle)
 
-    # 下載 Ensemble Mean 檔（ECMWF 的平均是解 BUFR 時一併算出的，沒有遠端來源）
+    # 下載 Ensemble Mean 檔（ECMWF／NOAA 的平均是轉檔時一併算出的，沒有遠端來源）
     mean_csv_path = os.path.join(cfg["mean_dir"], f"{cfg['local_prefix']}_{stamp}_paired.csv")
-    if not os.path.exists(mean_csv_path) and cfg.get("fetcher") != "ecmwf":
+    if not os.path.exists(mean_csv_path) and cfg.get("remote"):
         _download_file(_remote_csv_url(cfg["remote"], "ensemble_mean/paired", stamp),
                        mean_csv_path, f"{display}-MEAN")
 
     # 用當前 cycle 的 mean CSV 偵測颱風，確保不會抓到舊資料。
     # csv_path 是 None 代表這期根本沒有系集檔，此時不能讓 _auto_detect_track_ids
     # 退去讀目錄裡的舊檔，否則會拿早就消散的颱風重畫一次路徑圖。
-    # ECMWF 的 CP/EP 颱風以 WNC2-r2（配對基準，排在前面已下載）判定的為準
-    known_ids = (set(_auto_detect_track_ids(MEAN_DIR)) if cfg.get("fetcher") == "ecmwf" and csv_path
+    # ECMWF／NOAA 的 CP/EP 颱風以 WNC2-r2（配對基準，排在前面已下載）判定的為準
+    known_ids = (set(_auto_detect_track_ids(MEAN_DIR)) if cfg.get("fetcher") and csv_path
                  else None)
     track_ids = (_auto_detect_track_ids(cfg["mean_dir"], preferred_path=mean_csv_path,
                                         model_prefix=cfg["local_prefix"], known_ids=known_ids)
                  if csv_path else [])
+    if cfg.get("fetcher") == "noaa":
+        # NOAA 檔案收下了所有 JTWC 有編號的颱風；WNC 沒有的不另外開颱風頁
+        track_ids = [t for t in track_ids if t in (known_ids or set())]
     jtwc_forecast_urls, jtwc_text_urls = _build_jtwc_urls(track_ids)
 
     # 先清掉本模式已不再追蹤的颱風產物，再產生本次結果
     _cleanup_stale_outputs(cfg["output_prefix"], track_ids, display)
 
-    # 決定報（僅 ECMWF／AIFS 有）：整份讀進來，逐颱風再過濾
-    det_csv_path = (os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
-                    if cfg.get("det_dir") else None)
-    det_label = cfg.get("det_label")
+    # 決定報（ECMWF／NOAA 才有）：可能比系集新一兩期（見 _fetch_newer_det），
+    # 逐颱風挑最新一份有這顆的
+    det_paths = _det_files(cfg, cycle) if cfg.get("det_dir") else []
 
     # 西太平洋潛勢預報圖
     genesis_map_path = None
@@ -3291,12 +3479,20 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
 
             # 決定報是加分項：這顆颱風在決定報裡追不到（或整份檔沒下載到）時
             # 就少畫一條線，不影響系集本身的產出
-            det_df = None
-            if det_csv_path and os.path.exists(det_csv_path):
+            det_df, det_init, det_label = None, None, cfg.get("det_label")
+            for det_path in det_paths:
                 try:
-                    det_df, _ = load_forecast_dataframe(det_csv_path, tid)
-                except Exception as e:
-                    print(f"[{display}-DET] {tid} 無決定報路徑: {e}")
+                    det_df, det_init = load_forecast_dataframe(det_path, tid)
+                except Exception:
+                    det_df = None
+                    continue
+                if det_df is not None and not det_df.empty:
+                    break
+            if det_df is None:
+                print(f"[{display}-DET] {tid} 無決定報路徑")
+            elif det_label and pd.Timestamp(det_init) != pd.Timestamp(init_time):
+                # 比系集新的決定報：圖例標出它自己的起報時間，免得被當成同一期
+                det_label = f"{det_label} · {pd.Timestamp(det_init):%d/%HZ}"
 
             if tid in jtwc_text_urls:
                 print(f"[JTWC] 嘗試從 JTWC web.txt 抓取 {tid} 資料...")
@@ -3334,7 +3530,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             city_strike_det = None
             if has_det:
                 try:
-                    city_strike_det = city_strike_stats(_member_tracks(det_df, init_time), init_time)
+                    city_strike_det = city_strike_stats(_member_tracks(det_df, det_init), det_init)
                 except Exception as e:
                     print(f"[{display}-DET] 決定報城市表失敗，略過: {e}")
 
@@ -3415,6 +3611,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 # 供 main() 組模式比較圖用；不會進到網頁 HTML
                 'mean_df': mean_df,
                 'det_df': det_df,
+                'det_init_time': det_init if has_det else None,
                 'init_time': init_time,
             })
             print(f"[{display}-DONE] 完成颱風 {tid} 的處理")
@@ -3558,7 +3755,7 @@ def main():
                 init_times[model] = s.get('init_time')
             if s.get('det_df') is not None and not s['det_df'].empty:
                 entries[f'{model}-DET'] = s['det_df']
-                init_times[f'{model}-DET'] = s.get('init_time')
+                init_times[f'{model}-DET'] = s.get('det_init_time') or s.get('init_time')
         path = plot_model_comparison_map(
             tid, entries, os.path.join(OUTPUT_DIR, f"{tid}_Model_Comparison.png"),
             init_times=init_times)

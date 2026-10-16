@@ -32,7 +32,7 @@ if !errorlevel! neq 0 (
 )
 
 git add docs/
-git add forecast.py generate_forecast_website.py ecmwf_bufr.py
+git add forecast.py generate_forecast_website.py ecmwf_bufr.py noaa_atcf.py
 
 git diff --cached --quiet
 if !errorlevel! == 0 (

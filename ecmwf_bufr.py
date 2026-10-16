@@ -68,14 +68,14 @@ FETCH_UNAVAILABLE = "unavailable"  # BUFR 尚未上架，或解不出任何路�
 # ── cycle 與網址 ────────────────────────────────────────────────────────────
 
 def latest_cycle(now: datetime | None = None) -> datetime:
-    """ECMWF 可用的最新 cycle。
+    """ECMWF 可能可用的最新 cycle。
 
-    Open Data 的路徑檔大約在 cycle+8 小時才上架（實測 2026-09-06 03:51 UTC 時
-    當天 00Z 的 tf.bufr 仍是 404），比 WNC 的 6h45m 晚，因此這裡用 9 小時的
-    保守值，再往下取整到 6 小時邊界。
+    實測上架時間（2026-10-16）：決定報 HRES +6h12～6h55、AIFS-single +6h27～7h05，
+    系集 +7h16～7h41。以前用 9 小時的保守值，每期白等 1.5 小時以上；改成 6 小時，
+    猜早了只是那期 404、自動退回前一期（決定報則由 fetch_deterministic_only 先上）。
     """
     now = now or datetime.now(timezone.utc)
-    adjusted = now - timedelta(hours=9)
+    adjusted = now - timedelta(hours=6)
     return adjusted.replace(hour=(adjusted.hour // 6) * 6, minute=0, second=0, microsecond=0)
 
 
@@ -498,6 +498,22 @@ def _fetch_deterministic(model: str, cycle: datetime, cfg: dict,
     finally:
         if os.path.exists(raw_det):
             os.remove(raw_det)
+
+
+def fetch_deterministic_only(model: str, cycle: datetime, cfg: dict,
+                             ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> bool:
+    """系集還沒上架時先抓決定報（比系集早 30～60 分鐘）；尚未上架回 False。
+
+    沒有同期系集的分析位置可對，改用 WNC 參考路徑內插到這期的位置配對編號。
+    之後系集到齊時 fetch_cycle 會以系集位置重抓一次覆寫，兩者編號一定一致。
+    """
+    ref_pos = _reference_positions(ref_mean_dir, ref_prefix, cycle)
+    if not ref_pos:
+        return False
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    det_path = os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
+    _fetch_deterministic(model, cycle, cfg, ref_pos, scratch_dir)
+    return os.path.exists(det_path)
 
 
 def has_unmatched_reference(ens_path: str, cycle: datetime,

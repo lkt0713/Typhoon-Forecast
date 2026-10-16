@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.6.0"
+SITE_VERSION = "5.7.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -54,6 +54,8 @@ KNOWN_MODELS = [
     ('GENC', 'Google DeepMind', 'WeatherNext · Ensemble'),
     ('AIFS', 'ECMWF', 'AIFS-ENS + AIFS-single'),
     ('ECMWF', 'ECMWF', 'IFS ENS + HRES'),
+    ('AIGFS', 'NOAA', 'AIGEFS + AIGFS'),
+    ('GFS', 'NOAA', 'GEFS + GFS'),
 ]
 
 
@@ -79,9 +81,9 @@ def ss_category(kt):
 # 其餘模式來自 Weather Lab；圖說的來源字串不能寫死成 DeepMind。
 ECMWF_MODELS = {'ECMWF', 'AIFS', 'ECMWF-ENS', 'AIFS-ENS'}
 # 只有系集的產品（如生成潛勢）用 -ENS 名稱；首頁模式卡是 AIFS／ECMWF，亮燈時對回去
-ENS_SYSTEM = {'AIFS-ENS': 'AIFS', 'ECMWF-ENS': 'ECMWF'}
+ENS_SYSTEM = {'AIFS-ENS': 'AIFS', 'ECMWF-ENS': 'ECMWF', 'AIGEFS': 'AIGFS', 'GEFS': 'GFS'}
 
-# 潛勢頁上的 WN2-C 1000 成員路徑聚類圖：算進「N 個模式」（全站一律 7 個），
+# 潛勢頁上的 WN2-C 1000 成員路徑聚類圖：算進潛勢頁的「N 個模式」（7 個；NOAA 沒有潛勢產品），
 # 但圖說不同，也不放進左右拖曳的比較器（聚類圖與其他潛勢圖畫法不同，對不齊）
 CLUSTER_LABEL = 'WN2-C 1000'
 
@@ -275,7 +277,8 @@ SCORE_MIN_N = 3          # 少於這個樣本數不參與排名、淡化顯示
 SCORE_COLORS = {
     'WN3-C': '#4C9BE8', 'WN2-C r2': '#2DB7A3', 'WN2-C r1': '#7FB5D9', 'GENC': '#63C26B',
     'AIFS-ENS': '#A06CD5', 'AIFS-single': '#C98BD9', 'ECMWF-ENS': '#E0465E',
-    'ECMWF HRES': '#F08A3C', 'JTWC': '#9AA6B2',
+    'ECMWF HRES': '#F08A3C', 'AIGEFS': '#22A3C4', 'AIGFS': '#7FD3E6',
+    'GEFS': '#8A9A1E', 'GFS': '#C2B44A', 'JTWC': '#9AA6B2',
 }
 
 
@@ -1057,7 +1060,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-trend", '🧭', 'panel.trend', 'Track Trend',
                 trend_items, 'note.trend',
                 'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter '
-                '&nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
+                '&nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS tabs = deterministic run (amber)',
                 f"{track_id} Track Trend")
         plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
         if plume_items:
@@ -1067,7 +1070,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
-                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
+                '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF / AIGFS / GFS)',
                 f"{track_id} Intensity Forecast")
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
@@ -1250,7 +1253,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="read-list">
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
-                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
@@ -1273,7 +1276,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
-                    <p class="map-note" data-i18n="about.prob">Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES) is a single possible scenario.</p>
+                    <p class="map-note" data-i18n="about.prob">Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.</p>
                 </div>
             </div>
         </div>
@@ -1371,7 +1374,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="brand-icon"><span>🌀</span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
-                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific</small>
+                <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF / AIGFS / GFS Ensemble Forecast System · Western Pacific</small>
             </div>
         </a>
         <nav class="top-nav{' collapsed' if len(infos) > NAV_COLLAPSE_AT else ''}" aria-label="Pages"><span class="nav-indicator"></span>{"".join(nav_links)}</nav>
@@ -1405,7 +1408,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <p data-i18n="footer.desc">
                     Ensemble track forecasts from DeepMind WeatherNext —
                     WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data —
-                    AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>
+                    AIFS-ENS + AIFS-single &amp; IFS ENS + HRES — and from NOAA NCEP — AIGEFS + AIGFS &amp; GEFS + GFS.<br>
                     Official intensity guidance from JTWC. Data refreshed automatically.
                 </p>
             </div>
@@ -1414,6 +1417,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                    data-i18n="footer.link1">🌐 DeepMind Weather</a>
                 <a href="https://data.ecmwf.int/forecasts/" class="footer-link" target="_blank" rel="noopener"
                    data-i18n="footer.link2">🇪🇺 ECMWF Open Data</a>
+                <a href="https://nomads.ncep.noaa.gov/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link3">🇺🇸 NOAA NOMADS</a>
                 <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank" rel="noopener">🛰 JTWC</a>
             </div>
             <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
@@ -2478,8 +2483,8 @@ html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
 .teaser-body { border-left: 1px solid var(--border); padding: 34px; }
 .mini-chip { background: none; }
 .model-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
-/* 7 個模式：桌機固定一排 4 張（4＋3），不會剩一兩張孤零零掉到下一排 */
-@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(4, 1fr); } }
+/* 9 個模式：桌機固定一排 3 張（3＋3＋3），不會剩一兩張孤零零掉到下一排 */
+@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(3, 1fr); } }
 .model-card { border-width: 0 1px 1px 0; padding: 24px; }
 .model-card:hover { background: var(--surface-2); }
 .model-name { font-weight: 500; font-size: 1.6em; letter-spacing: .04em; }
@@ -2687,7 +2692,7 @@ const I18N = {
   en: {
     'doc.title':        "Pillar's Tropical Cyclone Forecast",
     'brand.title':      "Pillar's Tropical Cyclone Forecast",
-    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF Ensemble Forecast System · Western Pacific',
+    'brand.sub':        'Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF / AIGFS / GFS Ensemble Forecast System · Western Pacific',
     'header.updated':   'Updated',
     'btn.dark':         '🌙 Dark',
     'btn.light':        '☀️ Light',
@@ -2775,10 +2780,10 @@ const I18N = {
     'city.tw_landfall': 'Taiwan (main island)',
     'sub.trend':        'Trend',
     'panel.trend':      'Track Trend',
-    'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES tabs = deterministic run (amber)',
+    'note.trend':       'Ensemble mean tracks from every cycle since the storm first appeared, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts have shifted &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS tabs = deterministic run (amber)',
     'sub.plume':        'Intensity',
     'panel.plume':      'Intensity Forecast',
-    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF)',
+    'note.plume':       'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF / AIGFS / GFS)',
     'sub.cities':     'Landfall & Cities',
     'panel.cities':   'Taiwan Landfall &amp; City Strike Probability',
     'cities.grp.land': 'Taiwan landfall',
@@ -2786,7 +2791,7 @@ const I18N = {
     'cities.grp.city': 'City strike',
     'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
     'cities.city':    'Model',
-    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES = deterministic run: ✓ = hits (with arrival time)',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
     'city.kaohsiung':    'Kaohsiung',
@@ -2821,7 +2826,7 @@ const I18N = {
     'about.kicker':     'About',
     'about.title':      'How to read this site',
     'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 30 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a track-error scorecard.',
-    'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES) is a single possible scenario.',
+    'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
     'about.keys':       'Keyboard shortcuts',
@@ -2832,9 +2837,10 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES — and from NOAA NCEP — AIGEFS + AIGFS &amp; GEFS + GFS.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
+    'footer.link3':     '🇺🇸 NOAA NOMADS',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
     'footer.credit':    'Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a>',
     'lb.close':         'Close',
@@ -2848,7 +2854,7 @@ const I18N = {
   zh: {
     'doc.title':        'Pillar 熱帶氣旋預報',
     'brand.title':      'Pillar 熱帶氣旋預報',
-    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF 即時系集預報系統 · 西北太平洋',
+    'brand.sub':        'WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF / AIGFS / GFS 即時系集預報系統 · 西北太平洋',
     'header.updated':   '更新於',
     'btn.dark':         '🌙 深色',
     'btn.light':        '☀️ 淺色',
@@ -2936,10 +2942,10 @@ const I18N = {
     'city.tw_landfall': '臺灣本島',
     'sub.trend':        '趨勢',
     'panel.trend':      '預報趨勢',
-    'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES 分頁＝決定報（琥珀色）',
+    'note.trend':       '這顆颱風從第一報到最新一報的所有系集平均路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS 分頁＝決定報（琥珀色）',
     'sub.plume':        '強度',
     'panel.plume':      '強度預報',
-    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF）',
+    'note.plume':       '細線＝各成員 &nbsp;·&nbsp; 深藍線＝中位數 &nbsp;·&nbsp; 色帶＝10–90% 範圍 &nbsp;·&nbsp; RI（快速增強）＝24 小時內增強 ≥ 30 kt &nbsp;·&nbsp; 琥珀線＝決定報（AIFS／ECMWF／AIGFS／GFS）',
     'sub.cities':     '登陸與城市',
     'panel.cities':   '登陸臺灣與城市侵襲機率',
     'cities.grp.land': '登陸臺灣',
@@ -2947,7 +2953,7 @@ const I18N = {
     'cities.grp.city': '城市侵襲',
     'cities.grp.city.sub': '路徑通過城市 1°（約 111 公里）以內',
     'cities.city':    '模式',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES＝決定報：✓＝會侵襲（附抵達時間）',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
     'city.taichung':     '臺中',
     'city.kaohsiung':    '高雄',
@@ -2982,7 +2988,7 @@ const I18N = {
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
     'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 30 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報與模式路徑誤差。',
-    'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES）只是其中一種可能情境。',
+    'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
     'about.keys':       '鍵盤快捷鍵',
@@ -2993,9 +2999,10 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES — 以及 NOAA NCEP — AIGEFS + AIGFS 與 GEFS + GFS。<br>官方強度指引來自 JTWC，資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
+    'footer.link3':     '🇺🇸 NOAA NOMADS',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
     'footer.credit':    '設計參考 <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency（usta.agency）</a>',
     'lb.close':         '關閉',

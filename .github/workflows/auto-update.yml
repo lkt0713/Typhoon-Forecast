@@ -56,6 +56,7 @@ jobs:
           path: |
             deepmind_weather_*_2026/
             ecmwf_*_2026/
+            noaa_*_2026/
             ~/.local/share/cartopy
           # 前綴的 v2 是快取版本：快取內容壞掉時改這裡就能整批作廢（v1 裡有
           # pandas 3 修正前寫下的「ECMWF 18Z 無颱風」潛勢檔，會讓程式不再重抓 BUFR）
