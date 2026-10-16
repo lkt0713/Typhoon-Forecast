@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.8.0"
+SITE_VERSION = "5.8.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1409,9 +1409,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="footer-brand">
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
                 <p data-i18n="footer.desc">
-                    Ensemble track forecasts from DeepMind WeatherNext —
-                    WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data —
-                    AIFS-ENS + AIFS-single &amp; IFS ENS + HRES — and from NOAA NCEP — AIGEFS + AIGFS &amp; GEFS + GFS.<br>
+                    Ensemble track forecasts from DeepMind WeatherNext
+                    (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data
+                    (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>
                     Official intensity guidance from JTWC. Data refreshed automatically.
                 </p>
             </div>
@@ -2842,7 +2842,7 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext — WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000 &amp; GENC — and from ECMWF Open Data — AIFS-ENS + AIFS-single &amp; IFS ENS + HRES — and from NOAA NCEP — AIGEFS + AIGFS &amp; GEFS + GFS.<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official intensity guidance from JTWC. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
@@ -3004,7 +3004,7 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext — WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000 與 GENC — 以及 ECMWF Open Data — AIFS-ENS + AIFS-single 與 IFS ENS + HRES — 以及 NOAA NCEP — AIGEFS + AIGFS 與 GEFS + GFS。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方強度指引來自 JTWC，資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
