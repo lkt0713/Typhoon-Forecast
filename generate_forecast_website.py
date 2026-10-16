@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "5.5.2"
+SITE_VERSION = "5.6.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -989,7 +989,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             sec_id = f"sec-{key_prefix}-score"
             sections.append((sec_id, 'sub.score', 'Verification'))
             order = [x for m in models if isinstance(m, dict)
-                     for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x] + ['JTWC']
+                     for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x]
             det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
             # 預設「所有颱風・同質樣本」：樣本最多、比較也最公平
             body = _score_block(f"{key_prefix}-score",

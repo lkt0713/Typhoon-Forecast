@@ -1976,7 +1976,7 @@ def plot_track_trend(entries: list, track_id: str, save_path: str, model_name: s
 
 
 # ── 路徑校驗（模式成績單）──────────────────────────────────────────────
-# 每輪把各模式系集平均、JTWC 官方預報與 JTWC 警報位置（當作實況）存成小 CSV，
+# 每輪把各模式系集平均與 JTWC 警報位置（當作實況）存成小 CSV（JTWC 官方預報不比），
 # 預報時間到了再比對路徑誤差。放在 docs/ 底下，雲端 commit docs/ 時一併保存。
 VERIF_DIR = os.path.join(OUTPUT_DIR, 'verification')
 VERIF_LEADS = [24, 48, 72, 96, 120]
@@ -2052,13 +2052,6 @@ def archive_verification(storms: list) -> None:
         if key not in set(obs['time'].astype(str)):
             obs.loc[len(obs)] = [key, lat, lon, jt.get('max_winds_kt')]
             obs.sort_values('time').to_csv(op, index=False)
-        # JTWC 官方預報（以警報時間為起點）
-        track = jt.get('forecast_track') or []
-        p = os.path.join(fdir, f"JTWC_{tid}_{wt:%Y%m%d%H}.csv")
-        if track and not os.path.exists(p):
-            pd.DataFrame({'lead_h': [0] + [t[3] for t in track],
-                          'lat': [lat] + [t[0] for t in track],
-                          'lon': [lon] + [t[1] for t in track]}).to_csv(p, index=False)
     # 太舊的檔清掉，目錄不會無限長大
     cutoff = datetime.now(timezone.utc) - timedelta(days=VERIF_KEEP_DAYS)
     for d in (fdir, odir):
@@ -2095,6 +2088,9 @@ def compute_scorecard() -> dict:
             continue
         model, tid = m.group(1).replace('~', ' '), m.group(2)
         model = VERIF_LEGACY_NAMES.get(model, model)
+        # JTWC 預報不比：存檔起點比模式晚一期，樣本數永遠少一筆，還會把同質樣本擋掉
+        if model == 'JTWC':
+            continue
         # 改名那一期新舊名稱各存了一份，同一模式／颱風／期數只算一次
         if (model, tid, m.group(3)) in seen:
             continue
