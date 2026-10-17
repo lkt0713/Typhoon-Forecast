@@ -1,0 +1,53 @@
+name: Auto update watchdog
+
+# auto-update.yml 的看門狗。2026-10-17 有一輪在 Run forecast 卡了 45 分鐘：
+# runner 失聯（連 log 都沒上傳），job 的 timeout-minutes 也沒生效，而
+# auto-update 的 concurrency group 讓後面的每一輪都排在它後面，網站就停著不動。
+# 卡住的那輪自己沒辦法脫困，所以由這個獨立 workflow（不同 concurrency group）
+# 定期檢查，把跑太久的那輪取消掉，排隊中的下一輪才能接上。
+#
+# 正常一輪最多：update 40 分鐘上限 + deploy 數分鐘 + chain 等待不到 10 分鐘，
+# 所以超過 60 分鐘還沒結束就視為卡死。
+
+on:
+  schedule:
+    - cron: '8,28,48 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+concurrency:
+  group: auto-update-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Cancel auto-update runs stuck for over 60 minutes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          now=$(date +%s)
+          stuck=$(gh api "repos/$GH_REPO/actions/workflows/auto-update.yml/runs?status=in_progress&per_page=20" \
+            -q ".workflow_runs[] | select(($now - (.run_started_at | fromdateiso8601)) > 3600) | .id")
+          if [ -z "$stuck" ]; then
+            echo "[INFO] No stuck runs"
+            exit 0
+          fi
+          for id in $stuck; do
+            echo "[WARN] Cancelling stuck run $id"
+            gh api -X POST "repos/$GH_REPO/actions/runs/$id/cancel" || true
+          done
+          # runner 失聯時一般取消可能沒反應，等一下再用強制取消補一刀
+          sleep 120
+          for id in $stuck; do
+            st=$(gh api "repos/$GH_REPO/actions/runs/$id" -q .status)
+            if [ "$st" != "completed" ]; then
+              echo "[WARN] Run $id still $st, force-cancelling"
+              gh api -X POST "repos/$GH_REPO/actions/runs/$id/force-cancel" || true
+            fi
+          done

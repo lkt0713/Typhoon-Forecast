@@ -69,6 +69,9 @@ jobs:
       - name: Run forecast
         # 網頁上的「最後更新」用機器本地時間（datetime.now().astimezone()），
         # runner 預設 UTC，設成台北時間才跟本機版顯示的一樣
+        # 單步上限：某次下載卡住時讓這一步自己失敗，接力照常接下一輪，
+        # 不必等整個 job 的 40 分鐘上限
+        timeout-minutes: 25
         env:
           TZ: Asia/Taipei
         run: python forecast.py
