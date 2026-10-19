@@ -204,9 +204,12 @@ jobs:
           fi
           # 已經有別輪在排隊或執行（排程恢復了、或有人手動觸發）就不再加一輪，
           # 避免同時跑出兩條接力鏈
+          # 只算 30 分鐘內建立的：GitHub 偶爾留下永遠 queued、取消也刪不掉的幽靈
+          # run（2026-10-19 13:40 那輪），若照算，每輪都以為「已有別輪在排」而不接，
+          # 整條鏈就斷在那裡
           others=$(gh run list --workflow auto-update.yml --limit 20 \
-            --json databaseId,status \
-            -q "[.[] | select(.databaseId != ${{ github.run_id }}) | select(.status != \"completed\")] | length")
+            --json databaseId,status,createdAt \
+            -q "[.[] | select(.databaseId != ${{ github.run_id }}) | select(.status != \"completed\") | select((now - (.createdAt | fromdateiso8601)) < 1800)] | length")
           if [ "$others" -gt 0 ]; then
             echo "[INFO] Another run is already queued or running, not chaining"
             exit 0
