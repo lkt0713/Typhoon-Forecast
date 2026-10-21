@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.4.0"
+SITE_VERSION = "6.4.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3449,7 +3449,7 @@ async function initTrackMap(box) {
         const palette = {};
         names.filter(m => !TM_CMP_COLORS[m]).forEach((m, i) => { palette[m] = TM_CMP_EXTRA[i % TM_CMP_EXTRA.length]; });
         const colorOf = m => TM_CMP_COLORS[m] || palette[m];
-        const defaults = ['WN2-C r2', 'ECMWF', 'AIGFS'].filter(m => data.models[m]);
+        const defaults = ['WN3-C', 'WN2-C r2', 'ECMWF'].filter(m => data.models[m]);
         names.forEach(m => { if (defaults.length < 2 && !defaults.includes(m)) defaults.push(m); });
         let picks = new Set(defaults);
         const cmpOn = () => cmpBtn.getAttribute('aria-pressed') === 'true';
