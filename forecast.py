@@ -965,6 +965,26 @@ def _auto_extent(lat_vals, lon_vals, pad_deg=3.0):
     return (lon_min, lon_max, lat_min - pad_deg, lat_max + pad_deg), use_360
 
 
+# 轉溫帶後不再追蹤：路徑一過這個緯度就截斷，之後的點全部丟掉（所有模式同一規則）。
+# 各家資料都沒有冷暖心欄位可判斷，以緯度近似；西北太平洋颱風多在 35～40N 完成轉化。
+# AIGFS／GFS 的追蹤器轉溫帶後仍一路追到極區，不截斷時會把地圖撐到北緯 80 度。
+ET_CUTOFF_LAT = 40.0
+
+
+def _cut_extratropical(df: pd.DataFrame, by, order: str) -> pd.DataFrame:
+    """每條路徑（依 by 分組、order 排序）從第一個緯度絕對值超過 ET_CUTOFF_LAT 的點起全部截掉。
+
+    起報時本來就在截斷緯度以北的（極少見），門檻改為起點以北 5 度，免得整條被丟。"""
+    if df.empty:
+        return df
+    df = df.sort_values([*by, order]) if by else df.sort_values(order)
+    alat = df['lat'].abs()                  # 南半球同理，往南過 40S 截斷
+    lat0 = alat.groupby([df[c] for c in by]).transform('first') if by else alat.iloc[0]
+    over = (alat > np.maximum(ET_CUTOFF_LAT, lat0 + 5)).astype(int)
+    passed = over.groupby([df[c] for c in by]).cumsum() if by else over.cumsum()
+    return df[passed == 0]
+
+
 def load_forecast_dataframe(csv_path: str, track_id: str) -> tuple[pd.DataFrame, pd.Timestamp]:
     """讀取 paired CSV 並過濾指定 track_id，僅保留必要欄位。"""
     if not os.path.exists(csv_path):
@@ -991,7 +1011,8 @@ def load_forecast_dataframe(csv_path: str, track_id: str) -> tuple[pd.DataFrame,
         except Exception:
             init_time = None
     sub["sample"] = sub["sample"].astype(float)
-    sub = sub.dropna(subset=["valid_time", "lat", "lon"]).sort_values(["sample", "valid_time"]).reset_index(drop=True)
+    sub = sub.dropna(subset=["valid_time", "lat", "lon"])
+    sub = _cut_extratropical(sub, ["sample"], "valid_time").reset_index(drop=True)
     # 若沒有 init_time 欄位則以第一筆 valid_time 當作初始（近似）
     if init_time is None and not sub.empty:
         init_time = sub['valid_time'].min()
@@ -1505,7 +1526,7 @@ def load_large_ensemble_radii(csv_path: str, track_id: str) -> list:
     df['lon360'] = df['lon'] % 360.0
     df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
     _relink_lost_tracks(df, [t for t in df['track_id'].unique() if not t.isdigit()])
-    g = df[df['track_id'] == track_id].sort_values(['sample', 'lead_time_hours'])
+    g = _cut_extratropical(df[df['track_id'] == track_id], ['sample'], 'lead_time_hours')
     return [(t['lon360'].to_numpy(), t['lat'].to_numpy(), t['lead_time_hours'].to_numpy(),
              *(t[c].to_numpy() for c in WIND34_COLS)) for _, t in g.groupby('sample')]
 
@@ -1715,7 +1736,7 @@ def load_large_ensemble_tracks(csv_path: str) -> tuple[dict, pd.Timestamp, int, 
     named = [t for t in df['track_id'].unique() if not t.isdigit()]
     _relink_lost_tracks(df, named)
     df = df.sort_values(['track_id', 'sample', 'lead_time_hours'])
-    named_df = df[df['track_id'].isin(named)]
+    named_df = _cut_extratropical(df[df['track_id'].isin(named)], ['track_id', 'sample'], 'lead_time_hours')
     out = {tid: [(t['lon360'].to_numpy(), t['lat'].to_numpy(), t['lead_time_hours'].to_numpy())
                  for _, t in g.groupby('sample')]
            for tid, g in named_df.groupby('track_id')}
@@ -1945,6 +1966,7 @@ def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list
                 f = pd.read_csv(os.path.join(fdir, fname)).dropna()
             except Exception:
                 continue
+            f = _cut_extratropical(f, [], 'lead_h')
             if f.empty:
                 continue
             found[it] = pd.DataFrame({'valid_time': it + pd.to_timedelta(f['lead_h'], unit='h'),
@@ -2946,6 +2968,8 @@ def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str 
     if df.empty:
         print("[CLUSTER] 大系集 CSV 無資料")
         return None
+    df = _cut_extratropical(df.dropna(subset=['lat', 'lon', 'lead_time_hours']),
+                            ['track_id', 'sample'], 'lead_time_hours')
     n_total = int(df['sample'].nunique())
     init_dt = pd.to_datetime(df['init_time'].iloc[0], utc=True)
     max_h = int(df['lead_time_hours'].max())
