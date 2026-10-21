@@ -1,0 +1,567 @@
+"""ECMWF Open Data 熱帶氣旋路徑 BUFR → 專案既有的 paired CSV。
+
+Weather Lab 的下載端點只提供 DeepMind 自家的模式（實測 ENS／ECMWF／IFS／EPS
+一律 404），所以 ECMWF 與 AIFS 得走另一條管道：ECMWF Open Data 在每個 cycle
+的 `enfo`／`oper` 目錄下發佈 `-tf.bufr`，內含該次預報追到的所有熱帶氣旋路徑。
+
+本模組把那份 BUFR 轉成 forecast.py 既有的 paired CSV 欄位，讓下游
+（load_forecast_dataframe、繪圖、動畫、網頁）完全不必知道資料來自哪裡。
+
+四個產品：
+    IFS  ens  ifs/0p25/enfo         51 成員（傳統 IFS 系集）
+    IFS  det  ifs/0p25/oper         1 條（HRES 決定報）
+    AIFS ens  aifs-ens/0p25/enfo    52 成員
+    AIFS det  aifs-single/0p25/oper 1 條
+
+資料授權為 ECMWF general licence（CC-BY 性質），與 WeatherNext 的 terms-of-use
+不同，網頁端須另外標示來源。
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import time
+import warnings
+from datetime import datetime, timedelta, timezone
+
+import numpy as np
+import pandas as pd
+import requests
+
+BASE_URL = "https://data.ecmwf.int/forecasts"
+
+# 每個模式的 (系集, 決定報) 路徑片段。第二個元素是檔名裡的 stream 代號。
+PRODUCTS = {
+    "IFS":  {"ens": ("ifs/0p25/enfo", "enfo"),      "det": ("ifs/0p25/oper", "oper")},
+    "AIFS": {"ens": ("aifs-ens/0p25/enfo", "enfo"), "det": ("aifs-single/0p25/oper", "oper")},
+}
+
+# ECMWF 的暴風編號與 JTWC 不同調 —— 實測 2026-09-05 00Z，JTWC 的
+# 「TROPICAL DEPRESSION 22W (KROVANH)」在 ECMWF 是 28W，但同一份檔案裡的
+# 23W 又剛好對上 WP232026。編號不可信，只能用位置對應（見 _match_track_ids）。
+MATCH_RADIUS_KM = 250.0
+# 參考路徑起點晚於 ECMWF cycle 時，最多往回外推這麼久（見 _reference_positions）
+BACK_EXTRAP_S = 12 * 3600
+
+# 平均路徑截止門檻：與 forecast.py 的 _compute_cone_stop_fh 同樣取「半數成員」。
+# 成員掉到一半以下後的平均會被少數殘存路徑拉走，DeepMind 自家的 mean 檔也是
+# 提早結束（實測 WP222026 成員到 120h、mean 只到 102h），這裡跟上同樣的行為。
+MEAN_MIN_MEMBER_FRACTION = 0.5
+
+_EPOCH = pd.Timestamp(0, tz="UTC")
+
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CopilotDownloader/1.0)"}
+
+# 429／5xx 的重試次數（見 _download_bufr）
+DOWNLOAD_RETRIES = 3
+
+# fetch_cycle 的三種結果。「這期沒有颱風」與「這期還沒上架」必須分得開：
+# 前者是事實，該照實顯示成目前沒有颱風；只有後者才該往前一期找。混為一談的
+# 話，颱風一消散就會一路退到它還在的那期，把早就結束的路徑當成最新預報掛在
+# 網頁上（實測 WP222026 消散後 AIFS／EC 仍顯示 09-09 12Z 的路徑）。
+FETCH_OK = "ok"                    # 系集檔已寫出
+FETCH_NO_STORMS = "no-storms"      # BUFR 解得開，但沒有追蹤中的颱風
+FETCH_UNAVAILABLE = "unavailable"  # BUFR 尚未上架，或解不出任何路徑
+
+
+# ── cycle 與網址 ────────────────────────────────────────────────────────────
+
+def latest_cycle(now: datetime | None = None) -> datetime:
+    """ECMWF 可能可用的最新 cycle。
+
+    實測上架時間（2026-10-16）：決定報 HRES +6h12～6h55、AIFS-single +6h27～7h05，
+    系集 +7h16～7h41。以前用 9 小時的保守值，每期白等 1.5 小時以上；改成 6 小時，
+    猜早了只是那期 404、自動退回前一期（決定報則由 fetch_deterministic_only 先上）。
+    """
+    now = now or datetime.now(timezone.utc)
+    adjusted = now - timedelta(hours=6)
+    return adjusted.replace(hour=(adjusted.hour // 6) * 6, minute=0, second=0, microsecond=0)
+
+
+def forecast_range_hours(model: str, cycle: datetime) -> int:
+    """檔名帶著預報時距，猜錯就 404，而且兩個模式的規則不一樣（實測 2026-09-05）：
+
+        IFS   00Z／12Z → 360h，06Z／18Z → 144h
+        AIFS  四個 cycle 一律 360h
+
+    早期版本把 IFS 的規則套到 AIFS，導致 AIFS 的 06Z／18Z 一律 404、
+    每次都退回 12Z，看起來像「AIFS 沒有 18Z」，其實是檔名要錯了。
+    """
+    if model == "AIFS":
+        return 360
+    return 360 if cycle.hour in (0, 12) else 144
+
+
+def _url(model: str, cycle: datetime, path: str, stream: str) -> str:
+    return (f"{BASE_URL}/{cycle:%Y%m%d}/{cycle:%H}z/{path}/"
+            f"{cycle:%Y%m%d%H%M%S}-{forecast_range_hours(model, cycle)}h-{stream}-tf.bufr")
+
+
+# ── BUFR 解碼 ──────────────────────────────────────────────────────────────
+
+def _decode(bufr_path: str) -> pd.DataFrame:
+    """把一份 tf.bufr 攤平成 long format：一列一個 (暴風, 成員, 時距) 的路徑點。
+
+    這個 BUFR 模板 pdbufr 的階層式讀法會回空表，只有 flat=True 讀得到；出來是
+    一列一個 (暴風, 成員)、欄位以 `#N#key` 帶序號的寬表，得自己還原時間軸：
+
+      meteorologicalAttributeSignificance  1 = 暴風中心、3 = 最大風位置、
+                                           4 = 分析時刻的附屬點
+      lat/lon      分析中心在 #1#，第 k 個時距的中心在 #{2k+2}#
+                   （#2#、#3# 是分析的 sig 4／sig 3，之後每個時距各佔 2 個序號）
+      mslp/wind    只在各自的顯著點上報，所以自成一條序號：第 k 個時距是 #{k+1}#
+      timePeriod   第 k 個序號即 6k 小時
+    """
+    import pdbufr  # 延後匯入：沒裝 pdbufr 的環境仍能載入 forecast.py 的其餘部分
+
+    with warnings.catch_warnings():
+        # 同一檔內不同暴風的欄位數不一致，pdbufr 會就欄位順序示警；我們一律
+        # 以 `#N#key` 具名取值，不依賴欄位順序，故靜音。
+        warnings.simplefilter("ignore")
+        flat = pdbufr.read_bufr(bufr_path, flat=True)
+
+    if flat.empty:
+        return pd.DataFrame()
+
+    step_cols = sorted((c for c in flat.columns if c.endswith("#timePeriod")),
+                       key=lambda c: int(re.match(r"#(\d+)#", c).group(1)))
+
+    rows: list[dict] = []
+    for _, r in flat.iterrows():
+        storm = str(r.get("#1#stormIdentifier", "")).strip()
+        if not storm or storm == "nan":
+            continue
+        name = str(r.get("#1#longStormName", "")).strip() or storm
+        member = r.get("#1#ensembleMemberNumber")
+
+        # (時距, 中心 lat/lon 序號, mslp/wind 序號)：分析點 + 逐 6 小時
+        points = [(0, 1, 1)]
+        points += [(int(r[c]), 2 * k + 2, k + 1)
+                   for k, c in enumerate(step_cols, start=1) if pd.notna(r.get(c))]
+
+        for step, pos_i, val_i in points:
+            lat, lon = r.get(f"#{pos_i}#latitude"), r.get(f"#{pos_i}#longitude")
+            if pd.isna(lat) or pd.isna(lon):
+                continue
+            mslp = r.get(f"#{val_i}#pressureReducedToMeanSeaLevel")
+            wind = r.get(f"#{val_i}#windSpeedAt10M")
+            rows.append({
+                "storm_id": storm,
+                "name": name,
+                # ECMWF 成員從 1 起算，DeepMind 從 0 起算，這裡對齊後者
+                "member": int(member) - 1 if pd.notna(member) else 0,
+                "step": step,
+                "lat": float(lat),
+                "lon": float(lon),
+                # BUFR 的 MSLP 是 Pa、風速是 m/s，專案內一律 hPa 與 kt
+                "mslp_hpa": np.nan if pd.isna(mslp) else float(mslp) / 100.0,
+                "wind_kt": np.nan if pd.isna(wind) else float(wind) * 1.9438444924406,
+            })
+
+    return pd.DataFrame(rows)
+
+
+# ── 暴風編號對應 ────────────────────────────────────────────────────────────
+
+def _as_utc(dt: datetime) -> datetime:
+    """統一成帶 UTC 時區的 datetime，讓 naive／aware 的 cycle 都能相減。"""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r1, r2 = np.radians(lat1), np.radians(lat2)
+    dlat, dlon = r2 - r1, np.radians(lon2 - lon1)
+    a = np.sin(dlat / 2) ** 2 + np.cos(r1) * np.cos(r2) * np.sin(dlon / 2) ** 2
+    return float(6371.0 * 2 * np.arcsin(np.sqrt(a)))
+
+
+def _reference_positions(ref_mean_dir: str, ref_prefix: str,
+                         cycle: datetime) -> dict[str, tuple[float, float]]:
+    """從 DeepMind mean CSV 取各 WP 颱風在 ECMWF cycle 時刻的位置。
+
+    ECMWF 上架得比 WNC 晚，兩邊的 cycle 常常不同期，所以不比對「分析點對分析點」，
+    而是把 WNC 的平均路徑內插到 ECMWF 的 cycle 時刻再比 —— 這樣即使差了一兩期
+    也還是同一個時刻的位置對位置。
+
+    參考檔取「cycle 最接近」的一份而非最新的一份：最新的那期起始時間可能晚於
+    ECMWF 的 cycle，內插會夾到路徑起點，等於拿六小時後的位置來比，實測會把
+    誤差從 20 km 拉大到 370 km 而配對失敗。
+    """
+    if not os.path.isdir(ref_mean_dir):
+        return {}
+
+    stamp_re = re.compile(rf"^{re.escape(ref_prefix)}_(\d{{4}}_\d{{2}}_\d{{2}}T\d{{2}})_00_.*\.csv$")
+    candidates = []
+    for name in os.listdir(ref_mean_dir):
+        m = stamp_re.match(name)
+        if not m:
+            continue
+        ref_cycle = datetime.strptime(m.group(1), "%Y_%m_%dT%H").replace(tzinfo=timezone.utc)
+        candidates.append((abs((ref_cycle - _as_utc(cycle)).total_seconds()),
+                           os.path.join(ref_mean_dir, name)))
+    if not candidates:
+        return {}
+    _, ref_path = min(candidates)
+
+    df = pd.read_csv(ref_path, comment="#")
+    df["valid_time"] = pd.to_datetime(df["valid_time"], errors="coerce", utc=True)
+    target = pd.Timestamp(_as_utc(cycle))
+
+    out: dict[str, tuple[float, float]] = {}
+    for tid, g in df.groupby("track_id"):
+        tid = str(tid)
+        if not re.match(r"^(?:WP|CP|EP)[0-8]\d20\d{2}$", tid):  # CP/EP：跨換日線進西太的颱風
+            continue
+        g = g.dropna(subset=["valid_time", "lat", "lon"]).sort_values("valid_time")
+        if g.empty:
+            continue
+        # 一律換成「秒」再比：pandas 3 的 datetime 預設是微秒，astype("int64") 出來
+        # 的單位跟 Timestamp.value（永遠是奈秒）差 1000 倍，內插會夾到路徑終點而配對失敗
+        t = (g["valid_time"] - _EPOCH).dt.total_seconds().to_numpy()
+        t0 = (target - _EPOCH).total_seconds()
+        # unwrap：跨換日線的路徑（179.9°E → -179.9°）內插時不會繞地球一圈
+        lats, lons = g["lat"].to_numpy(), np.unwrap(g["lon"].to_numpy(), period=360.0)
+        if t[0] - BACK_EXTRAP_S <= t0 < t[0] and len(t) >= 2:
+            # 參考檔只比 ECMWF 晚一兩期時（CI 快取剛清、本機少跑）目標早於路徑
+            # 起點，夾到起點等於拿六小時後的位置比；快速移動的颱風（2026 NOLO
+            # 一期走 345 km）會超過配對半徑，故用前兩點往回線性外推。
+            k = (t0 - t[0]) / (t[1] - t[0])
+            lat = float(lats[0] + k * (lats[1] - lats[0]))
+            lon = float(lons[0] + k * (lons[1] - lons[0]))
+        else:
+            # 其餘落在路徑之外的情況 np.interp 會夾到端點
+            lat = float(np.interp(t0, t, lats))
+            lon = float(np.interp(t0, t, lons))
+        out[tid] = (lat, lon)
+    return out
+
+
+def _match_track_ids(ec_df: pd.DataFrame,
+                     ref_pos: dict[str, tuple[float, float]]) -> dict[str, str]:
+    """ECMWF storm_id → 專案的 WP track_id，以分析位置最近者配對。
+
+    不能用編號：ECMWF 與 JTWC 各自編號，實測同一份檔案裡 28W 是 JTWC 的 22W，
+    23W 卻又真的是 WP23。位置則是兩邊都吃同一批官方定位報，實測誤差 0.2 度。
+    """
+    if ec_df.empty or not ref_pos:
+        return {}
+
+    analysis = (ec_df[ec_df["step"] == 0]
+                .groupby("storm_id")[["lat", "lon"]].first().to_dict("index"))
+
+    pairs = sorted(
+        ((_haversine_km(p["lat"], p["lon"], rl, ro), sid, tid)
+         for sid, p in analysis.items()
+         for tid, (rl, ro) in ref_pos.items()),
+        key=lambda x: x[0])
+
+    mapping: dict[str, str] = {}
+    used: set[str] = set()
+    for dist, sid, tid in pairs:
+        if dist > MATCH_RADIUS_KM or sid in mapping or tid in used:
+            continue
+        mapping[sid] = tid
+        used.add(tid)
+        print(f"[ECMWF-MATCH] {sid} → {tid}（距離 {dist:.0f} km）")
+    return mapping
+
+
+# ── 輸出 CSV ───────────────────────────────────────────────────────────────
+
+_CSV_COLUMNS = ["init_time", "track_id", "sample", "valid_time", "lead_time",
+                "lead_time_hours", "lat", "lon", "minimum_sea_level_pressure_hpa",
+                "maximum_sustained_wind_speed_knots"]
+
+
+def _to_paired(tracks: pd.DataFrame, cycle: datetime) -> pd.DataFrame:
+    """long format → 專案的 paired CSV 欄位。"""
+    if tracks.empty:
+        return pd.DataFrame(columns=_CSV_COLUMNS)
+    init = pd.Timestamp(cycle)
+    init = init.tz_localize(None) if init.tzinfo else init
+    out = pd.DataFrame({
+        "init_time": init,
+        "track_id": tracks["track_id"].to_numpy(),
+        "sample": tracks["member"].astype(int).to_numpy(),
+        "valid_time": init + pd.to_timedelta(tracks["step"].to_numpy(), unit="h"),
+        "lead_time": pd.to_timedelta(tracks["step"].to_numpy(), unit="h"),
+        "lead_time_hours": tracks["step"].astype(int).to_numpy(),
+        "lat": tracks["lat"].to_numpy(),
+        "lon": tracks["lon"].to_numpy(),
+        "minimum_sea_level_pressure_hpa": tracks["mslp_hpa"].to_numpy(),
+        "maximum_sustained_wind_speed_knots": tracks["wind_kt"].to_numpy(),
+    })
+    return out[_CSV_COLUMNS].sort_values(["track_id", "sample", "lead_time_hours"])
+
+
+def _ensemble_mean(tracks: pd.DataFrame) -> pd.DataFrame:
+    """自行計算系集平均 —— ECMWF 的 BUFR 只有成員，沒有現成的平均路徑。
+
+    經度取平均前先解繞：西北太平洋的路徑會跨換日線，直接對 -179 與 179 取
+    算術平均會得到 0 度（大西洋中央）。以第一個成員的經度為基準把其餘成員
+    拉到同一圈內，平均完再折回 -180..180。
+    """
+    if tracks.empty:
+        return tracks
+
+    rows = []
+    for tid, g in tracks.groupby("track_id"):
+        n_members = g["member"].nunique()
+        min_members = max(2, int(np.ceil(n_members * MEAN_MIN_MEMBER_FRACTION)))
+        for step, s in g.groupby("step"):
+            if len(s) < min_members:
+                continue
+            lon0 = s["lon"].iloc[0]
+            lon_unwrapped = lon0 + ((s["lon"] - lon0 + 180.0) % 360.0) - 180.0
+            rows.append({
+                "track_id": tid,
+                "name": s["name"].iloc[0],
+                "member": -1,
+                "step": step,
+                "lat": s["lat"].mean(),
+                "lon": ((lon_unwrapped.mean() + 180.0) % 360.0) - 180.0,
+                "mslp_hpa": s["mslp_hpa"].mean(),
+                "wind_kt": s["wind_kt"].mean(),
+            })
+
+    mean = pd.DataFrame(rows)
+    if mean.empty:
+        return mean
+    # 平均路徑在成員掉到半數以下後就中斷，中斷後零星復活的時距要一併截掉，
+    # 否則畫出來會是一條斷開又重新出現的線
+    keep = []
+    for _tid, g in mean.groupby("track_id"):
+        steps = sorted(g["step"])
+        cut = len(steps)
+        for i in range(1, len(steps)):
+            if steps[i] - steps[i - 1] > 6:
+                cut = i
+                break
+        keep.append(g[g["step"].isin(steps[:cut])])
+    return pd.concat(keep, ignore_index=True)
+
+
+_REF_IDS_TAG = "# Matched against: "
+
+
+def _write_csv(df: pd.DataFrame, path: str, source: str,
+               ref_ids: list[str] | None = None) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".part"
+    with open(tmp, "w", encoding="utf-8", newline="") as f:
+        f.write(f"# Source: ECMWF Open Data ({source})\n")
+        f.write("# Licence: https://apps.ecmwf.int/datasets/licences/general (CC BY 4.0)\n")
+        if ref_ids is not None:
+            f.write(_REF_IDS_TAG + " ".join(sorted(ref_ids)) + "\n")
+        df.to_csv(f, index=False)
+    os.replace(tmp, path)
+    print(f"[ECMWF] 已寫出 {os.path.basename(path)}（{len(df)} 列）")
+
+
+# ── 對外入口 ───────────────────────────────────────────────────────────────
+
+def _download_bufr(url: str, dest: str, label: str) -> bool:
+    """下載 BUFR；404 回傳 False（該 cycle 尚未上架），其餘錯誤照拋。
+
+    429／5xx 會退避重試：00Z 上架後的那一小時 data.ecmwf.int 最擁擠，一輪裡
+    連打四個檔，排在系集後面的決定報最常吃到 429（實測 2026-09-24 00Z AIFS、
+    09-30 00Z IFS），一次失敗就整期少一條決定報線。
+    """
+    print(f"[{label}] GET {url}")
+    for attempt in range(DOWNLOAD_RETRIES + 1):
+        resp = requests.get(url, headers=HEADERS, stream=True, timeout=120)
+        if resp.status_code == 404:
+            return False
+        if resp.status_code != 429 and resp.status_code < 500:
+            break
+        if attempt == DOWNLOAD_RETRIES:
+            break
+        try:
+            wait = float(resp.headers.get("Retry-After", ""))
+        except ValueError:
+            wait = 15.0 * (attempt + 1)
+        wait = min(max(wait, 5.0), 60.0)
+        resp.close()
+        print(f"[{label}] HTTP {resp.status_code}，{wait:.0f} 秒後重試（{attempt + 1}/{DOWNLOAD_RETRIES}）")
+        time.sleep(wait)
+    resp.raise_for_status()
+    tmp = dest + ".part"
+    try:
+        with open(tmp, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1 << 16):
+                f.write(chunk)
+        os.replace(tmp, dest)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    return True
+
+
+def fetch_cycle(model: str, cycle: datetime, cfg: dict,
+                ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> str:
+    """下載並轉出某個 cycle 的四份 CSV（系集／平均／決定報／潛勢總覽）。
+
+    回傳 FETCH_OK／FETCH_NO_STORMS／FETCH_UNAVAILABLE 三者之一，只有
+    FETCH_UNAVAILABLE 該讓呼叫端往前一個 cycle 再試。潛勢總覽不受影響：
+    它畫的是模式自己生出來的擾動，與現行有沒有颱風無關，只要 BUFR 解得開
+    就逐期寫出。決定報缺只是少一條線，不影響其餘產出。
+    """
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    prefix = cfg["local_prefix"]
+    ens_path = os.path.join(cfg["ensemble_dir"], f"{prefix}_{stamp}_paired.csv")
+    mean_path = os.path.join(cfg["mean_dir"], f"{prefix}_{stamp}_paired.csv")
+    cyc_path = os.path.join(cfg["cyc_dir"], f"{prefix}_{stamp}_cyclogenesis.csv")
+
+    os.makedirs(scratch_dir, exist_ok=True)
+    ens_src, ens_stream = PRODUCTS[model]["ens"]
+    raw_ens = os.path.join(scratch_dir, f"{prefix}_{stamp}_ens.bufr")
+
+    if not _download_bufr(_url(model, cycle, ens_src, ens_stream), raw_ens, f"{model}-ENS"):
+        return FETCH_UNAVAILABLE
+
+    try:
+        tracks = _decode(raw_ens)
+    finally:
+        if os.path.exists(raw_ens):
+            os.remove(raw_ens)
+
+    if tracks.empty:
+        print(f"[{model}] BUFR 內無路徑資料")
+        return FETCH_UNAVAILABLE
+
+    ref_pos = _reference_positions(ref_mean_dir, ref_prefix, cycle)
+    mapping = _match_track_ids(tracks, ref_pos)
+
+    # 潛勢總覽（Ensemble Overview）：ECMWF Open Data 沒有對應 DeepMind
+    # cyclogenesis 的獨立產品，但 tf.bufr 本來就把模式自己生出來的擾動
+    # （70W、82W 這類尚未命名的系統）連同現行颱風一起放在同一份檔案裡，
+    # 內容與 genesis CSV 等價。DeepMind 的 genesis 檔也是「現行颱風 + 生成
+    # 候選」並存（實測 WP222026 與編號 1、2、3… 同在一檔），故這裡照樣全收，
+    # 對不到現行颱風的就沿用 ECMWF 自己的暴風代號當 track_id。
+    # 西太平洋範圍的篩選交給 plot_genesis_potential_map，這裡不預先裁切。
+    # 這段刻意排在編號對應成敗之前。西北太平洋淨空時 mapping 會是空的，但
+    # BUFR 裡的生成候選照樣有值（實測 WP222026 消散後的 2026-09-10 00Z，AIFS
+    # 在西太範圍內仍有 19 個候選系統、5700 個路徑點）。早期版本把整期跳掉，
+    # 潛勢圖就停在最後一顆颱風消散的那期，看起來像 AIFS／EC 斷更。
+    genesis = tracks.copy()
+    genesis["track_id"] = genesis["storm_id"].map(lambda s: mapping.get(s, s))
+    _write_csv(_to_paired(genesis, cycle), cyc_path, f"{model} cyclogenesis")
+
+    if not mapping:
+        print(f"[{model}] 本期無追蹤中的颱風，僅輸出潛勢總覽")
+        return FETCH_NO_STORMS
+
+    tracks["track_id"] = tracks["storm_id"].map(mapping)
+    tracks = tracks.dropna(subset=["track_id"]).copy()
+
+    _write_csv(_to_paired(tracks, cycle), ens_path, f"{model} ensemble", ref_ids=list(ref_pos))
+    _write_csv(_to_paired(_ensemble_mean(tracks), cycle), mean_path, f"{model} ensemble mean")
+
+    # 決定報：同一 cycle 的 oper 檔，以系集的分析位置對應編號
+    _fetch_deterministic(model, cycle, cfg, _analysis_positions(tracks), scratch_dir)
+    return FETCH_OK
+
+
+def _analysis_positions(tracks: pd.DataFrame) -> dict[str, tuple[float, float]]:
+    """系集各 track_id 在 step 0 的平均位置，給決定報對應編號用。"""
+    t0 = tracks[tracks["step"] == 0].groupby("track_id")[["lat", "lon"]].mean()
+    return {tid: (r.lat, r.lon) for tid, r in t0.iterrows()}
+
+
+def _fetch_deterministic(model: str, cycle: datetime, cfg: dict,
+                         ref_pos: dict[str, tuple[float, float]], scratch_dir: str) -> None:
+    """下載並寫出決定報 CSV；失敗只少一條線，不往外拋。
+
+    對應基準是同期系集的分析位置而非 WNC 參考檔，這樣決定報跟系集的
+    track_id 一定一致。解得開就一律寫檔（對不到颱風就寫空檔），檔案在
+    就代表這期處理過，retry_missing_deterministic 不會再重抓。
+    """
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    prefix = cfg["local_prefix"]
+    det_path = os.path.join(cfg["det_dir"], f"{prefix}_{stamp}_deterministic.csv")
+    det_src, det_stream = PRODUCTS[model]["det"]
+    os.makedirs(scratch_dir, exist_ok=True)
+    raw_det = os.path.join(scratch_dir, f"{prefix}_{stamp}_det.bufr")
+    try:
+        if _download_bufr(_url(model, cycle, det_src, det_stream), raw_det, f"{model}-DET"):
+            det = _decode(raw_det)
+            mapping = _match_track_ids(det, ref_pos)
+            det["track_id"] = det["storm_id"].map(mapping) if not det.empty else None
+            det = det.dropna(subset=["track_id"]).copy()
+            det["member"] = 0        # 決定報只有一條，成員編號無意義
+            _write_csv(_to_paired(det, cycle), det_path, f"{model} deterministic")
+        else:
+            print(f"[{model}-DET] 決定報尚未上架，僅輸出系集")
+    except Exception as e:
+        print(f"[{model}-DET] 決定報處理失敗（不影響系集）: {e}")
+    finally:
+        if os.path.exists(raw_det):
+            os.remove(raw_det)
+
+
+def fetch_deterministic_only(model: str, cycle: datetime, cfg: dict,
+                             ref_mean_dir: str, ref_prefix: str, scratch_dir: str) -> bool:
+    """系集還沒上架時先抓決定報（比系集早 30～60 分鐘）；尚未上架回 False。
+
+    沒有同期系集的分析位置可對，改用 WNC 參考路徑內插到這期的位置配對編號。
+    之後系集到齊時 fetch_cycle 會以系集位置重抓一次覆寫，兩者編號一定一致。
+    """
+    ref_pos = _reference_positions(ref_mean_dir, ref_prefix, cycle)
+    if not ref_pos:
+        return False
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    det_path = os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
+    _fetch_deterministic(model, cycle, cfg, ref_pos, scratch_dir)
+    return os.path.exists(det_path)
+
+
+def has_unmatched_reference(ens_path: str, cycle: datetime,
+                            ref_mean_dir: str, ref_prefix: str) -> bool:
+    """WNC 參考檔裡是否有這期系集檔「當時沒拿來配對過」的颱風。
+
+    系集檔寫出後整期不再重抓，所以寫出之後才出現在 WNC 的颱風（新生成、
+    或 2026 NOLO 這種跨換日線後才被納入的 EP 颱風）會整期缺 ECMWF。檔頭記
+    著當時配對過的編號；舊檔沒有這行，就以檔內已有的 track_id 代替。每顆
+    新颱風最多觸發一次重抓：重抓後它就記進檔頭，ECMWF 真的沒追也不會再抓。
+    """
+    tried: set[str] | None = None
+    try:
+        with open(ens_path, encoding="utf-8") as f:
+            for line in f:
+                if not line.startswith("#"):
+                    break
+                if line.startswith(_REF_IDS_TAG):
+                    tried = set(line[len(_REF_IDS_TAG):].split())
+        if tried is None:
+            tried = set(pd.read_csv(ens_path, comment="#")["track_id"].astype(str))
+    except Exception:
+        return False
+    new = set(_reference_positions(ref_mean_dir, ref_prefix, cycle)) - tried
+    if new:
+        print(f"[ECMWF] {os.path.basename(ens_path)} 未配對過: {sorted(new)}，重抓本期")
+    return bool(new)
+
+
+def retry_missing_deterministic(model: str, cycle: datetime, cfg: dict,
+                                ens_path: str, scratch_dir: str) -> None:
+    """系集檔已在、決定報檔卻不在時補抓。
+
+    以前決定報只在系集第一次寫出的那輪抓一次，那次吃到 429 之後，
+    _resolve_cycle_ecmwf 看到系集檔在就直接返回，整期都不會再有決定報。
+    """
+    stamp = cycle.strftime("%Y_%m_%dT%H_00")
+    det_path = os.path.join(cfg["det_dir"], f"{cfg['local_prefix']}_{stamp}_deterministic.csv")
+    if os.path.exists(det_path):
+        return
+    try:
+        ens = pd.read_csv(ens_path, comment="#")
+    except Exception as e:
+        print(f"[{model}-DET] 讀不到系集檔，略過補抓: {e}")
+        return
+    t0 = ens[ens["lead_time_hours"] == 0].groupby("track_id")[["lat", "lon"]].mean()
+    ref_pos = {tid: (r.lat, r.lon) for tid, r in t0.iterrows()}
+    if not ref_pos:
+        return
+    print(f"[{model}-DET] {stamp} 缺決定報，補抓")
+    _fetch_deterministic(model, cycle, cfg, ref_pos, scratch_dir)
