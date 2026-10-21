@@ -923,13 +923,22 @@ def _split_track_segments(lons, lats, jump_threshold: float = 180.0):
     lat_segments = np.split(lats, split_idx)
     return [(seg_lon, seg_lat) for seg_lon, seg_lat in zip(lon_segments, lat_segments) if len(seg_lon) > 0]
 
+# AIGFS／GFS 的成員轉溫帶後會一路追到極區，地圖範圍只算這個緯度以南的點（線照畫，超出部分裁掉）
+EXTENT_LAT_CAP = 45.0
+
+
 def _auto_extent(lat_vals, lon_vals, pad_deg=3.0):
     """計算地圖範圍，自動選擇較緊湊的經度表達方式。"""
     lon_vals = np.asarray(lon_vals, dtype=float)
     lat_vals = np.asarray(lat_vals, dtype=float)
-    lon_vals = lon_vals[~np.isnan(lon_vals)]
-    lat_vals = lat_vals[~np.isnan(lat_vals)]
-    
+    ok = ~np.isnan(lon_vals) & ~np.isnan(lat_vals)
+    lon_vals, lat_vals = lon_vals[ok], lat_vals[ok]
+    if len(lat_vals):
+        # 颱風本身就在高緯時把上限往北放，避免整條路徑都被濾掉
+        cap = max(EXTENT_LAT_CAP, np.min(lat_vals) + 10)
+        keep = lat_vals <= cap
+        lon_vals, lat_vals = lon_vals[keep], lat_vals[keep]
+
     if len(lon_vals) == 0 or len(lat_vals) == 0:
         return (-180, 180, -90, 90), False
     

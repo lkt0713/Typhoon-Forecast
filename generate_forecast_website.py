@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.3.1"
+SITE_VERSION = "6.3.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3528,7 +3528,10 @@ async function initTrackMap(box) {
                 if (showA.checked && (d.mean || []).length) drawLine(m, d, d.mean, cmp ? colorOf(m) : '#16324F', false, bounds);
                 if (showD.checked && d.det && d.det.length > 1) drawLine(m, d, d.det, cmp ? colorOf(m) : '#B45309', true, bounds);
             });
-            if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
+            // 與靜態圖一致：轉溫帶後跑到高緯的成員不算進範圍（AIGFS／GFS 會一路追到極區）
+            const cap = Math.max(45, Math.min(...bounds.map(p => p[0])) + 10);
+            const fb = bounds.filter(p => p[0] <= cap);
+            if (fit && fb.length) map.fitBounds(fb, {padding: [20, 20]});
         }
         // 選單旁顯示該模式的起報時間（各模式不一定同一期）
         const initVal = box.querySelector('.tm-init-val');
