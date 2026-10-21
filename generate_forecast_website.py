@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.2.1"
+SITE_VERSION = "6.3.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1079,11 +1079,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
                         <label class="tm-det-wrap"><input type="checkbox" class="tm-det" checked> <span data-i18n="tmap.det">Deterministic</span></label>
                     </div>
+                    <div class="run-picks tm-runs" role="group" aria-label="Init"></div>
                     <div class="tm-map"></div>
                 </div>
                 <p class="map-note" data-i18n="note.tmap">
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
-                    Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic
+                    Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                 </p>
             </div>"""
 
@@ -1992,6 +1993,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map .tm-chip-all i { display: none; }
 .track-map .tm-chip-all[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
 .track-map .tm-cmp-btn { padding: 6px 12px; box-shadow: none; }
+.track-map .tm-chip.tm-na { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
+.track-map .tm-msg { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 1000; padding: 7px 14px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: .85em; font-weight: 600; pointer-events: none; white-space: nowrap; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .score-table td { font-weight: 750; }
 .score-table td.c-low { background: var(--surface-2); color: var(--text-2); opacity: .55; font-weight: 600; }
@@ -2815,7 +2818,8 @@ const I18N = {
     'tmap.compare':     'Compare models',
     'run.latest':       'Latest',
     'tmap.all':         'All',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic',
+    'tmap.na':          'not issued yet',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -2984,7 +2988,8 @@ const I18N = {
     'tmap.compare':     '多模式比較',
     'run.latest':       '最新',
     'tmap.all':         '全部',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報',
+    'tmap.na':          '尚未出報',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -3420,7 +3425,13 @@ async function initTrackMap(box) {
             const d = new Date(new Date(iso).getTime() + h * 3600e3);
             return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
         };
-        const fmt = (m, h) => fmtAt(data.inits[m] || data.init, h);
+        // cur＝目前畫的資料：「最新」是 data（各模式各自最新一期），選了某期就換成那期的檔（所有模式同一期）
+        let cur = data, run = null;
+        const fmt = (m, h) => fmtAt((cur.inits || {})[m] || cur.init, h);
+        const has = m => {
+            const d = cur.models[m];
+            return !!d && ((d.members || []).length > 0 || (d.mean || []).length > 0 || (d.det || []).length > 1);
+        };
         // 經度展開：跨換日線時不會連到地球另一邊
         const unwrap = pts => {
             let prev = null;
@@ -3489,9 +3500,13 @@ async function initTrackMap(box) {
         }
         function draw(fit) {
             layer.clearLayers();
-            const cmp = cmpOn(), list = cmp ? shown() : [sel.value], bounds = [];
+            const cmp = cmpOn(), list = (cmp ? shown() : [sel.value]).filter(has), bounds = [];
+            // 選了某期而模式還沒出報：地圖上方標示
+            const miss = run ? (cmp ? shown() : [sel.value]).filter(m => !has(m)) : [];
+            msg.hidden = !miss.length;
+            msg.textContent = miss.length ? `${miss.join('、')} ${fmtAt(run, 0)} ${t('tmap.na')}` : '';
             // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
-            if (showM.checked) list.forEach(m => data.models[m].members.forEach((raw, i) => {
+            if (showM.checked) list.forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
                 const pts = unwrap(raw);
                 if (cmp) {
                     // 模式一多成員線就淡一點，平均線才看得出來
@@ -3505,11 +3520,11 @@ async function initTrackMap(box) {
                 pts.forEach(p => bounds.push([p[0], p[1]]));
             }));
             // 決定報（AIFS／ECMWF／AIGFS／GFS 才有）：單一模式時是琥珀色線，沒有時把開關藏起來
-            const hasDet = list.some(m => data.models[m].det && data.models[m].det.length > 1);
+            const hasDet = list.some(m => cur.models[m].det && cur.models[m].det.length > 1);
             showD.closest('label').style.display = hasDet ? '' : 'none';
             list.forEach(m => {
-                const d = data.models[m];
-                if (showA.checked && d.mean.length) drawLine(m, d, d.mean, cmp ? colorOf(m) : '#16324F', false, bounds);
+                const d = cur.models[m];
+                if (showA.checked && (d.mean || []).length) drawLine(m, d, d.mean, cmp ? colorOf(m) : '#16324F', false, bounds);
                 if (showD.checked && d.det && d.det.length > 1) drawLine(m, d, d.det, cmp ? colorOf(m) : '#B45309', true, bounds);
             });
             if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
@@ -3517,6 +3532,7 @@ async function initTrackMap(box) {
         // 選單旁顯示該模式的起報時間（各模式不一定同一期）
         const initVal = box.querySelector('.tm-init-val');
         const initOf = m => {
+            if (run) return has(m) ? fmtAt(run, 0) : t('tmap.na');
             const init = data.inits[m] || data.init;
             const md = data.models[m] || {};
             // 決定報比系集新一期時一併標出，免得以為兩條線是同一期
@@ -3524,8 +3540,43 @@ async function initTrackMap(box) {
                 ? ` · ${md.det_name || 'DET'} ${fmtAt(md.det_init, 0)}` : '');
         };
         const showInit = () => {
-            initVal.textContent = cmpOn() ? shown().map(m => `${m} ${initOf(m)}`).join('　') : initOf(sel.value);
+            initVal.textContent = run ? fmtAt(run, 0)
+                : cmpOn() ? shown().map(m => `${m} ${initOf(m)}`).join('　') : initOf(sel.value);
         };
+        // 起報時間按鈕：「最新」＋各期；選了某期，還沒出報的模式按鈕變灰、按不下去
+        const msg = Object.assign(document.createElement('div'), {className: 'tm-msg', hidden: true});
+        el.appendChild(msg);
+        const runBox = box.querySelector('.tm-runs');
+        const runCache = {};
+        const loadRun = iso => runCache[iso] || (runCache[iso] = fetch(
+            box.dataset.src.replace(/\.json$/, `_${iso.slice(0, 13).replace(/[-T]/g, '')}.json`)).then(r => r.json()));
+        function syncAvail() {
+            chips.forEach(([m, b]) => {
+                const na = !has(m);
+                b.classList.toggle('tm-na', na);
+                b.disabled = na;
+                b.title = na ? t('tmap.na') : '';
+            });
+            [...sel.options].forEach(o => { o.textContent = has(o.value) ? o.value : `${o.value}（${t('tmap.na')}）`; });
+        }
+        const runs = data.runs || [];
+        if (runs.length) {
+            [null, ...runs].forEach(iso => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'run-btn' + (iso ? '' : ' active');
+                b.innerHTML = iso ? fmtAt(iso, 0) : `<span data-i18n="run.latest">${t('run.latest') || 'Latest'}</span>`;
+                b.onclick = async () => {
+                    if (b.classList.contains('active')) return;
+                    try { cur = iso ? await loadRun(iso) : data; }
+                    catch (e) { console.log('[trackmap]', e); return; }
+                    run = iso;
+                    runBox.querySelectorAll('.run-btn').forEach(x => x.classList.toggle('active', x === b));
+                    syncAvail(); showInit(); draw(true);
+                };
+                runBox.appendChild(b);
+            });
+        } else runBox.remove();
         showInit();
         sel.onchange = () => { showInit(); draw(true); };
         cmpBtn.onclick = () => {
@@ -3731,6 +3782,7 @@ document.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('.run-btn');
     if (!b || b.classList.contains('active')) return;
     const panel = b.closest('.model-panel');
+    if (!panel) return;                         // 互動地圖的期數鈕自己處理
     panel.querySelectorAll('.run-btn').forEach(x => x.classList.toggle('active', x === b));
     const img = panel.querySelector('.zoomable > img');
     if (img) img.src = b.dataset.src;

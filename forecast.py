@@ -2264,18 +2264,65 @@ def _track_points(g: pd.DataFrame, init_time, step_h: float = 6.0) -> list:
     return out
 
 
+def _run_stamp(t) -> str:
+    return pd.Timestamp(t).strftime('%Y%m%d%H')
+
+
+def _archive_tracks(tid: str, init, model: str, fields: dict) -> None:
+    """把某模式某一期的路徑點併進 {tid}_Tracks_{YYYYMMDDHH}.json（同一期各模式共用一個檔）。
+
+    只更新給的欄位：決定報比系集早一期上架時，先只寫決定報，系集到了再補成員與平均。
+    """
+    import json
+    path = os.path.join(OUTPUT_DIR, f"{tid}_Tracks_{_run_stamp(init)}.json")
+    try:
+        with open(path, encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = {'track_id': tid, 'init': pd.Timestamp(init).strftime('%Y-%m-%dT%H:00:00Z'), 'models': {}}
+    data['models'].setdefault(model, {}).update(fields)
+    try:
+        with open(path, 'w', encoding='utf-8') as fh:
+            json.dump(data, fh, separators=(',', ':'))
+    except OSError as e:
+        print(f"[HISTORY] 警告: 寫入 {path} 失敗: {e}")
+
+
 def write_tracks_json(storms: list) -> None:
-    """依颱風合併各模式資料寫成 {tid}_Tracks.json，路徑掛在該颱風第一個 storm dict。"""
+    """依颱風合併各模式資料寫成 {tid}_Tracks.json，路徑掛在該颱風第一個 storm dict。
+
+    另把各模式這一期的路徑點存進每期一個的 {tid}_Tracks_{YYYYMMDDHH}.json，留最新
+    MAP_HISTORY_RUNS + 1 期，期數清單寫在 runs，互動地圖可整排模式一起切到同一期。
+    """
     import json
     for tid in dict.fromkeys(s['track_id'] for s in storms):
         group = [s for s in storms if s['track_id'] == tid and s.get('track_points')]
         if not group:
             continue
+        for s in group:
+            tp = s['track_points']
+            fields = {'members': tp['members'], 'mean': tp['mean']}
+            if tp.get('det'):
+                det_fields = {'det': tp['det'], 'det_name': tp.get('det_name')}
+                if _run_stamp(tp['det_init']) == _run_stamp(s['init_time']):
+                    fields.update(det_fields)
+                else:
+                    _archive_tracks(tid, tp['det_init'], s['model'], det_fields)
+            _archive_tracks(tid, s['init_time'], s['model'], fields)
+        run_re = re.compile(rf"^{tid}_Tracks_(\d{{10}})\.json$")
+        stamps = sorted((m.group(1) for m in map(run_re.match, os.listdir(OUTPUT_DIR)) if m), reverse=True)
+        for old in stamps[MAP_HISTORY_RUNS + 1:]:
+            try:
+                os.remove(os.path.join(OUTPUT_DIR, f"{tid}_Tracks_{old}.json"))
+            except OSError as e:
+                print(f"[HISTORY] 警告: 移除 {tid}_Tracks_{old}.json 失敗: {e}")
         data = {'track_id': tid,
                 'init': pd.to_datetime(group[0]['init_time']).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 'models': {s['model']: s['track_points'] for s in group},
                 'inits': {s['model']: pd.to_datetime(s['init_time']).strftime('%Y-%m-%dT%H:%M:%SZ')
-                          for s in group}}
+                          for s in group},
+                'runs': [datetime.strptime(x, '%Y%m%d%H').strftime('%Y-%m-%dT%H:00:00Z')
+                         for x in stamps[:MAP_HISTORY_RUNS + 1]]}
         path = os.path.join(OUTPUT_DIR, f"{tid}_Tracks.json")
         with open(path, 'w', encoding='utf-8') as fh:
             json.dump(data, fh, separators=(',', ':'))
@@ -3372,6 +3419,47 @@ def _archive_forecast_map(save_path: str, init_time) -> list[tuple[str, str]]:
             for x in stamps[:MAP_HISTORY_RUNS + 1] if x < stamp][:MAP_HISTORY_RUNS]
 
 
+def _backfill_history(cfg: dict, tid: str, save_path: str, init_time) -> None:
+    """功能上線前沒存到的前幾期：下載目錄還留著那期 CSV 就補畫路徑圖、補存互動地圖路徑點。
+
+    只補缺的，補過檔案就在了，之後每輪都會直接略過。只往前找 MAP_HISTORY_RUNS 個
+    6 小時（不跨過中間缺很多天的舊檔），補的圖不含決定報。
+    """
+    import json
+    display = cfg['display']
+    base, ext = os.path.splitext(save_path)
+    for k in range(1, MAP_HISTORY_RUNS + 1):
+        t = pd.Timestamp(init_time) - pd.Timedelta(hours=6 * k)
+        png = f"{base}_{_run_stamp(t)}{ext}"
+        jpath = os.path.join(OUTPUT_DIR, f"{tid}_Tracks_{_run_stamp(t)}.json")
+        try:
+            with open(jpath, encoding='utf-8') as fh:
+                need_json = display not in json.load(fh).get('models', {})
+        except (OSError, ValueError):
+            need_json = True
+        need_png = not os.path.exists(png)
+        if not (need_png or need_json):
+            continue
+        name = f"{cfg['local_prefix']}_{_cycle_stamp(t)}_paired.csv"
+        ens, mean = os.path.join(cfg['ensemble_dir'], name), os.path.join(cfg['mean_dir'], name)
+        if not (os.path.exists(ens) and os.path.exists(mean)):
+            continue
+        try:
+            df, t_init = load_forecast_dataframe(ens, tid)
+            mdf, _ = load_forecast_dataframe(mean, tid)
+            if df is None or df.empty:
+                continue
+            if need_png:
+                plot_forecast_map(df, mdf, t_init, tid, png, model_name=display, mean_name=_ens_name(cfg))
+            if need_json:
+                _archive_tracks(tid, t_init, display, {
+                    'members': [_track_points(g, t_init) for _, g in df.groupby('sample')],
+                    'mean': _track_points(mdf, t_init)})
+            print(f"[{display}-HISTORY] 補存 {tid} {t:%m/%d %HZ}")
+        except Exception as e:
+            print(f"[{display}-HISTORY] 補存 {tid} {t:%m/%d %HZ} 失敗，略過: {e}")
+
+
 def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> None:
     """移除本次未偵測到的颱風在此模式下的殘留產物。
 
@@ -3420,7 +3508,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     if not os.path.isdir(OUTPUT_DIR):
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
-                         r"|^((?:WP|CP|EP)\d{6})_Tracks\.json$"
+                         r"|^((?:WP|CP|EP)\d{6})_Tracks(?:_\d{10})?\.json$"
                          rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
@@ -3617,6 +3705,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             save_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Map.png")
             plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display,
                               det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg))
+            _backfill_history(cfg, tid, save_path, init_time)
             map_history = _archive_forecast_map(save_path, init_time)
 
             # 侵襲機率圖：加分項，失敗只略過這張
