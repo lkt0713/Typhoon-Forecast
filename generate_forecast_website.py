@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.2.0"
+SITE_VERSION = "6.2.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1083,7 +1083,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 <p class="map-note" data-i18n="note.tmap">
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
-                    Member colors = intensity &nbsp;·&nbsp; Compare: up to 3 models, one color each, dashed = deterministic
+                    Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic
                 </p>
             </div>"""
 
@@ -1989,6 +1989,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map .tm-chip:hover { color: var(--text); border-color: var(--text); }
 .track-map .tm-chip[aria-pressed="true"] { color: var(--text); border-color: var(--c); }
 .track-map .tm-chip[aria-pressed="true"] i { background: var(--c); }
+.track-map .tm-chip-all i { display: none; }
+.track-map .tm-chip-all[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
 .track-map .tm-cmp-btn { padding: 6px 12px; box-shadow: none; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .score-table td { font-weight: 750; }
@@ -2812,7 +2814,8 @@ const I18N = {
     'tmap.init':        'Init',
     'tmap.compare':     'Compare models',
     'run.latest':       'Latest',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: up to 3 models, one color each, dashed = deterministic',
+    'tmap.all':         'All',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -2980,7 +2983,8 @@ const I18N = {
     'tmap.init':        '起報',
     'tmap.compare':     '多模式比較',
     'run.latest':       '最新',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：最多 3 個模式，一個模式一種顏色，虛線＝決定報',
+    'tmap.all':         '全部',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -3363,8 +3367,10 @@ function staggerReveals() {
 }
 
 // ── 互動式路徑地圖（Leaflet；捲到才載入函式庫與資料）──────────────
-// 比較模式的模式配色：藍、紅、綠，與強度色階無關，三條線一眼分得開
-const TM_CMP_COLORS = ['#2563EB', '#E11D48', '#059669'];
+// 比較模式的模式配色：每個模式固定一種顏色（與強度色階無關），全部疊在一起也分得開
+const TM_CMP_COLORS = {'WN3-C': '#7C3AED', 'WN2-C r2': '#2563EB', 'WN2-C r1': '#06B6D4', 'GENC': '#65A30D',
+                       'AIFS': '#D946EF', 'ECMWF': '#DC2626', 'AIGFS': '#059669', 'GFS': '#F59E0B'};
+const TM_CMP_EXTRA = ['#0EA5E9', '#F97316', '#64748B', '#A16207'];   // 沒列到的新模式依序輪用
 const TM_COLORS = {TD:'#8A97A6', TS:'#2E86C8', Cat1:'#1FA97E', Cat2:'#E0AC2B', Cat3:'#EE7A22', Cat4:'#DC3A4E', Cat5:'#A548C8'};
 function tmCat(kt) {
     if (kt == null) return 'TD';
@@ -3425,43 +3431,44 @@ async function initTrackMap(box) {
                 return [p[0], lon, p[2], p[3]];
             });
         };
-        // 多模式比較（仿 Weather Lab）：最多 3 個模式，依選取順序配色；成員、平均、決定報都用該模式的顏色
+        // 多模式比較（仿 Weather Lab）：模式數不限，每個模式固定一種顏色；成員、平均、決定報都用該模式的顏色
         const cmpBtn = box.querySelector('.tm-cmp-btn');
         const chipBox = box.querySelector('.tm-chips');
         const names = Object.keys(data.models);
-        // picks 的位置＝顏色槽（null＝空槽），增減模式時其他模式的顏色不會跟著換
-        let picks = ['WN2-C r2', 'ECMWF', 'AIGFS'].filter(m => data.models[m]);
-        names.forEach(m => { if (picks.length < 2 && !picks.includes(m)) picks.push(m); });
-        const age = [...picks];                       // 選取先後，擠掉最早選的用
+        const palette = {};
+        names.filter(m => !TM_CMP_COLORS[m]).forEach((m, i) => { palette[m] = TM_CMP_EXTRA[i % TM_CMP_EXTRA.length]; });
+        const colorOf = m => TM_CMP_COLORS[m] || palette[m];
+        const defaults = ['WN2-C r2', 'ECMWF', 'AIGFS'].filter(m => data.models[m]);
+        names.forEach(m => { if (defaults.length < 2 && !defaults.includes(m)) defaults.push(m); });
+        let picks = new Set(defaults);
         const cmpOn = () => cmpBtn.getAttribute('aria-pressed') === 'true';
-        const shown = () => picks.filter(Boolean);
-        const colorOf = m => TM_CMP_COLORS[picks.indexOf(m)];
-        const chips = names.map(m => {
+        const shown = () => names.filter(m => picks.has(m));      // 照模式原本的順序
+        const mkChip = (label, onclick) => {
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'tm-chip';
             b.innerHTML = '<i></i>';
-            b.append(m);
-            b.onclick = () => {
-                if (picks.includes(m)) {
-                    if (shown().length > 1) { picks[picks.indexOf(m)] = null; age.splice(age.indexOf(m), 1); }
-                } else {
-                    let slot = TM_CMP_COLORS.findIndex((_, k) => !picks[k]);
-                    if (slot < 0) slot = picks.indexOf(age.shift());   // 已滿 3 個就擠掉最早選的
-                    picks[slot] = m;
-                    age.push(m);
-                }
-                syncChips(); showInit(); draw(true);
-            };
+            b.append(label);
+            b.onclick = () => { onclick(); syncChips(); showInit(); draw(true); };
             chipBox.appendChild(b);
-            return [m, b];
-        });
+            return b;
+        };
+        // 「全部」：還沒全選就全選，已全選就回到預設的幾個
+        const allChip = mkChip('', () => { picks = new Set(picks.size === names.length ? defaults : names); });
+        allChip.classList.add('tm-chip-all');
+        allChip.lastChild.replaceWith(Object.assign(document.createElement('span'), {textContent: t('tmap.all') || 'All'}));
+        allChip.lastChild.dataset.i18n = 'tmap.all';
+        const chips = names.map(m => [m, mkChip(m, () => {
+            if (!picks.has(m)) picks.add(m);
+            else if (picks.size > 1) picks.delete(m);             // 至少留一個
+        })]);
         function syncChips() {
             chips.forEach(([m, b]) => {
-                const on = picks.includes(m);
+                const on = picks.has(m);
                 b.setAttribute('aria-pressed', on);
                 b.style.setProperty('--c', on ? colorOf(m) : '');
             });
+            allChip.setAttribute('aria-pressed', picks.size === names.length);
         }
         syncChips();
         const ptsTip = (m, d, p, det) => det
@@ -3487,7 +3494,8 @@ async function initTrackMap(box) {
             if (showM.checked) list.forEach(m => data.models[m].members.forEach((raw, i) => {
                 const pts = unwrap(raw);
                 if (cmp) {
-                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: .35})
+                    // 模式一多成員線就淡一點，平均線才看得出來
+                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: list.length > 3 ? .2 : .35})
                         .bindTooltip(`${m} #${i + 1}`, {sticky: true}).addTo(layer);
                 } else for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
