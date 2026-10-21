@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.0.1"
+SITE_VERSION = "6.1.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1058,7 +1058,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 <div class="track-map" data-src="{_esc(os.path.basename(_tj))}">
                     <div class="tm-controls">
+                        <button type="button" class="ghost-btn tm-cmp-btn" aria-pressed="false">{ICONS["compare"]}<span data-i18n="tmap.compare">Compare models</span></button>
                         <select class="tm-model" aria-label="Model"></select>
+                        <span class="tm-chips"></span>
                         <span class="tm-init"><span data-i18n="tmap.init">Init</span> <b class="tm-init-val"></b></span>
                         <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
                         <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
@@ -1068,7 +1070,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 <p class="map-note" data-i18n="note.tmap">
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
-                    Member colors = intensity
+                    Member colors = intensity &nbsp;·&nbsp; Compare: up to 3 models, one color each, dashed = deterministic
                 </p>
             </div>"""
 
@@ -1966,6 +1968,15 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map .tm-init { color: var(--text-2); }
 .track-map .tm-init b { color: var(--text); font-weight: 750; }
 .track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.track-map .tm-chips { display: none; flex-wrap: wrap; gap: 6px; }
+.track-map.tm-cmp .tm-chips { display: inline-flex; }
+.track-map.tm-cmp .tm-model { display: none; }
+.track-map .tm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); font: inherit; font-weight: 600; cursor: pointer; transition: all .2s; }
+.track-map .tm-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+.track-map .tm-chip:hover { color: var(--text); border-color: var(--text); }
+.track-map .tm-chip[aria-pressed="true"] { color: var(--text); border-color: var(--c); }
+.track-map .tm-chip[aria-pressed="true"] i { background: var(--c); }
+.track-map .tm-cmp-btn { padding: 6px 12px; box-shadow: none; }
 .track-map .tm-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .score-table td { font-weight: 750; }
 .score-table td.c-low { background: var(--surface-2); color: var(--text-2); opacity: .55; font-weight: 600; }
@@ -2782,7 +2793,8 @@ const I18N = {
     'tmap.mean':        'Mean',
     'tmap.det':         'Deterministic',
     'tmap.init':        'Init',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity',
+    'tmap.compare':     'Compare models',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: up to 3 models, one color each, dashed = deterministic',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -2948,7 +2960,8 @@ const I18N = {
     'tmap.mean':        '平均',
     'tmap.det':         '決定報',
     'tmap.init':        '起報',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度',
+    'tmap.compare':     '多模式比較',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：最多 3 個模式，一個模式一種顏色，虛線＝決定報',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -3331,6 +3344,8 @@ function staggerReveals() {
 }
 
 // ── 互動式路徑地圖（Leaflet；捲到才載入函式庫與資料）──────────────
+// 比較模式的模式配色：藍、紅、綠，與強度色階無關，三條線一眼分得開
+const TM_CMP_COLORS = ['#2563EB', '#E11D48', '#059669'];
 const TM_COLORS = {TD:'#8A97A6', TS:'#2E86C8', Cat1:'#1FA97E', Cat2:'#E0AC2B', Cat3:'#EE7A22', Cat4:'#DC3A4E', Cat5:'#A548C8'};
 function tmCat(kt) {
     if (kt == null) return 'TD';
@@ -3391,53 +3406,106 @@ async function initTrackMap(box) {
                 return [p[0], lon, p[2], p[3]];
             });
         };
+        // 多模式比較（仿 Weather Lab）：最多 3 個模式，依選取順序配色；成員、平均、決定報都用該模式的顏色
+        const cmpBtn = box.querySelector('.tm-cmp-btn');
+        const chipBox = box.querySelector('.tm-chips');
+        const names = Object.keys(data.models);
+        // picks 的位置＝顏色槽（null＝空槽），增減模式時其他模式的顏色不會跟著換
+        let picks = ['WN2-C r2', 'ECMWF', 'AIGFS'].filter(m => data.models[m]);
+        names.forEach(m => { if (picks.length < 2 && !picks.includes(m)) picks.push(m); });
+        const age = [...picks];                       // 選取先後，擠掉最早選的用
+        const cmpOn = () => cmpBtn.getAttribute('aria-pressed') === 'true';
+        const shown = () => picks.filter(Boolean);
+        const colorOf = m => TM_CMP_COLORS[picks.indexOf(m)];
+        const chips = names.map(m => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'tm-chip';
+            b.innerHTML = '<i></i>';
+            b.append(m);
+            b.onclick = () => {
+                if (picks.includes(m)) {
+                    if (shown().length > 1) { picks[picks.indexOf(m)] = null; age.splice(age.indexOf(m), 1); }
+                } else {
+                    let slot = TM_CMP_COLORS.findIndex((_, k) => !picks[k]);
+                    if (slot < 0) slot = picks.indexOf(age.shift());   // 已滿 3 個就擠掉最早選的
+                    picks[slot] = m;
+                    age.push(m);
+                }
+                syncChips(); showInit(); draw(true);
+            };
+            chipBox.appendChild(b);
+            return [m, b];
+        });
+        function syncChips() {
+            chips.forEach(([m, b]) => {
+                const on = picks.includes(m);
+                b.setAttribute('aria-pressed', on);
+                b.style.setProperty('--c', on ? colorOf(m) : '');
+            });
+        }
+        syncChips();
+        const ptsTip = (m, d, p, det) => det
+            ? `${d.det_name || 'DET'} +${p[3]}h · ${d.det_init ? fmtAt(d.det_init, p[3]) : fmt(m, p[3])} · ${p[2] ?? '–'} kt`
+            : `${cmpOn() ? m + ' ' : ''}+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`;
+        // 平均或決定報：白邊＋色線＋24h 圓點；比較模式的決定報改虛線，與平均區分
+        function drawLine(m, d, raw, color, det, bounds) {
+            const pts = unwrap(raw), ll = pts.map(p => [p[0], p[1]]);
+            const dash = det && cmpOn() ? '6 5' : null;
+            // 線細一點、白邊淡一點：與靜態圖一致，經過臺灣時陸地輪廓仍看得到
+            L.polyline(ll, {color: '#fff', weight: det ? 4.4 : 4.6, opacity: .6, dashArray: dash}).addTo(layer);
+            L.polyline(ll, {color, weight: det ? 2.6 : 2.8, opacity: .9, dashArray: dash})
+                .bindTooltip(det ? (d.det_name || 'Deterministic') : `${m} ${t('tmap.mean')}`, {sticky: true}).addTo(layer);
+            pts.filter(p => p[3] % 24 === 0).forEach(p =>
+                L.circleMarker([p[0], p[1]], {radius: det ? 3.8 : 4, color, weight: 1.6, fillColor: '#fff', fillOpacity: 1})
+                    .bindTooltip(ptsTip(m, d, p, det)).addTo(layer));
+            ll.forEach(p => bounds.push(p));
+        }
         function draw(fit) {
             layer.clearLayers();
-            const m = sel.value, d = data.models[m], bounds = [];
-            if (showM.checked) d.members.forEach((raw, i) => {
+            const cmp = cmpOn(), list = cmp ? shown() : [sel.value], bounds = [];
+            // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
+            if (showM.checked) list.forEach(m => data.models[m].members.forEach((raw, i) => {
                 const pts = unwrap(raw);
-                for (let k = 0; k < pts.length - 1; k++) {
+                if (cmp) {
+                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: .35})
+                        .bindTooltip(`${m} #${i + 1}`, {sticky: true}).addTo(layer);
+                } else for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
                     L.polyline([[a[0], a[1]], [b[0], b[1]]], {color: TM_COLORS[tmCat(a[2])], weight: 1.3, opacity: .7})
                         .bindTooltip(`#${i + 1} · ${fmt(m, a[3])} · ${a[2] ?? '–'} kt`, {sticky: true}).addTo(layer);
                 }
                 pts.forEach(p => bounds.push([p[0], p[1]]));
-            });
-            if (showA.checked && d.mean.length) {
-                const pts = unwrap(d.mean), ll = pts.map(p => [p[0], p[1]]);
-                // 線細一點、白邊淡一點：與靜態圖一致，經過臺灣時陸地輪廓仍看得到
-                L.polyline(ll, {color: '#fff', weight: 4.6, opacity: .6}).addTo(layer);
-                L.polyline(ll, {color: '#16324F', weight: 2.8, opacity: .9}).addTo(layer);
-                pts.filter(p => p[3] % 24 === 0).forEach(p =>
-                    L.circleMarker([p[0], p[1]], {radius: 4, color: '#16324F', weight: 1.6, fillColor: '#fff', fillOpacity: 1})
-                        .bindTooltip(`+${p[3]}h · ${fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
-                ll.forEach(p => bounds.push(p));
-            }
-            // 決定報（AIFS／ECMWF／AIGFS／GFS 才有）：琥珀色線，沒有時把開關藏起來
-            const hasDet = d.det && d.det.length > 1;
+            }));
+            // 決定報（AIFS／ECMWF／AIGFS／GFS 才有）：單一模式時是琥珀色線，沒有時把開關藏起來
+            const hasDet = list.some(m => data.models[m].det && data.models[m].det.length > 1);
             showD.closest('label').style.display = hasDet ? '' : 'none';
-            if (hasDet && showD.checked) {
-                const pts = unwrap(d.det), ll = pts.map(p => [p[0], p[1]]);
-                L.polyline(ll, {color: '#fff', weight: 4.4, opacity: .6}).addTo(layer);
-                L.polyline(ll, {color: '#B45309', weight: 2.6, opacity: .9}).bindTooltip(d.det_name || 'Deterministic', {sticky: true}).addTo(layer);
-                pts.filter(p => p[3] % 24 === 0).forEach(p =>
-                    L.circleMarker([p[0], p[1]], {radius: 3.8, color: '#B45309', weight: 1.6, fillColor: '#fff', fillOpacity: 1})
-                        .bindTooltip(`${d.det_name || 'DET'} +${p[3]}h · ${d.det_init ? fmtAt(d.det_init, p[3]) : fmt(m, p[3])} · ${p[2] ?? '–'} kt`).addTo(layer));
-                ll.forEach(p => bounds.push(p));
-            }
+            list.forEach(m => {
+                const d = data.models[m];
+                if (showA.checked && d.mean.length) drawLine(m, d, d.mean, cmp ? colorOf(m) : '#16324F', false, bounds);
+                if (showD.checked && d.det && d.det.length > 1) drawLine(m, d, d.det, cmp ? colorOf(m) : '#B45309', true, bounds);
+            });
             if (fit && bounds.length) map.fitBounds(bounds, {padding: [20, 20]});
         }
         // 選單旁顯示該模式的起報時間（各模式不一定同一期）
         const initVal = box.querySelector('.tm-init-val');
-        const showInit = () => {
-            const init = data.inits[sel.value] || data.init;
-            const md = data.models[sel.value] || {};
+        const initOf = m => {
+            const init = data.inits[m] || data.init;
+            const md = data.models[m] || {};
             // 決定報比系集新一期時一併標出，免得以為兩條線是同一期
-            initVal.textContent = fmtAt(init, 0) + (md.det_init && md.det_init !== init
+            return fmtAt(init, 0) + (md.det_init && md.det_init !== init
                 ? ` · ${md.det_name || 'DET'} ${fmtAt(md.det_init, 0)}` : '');
+        };
+        const showInit = () => {
+            initVal.textContent = cmpOn() ? shown().map(m => `${m} ${initOf(m)}`).join('　') : initOf(sel.value);
         };
         showInit();
         sel.onchange = () => { showInit(); draw(true); };
+        cmpBtn.onclick = () => {
+            cmpBtn.setAttribute('aria-pressed', !cmpOn());
+            box.classList.toggle('tm-cmp', cmpOn());
+            showInit(); draw(true);
+        };
         showM.onchange = () => draw(false);
         showA.onchange = () => draw(false);
         showD.onchange = () => draw(false);
