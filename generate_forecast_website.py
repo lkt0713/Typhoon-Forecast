@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.4.1"
+SITE_VERSION = "6.4.2"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -2058,8 +2058,10 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 /* ── Animation player ───────────────────────────────────────── */
 .player { background: var(--surface-2); border:1px solid var(--border); border-radius: 14px; overflow:hidden; }
 .frame-stage { border:0; border-radius:0; aspect-ratio: var(--ar, 16 / 10); max-height: calc(100vh - var(--header-h) - 190px); width: 100%; }
-.frame-stage .frame { position:absolute; inset:0; width:100%; height:100%; object-fit: contain; opacity:0; transition: opacity .18s linear; }
-.frame-stage .frame.is-front { opacity:1; }
+.frame-stage .frame { position:absolute; inset:0; width:100%; height:100%; object-fit: contain; opacity:0; }
+/* 新的一格疊在上面淡入、上一格在底下維持不透明：交叉淡化時兩張都半透明會透出底色，看起來像閃一下 */
+.frame-stage .frame.is-front { opacity:1; z-index:2; transition: opacity .18s linear; }
+.frame-stage .frame.was-front { opacity:1; z-index:1; }
 .frame-stage.broken .frame { visibility:hidden; }
 .buffer { position:absolute; left:0; right:0; bottom:0; height: 3px; background: rgba(var(--accent-rgb),.12); transition: opacity .6s .4s; }
 .buffer span { display:block; height:100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); transition: transform .3s; }
@@ -3849,15 +3851,22 @@ function renderFrame(P) {
     const front = P.imgs[P.front], back = P.imgs[1 - P.front];
     updPlayerUI(P);
     if (!url || !back || front.getAttribute('src') === url) return;
+    let swapped = false;
     const swap = () => {
+        if (swapped || back.getAttribute('src') !== url) return;   // 已被更新的一格取代
+        swapped = true;
+        back.classList.remove('was-front');
         back.classList.add('is-front');
-        front.classList.remove('is-front');
+        front.classList.replace('is-front', 'was-front');
         P.front = 1 - P.front;
     };
+    // 換 src 前先把它沉到底層藏起來，解碼完才浮上來，不會露出還沒畫好的空白
+    back.classList.remove('is-front', 'was-front');
     back.onload = null;
     back.src = url;
-    if (back.complete && back.naturalWidth) swap();
-    else back.onload = () => { back.onload = null; if (back.getAttribute('src') === P.urls[P.i]) swap(); };
+    const ready = () => (back.decode ? back.decode().catch(() => {}) : Promise.resolve()).then(swap);
+    if (back.complete && back.naturalWidth) ready();
+    else back.onload = () => { back.onload = null; ready(); };
 }
 function updPlayerUI(P) {
     const n = P.urls.length;
