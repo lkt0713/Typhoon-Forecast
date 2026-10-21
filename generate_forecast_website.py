@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.1.0"
+SITE_VERSION = "6.2.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -956,8 +956,21 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             forecast_map_path = m.get('forecast_map_path', '') if isinstance(m, dict) else ''
             map_src = os.path.basename(forecast_map_path) if forecast_map_path else ''
             hide_attr = '' if i == 0 else ' style="display:none;"'
+            # 前幾期的歷史圖：一排起報時間按鈕，點了換圖，方便和最新一期對照
+            history = (m.get('forecast_map_history') or []) if isinstance(m, dict) else []
+            run_row = ""
+            if history and map_src and m.get('forecast_map_init'):
+                def _run_lbl(iso):
+                    return pd.Timestamp(iso).strftime('%m/%d %HZ')
+                run_row = ('<div class="run-picks" role="group" aria-label="Init">'
+                           f'<button type="button" class="run-btn active" data-src="{_esc(map_src)}">'
+                           f'<span data-i18n="run.latest">Latest</span> {_run_lbl(m["forecast_map_init"])}</button>'
+                           + "".join(f'<button type="button" class="run-btn" data-src="{_esc(os.path.basename(hp))}">'
+                                     f'{_run_lbl(iso)}</button>' for iso, hp in history)
+                           + '</div>')
             map_panels.append(f"""
                 <div class="model-panel" data-track="{key_prefix}" data-model="{_esc(model_name)}"{hide_attr}>
+                    {run_row}
                     {_figure(map_src, f"{track_id} {model_name} Forecast Map")}
                     <p class="map-note" data-i18n="note.ensemble" data-i18n-model="{_esc(model_name)}">
                         {_esc(model_name)} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp;
@@ -2009,6 +2022,10 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 @keyframes swapIn { from { opacity:0; transform: translateY(8px) scale(.995); } to { opacity:1; transform:none; } }
 
 /* ── Images ─────────────────────────────────────────────────── */
+.run-picks { display:flex; flex-wrap:wrap; gap: 6px; margin-bottom: 12px; }
+.run-btn { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); font: inherit; font-size: .8em; font-weight: 600; cursor: pointer; transition: all .2s; }
+.run-btn:hover { color: var(--text); border-color: var(--text); }
+.run-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 .zoomable { position:relative; border-radius: 12px; overflow:hidden; cursor: zoom-in; background: var(--surface-2); border: 1px solid var(--border); }
 .zoomable.skel:not(.loaded) { min-height: 240px; }
 .zoomable.skel:not(.loaded)::before {
@@ -2794,6 +2811,7 @@ const I18N = {
     'tmap.det':         'Deterministic',
     'tmap.init':        'Init',
     'tmap.compare':     'Compare models',
+    'run.latest':       'Latest',
     'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: up to 3 models, one color each, dashed = deterministic',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
@@ -2961,6 +2979,7 @@ const I18N = {
     'tmap.det':         '決定報',
     'tmap.init':        '起報',
     'tmap.compare':     '多模式比較',
+    'run.latest':       '最新',
     'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：最多 3 個模式，一個模式一種顏色，虛線＝決定報',
     'sub.score':        '成績',
     'panel.score':      '模式路徑誤差',
@@ -3699,6 +3718,15 @@ function closeLightbox() {
     lightbox.classList.remove('open');
     document.body.classList.remove('lb-lock');
 }
+// 系集路徑圖的歷史期數：同一個 model-panel 裡換圖
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.run-btn');
+    if (!b || b.classList.contains('active')) return;
+    const panel = b.closest('.model-panel');
+    panel.querySelectorAll('.run-btn').forEach(x => x.classList.toggle('active', x === b));
+    const img = panel.querySelector('.zoomable > img');
+    if (img) img.src = b.dataset.src;
+});
 document.addEventListener('click', e => {
     if (lightbox.classList.contains('open')) { closeLightbox(); return; }   // 點任意處關閉
     const fig = e.target.closest('.zoomable');

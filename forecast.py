@@ -245,6 +245,8 @@ LEGACY_PREFIXES = ["WNC-R2", "WNC-R1"]
 
 # 每個下載目錄保留的 cycle 數（4 cycle/日，12 期約三天）。
 KEEP_CYCLES = 12
+# 系集路徑圖保留前幾期（不含最新一期），網頁上可切換對照
+MAP_HISTORY_RUNS = 4
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CopilotDownloader/1.0)"}
 
@@ -3342,6 +3344,34 @@ def _cleanup_old_downloads(cfg: dict) -> None:
                 print(f"[{display}-CLEANUP] 警告: 移除 {name} 失敗: {e}")
 
 
+def _archive_forecast_map(save_path: str, init_time) -> list[tuple[str, str]]:
+    """把剛畫好的系集路徑圖另存一份 {原檔名}_{YYYYMMDDHH}.png，留最新的 MAP_HISTORY_RUNS + 1 期。
+
+    回傳比這期舊的前幾期 [(init ISO, 路徑), ...]，新到舊。同一期每輪重畫就覆蓋同一份，
+    所以歷史圖是那一期最後一次的樣子（含後來才補上的決定報）。失敗只警告，不中斷預報。
+    """
+    base, ext = os.path.splitext(save_path)
+    stamp = pd.Timestamp(init_time).strftime('%Y%m%d%H')
+    try:
+        shutil.copyfile(save_path, f"{base}_{stamp}{ext}")
+    except OSError as e:
+        print(f"[HISTORY] 警告: 另存 {save_path} 失敗: {e}")
+    d, name = os.path.split(base)
+    hist_re = re.compile(rf"^{re.escape(name)}_(\d{{10}}){re.escape(ext)}$")
+    try:
+        stamps = sorted((m.group(1) for m in map(hist_re.match, os.listdir(d)) if m), reverse=True)
+    except OSError as e:
+        print(f"[HISTORY] 警告: 無法列出 {d}: {e}")
+        return []
+    for old in stamps[MAP_HISTORY_RUNS + 1:]:
+        try:
+            os.remove(f"{base}_{old}{ext}")
+        except OSError as e:
+            print(f"[HISTORY] 警告: 移除 {base}_{old}{ext} 失敗: {e}")
+    return [(datetime.strptime(x, '%Y%m%d%H').strftime('%Y-%m-%dT%H:00:00Z'), f"{base}_{x}{ext}")
+            for x in stamps[:MAP_HISTORY_RUNS + 1] if x < stamp][:MAP_HISTORY_RUNS]
+
+
 def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> None:
     """移除本次未偵測到的颱風在此模式下的殘留產物。
 
@@ -3357,7 +3387,7 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     keep = set(keep_ids)
     p = re.escape(prefix)
     file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_"
-                         rf"(?:Forecast_(?:Map\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png|Det_Track_Trend\.png)$")
+                         rf"(?:Forecast_(?:Map(?:_\d{{10}})?\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png|Det_Track_Trend\.png)$")
     dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
@@ -3587,6 +3617,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
             save_path = os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Map.png")
             plot_forecast_map(df, mean_df, init_time, tid, save_path, model_name=display,
                               det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg))
+            map_history = _archive_forecast_map(save_path, init_time)
 
             # 侵襲機率圖：加分項，失敗只略過這張
             strike_path, city_strike = None, None
@@ -3670,6 +3701,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'model': display,
                 'ens_name': _ens_name(cfg),
                 'forecast_map_path': save_path,
+                'forecast_map_init': pd.Timestamp(init_time).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'forecast_map_history': map_history,
                 'strike_map_path': strike_path,
                 'city_strike': city_strike,
                 'plume_path': plume_path,
