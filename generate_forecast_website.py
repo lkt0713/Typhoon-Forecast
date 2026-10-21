@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.3.0"
+SITE_VERSION = "6.3.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -3460,7 +3460,7 @@ async function initTrackMap(box) {
             b.className = 'tm-chip';
             b.innerHTML = '<i></i>';
             b.append(label);
-            b.onclick = () => { onclick(); syncChips(); showInit(); draw(true); };
+            b.onclick = () => { onclick(); syncChips(); showInit(); draw(false); };
             chipBox.appendChild(b);
             return b;
         };
@@ -3498,6 +3498,7 @@ async function initTrackMap(box) {
                     .bindTooltip(ptsTip(m, d, p, det)).addTo(layer));
             ll.forEach(p => bounds.push(p));
         }
+        // 只有第一次載入時縮放到路徑範圍；之後切模式／期數都保留使用者目前的畫面，方便對照
         function draw(fit) {
             layer.clearLayers();
             const cmp = cmpOn(), list = (cmp ? shown() : [sel.value]).filter(has), bounds = [];
@@ -3572,17 +3573,17 @@ async function initTrackMap(box) {
                     catch (e) { console.log('[trackmap]', e); return; }
                     run = iso;
                     runBox.querySelectorAll('.run-btn').forEach(x => x.classList.toggle('active', x === b));
-                    syncAvail(); showInit(); draw(true);
+                    syncAvail(); showInit(); draw(false);
                 };
                 runBox.appendChild(b);
             });
         } else runBox.remove();
         showInit();
-        sel.onchange = () => { showInit(); draw(true); };
+        sel.onchange = () => { showInit(); draw(false); };
         cmpBtn.onclick = () => {
             cmpBtn.setAttribute('aria-pressed', !cmpOn());
             box.classList.toggle('tm-cmp', cmpOn());
-            showInit(); draw(true);
+            showInit(); draw(false);
         };
         showM.onchange = () => draw(false);
         showA.onchange = () => draw(false);
