@@ -2685,7 +2685,7 @@ def plot_steering_map(f: dict, step: int, cycle, tracks: dict, save_path: str) -
         kw = {}
     levels = [10, 20, 30, 40, 50, 60, 80]
     cf = ax.contourf(lon, lat, spd, levels=levels, cmap='PuBu', alpha=0.55, extend='max', zorder=1, **kw)
-    ax.streamplot(lon, lat, f['u'], f['v'], density=2.0, color='#3A4A5C', linewidth=0.55,
+    ax.streamplot(lon, lat, f['u'], f['v'], density=1.6, color='#3A4A5C', linewidth=0.55,
                   arrowsize=0.7, zorder=1.5, **kw)
     gh = f['gh']
     lo, hi = np.floor(np.nanmin(gh) / 30) * 30, np.ceil(np.nanmax(gh) / 30) * 30
@@ -2727,7 +2727,7 @@ def plot_steering_map(f: dict, step: int, cycle, tracks: dict, save_path: str) -
             "Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
             ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
-    plt.savefig(save_path, dpi=170, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     return save_path
 
