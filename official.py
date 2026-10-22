@@ -128,48 +128,66 @@ def _shape(x, depth=0):
     return type(x).__name__
 
 
+def _ci(d, key):
+    """不分大小寫取 dict 欄位（CWA 的欄位名稱是 PascalCase，例如 TropicalCyclones）。"""
+    if not isinstance(d, dict):
+        return None
+    if key in d:
+        return d[key]
+    lk = key.lower()
+    return next((v for k, v in d.items() if k.lower() == lk), None)
+
+
+def _as_list(x):
+    return x if isinstance(x, list) else ([x] if x else [])
+
+
+def _utc(txt):
+    """CWA 的時間（帶 +08:00）→ datetime（UTC）；格式不符回 None。"""
+    try:
+        t = datetime.fromisoformat(str(txt).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone(timedelta(hours=8)))
+    return t.astimezone(timezone.utc)
+
+
 def parse_cwa(data: dict) -> list[dict]:
-    """W-C0034-005 JSON → 統一格式。欄位依產品說明文件（fix_time／coordinate／max_wind_speed ...），
-    結構對不上時回空清單，不讓整個流程失敗。"""
+    """W-C0034-005 JSON → 統一格式。結構（2026-10 實際回傳）：
+    records.TropicalCyclones.TropicalCyclone[]：TyphoonName、CwaTyphoonName、
+      AnalysisData.Fix[]：DateTime、CoordinateLatitude／Longitude、MaxWindSpeed（m/s）、Pressure
+      ForecastData.Fix[]：InitialTime、ForecastHour、座標、MaxWindSpeed、Pressure、Radius70PercentProbability（km）
+    「現在」用時間等於預報起始時間的那筆分析（沒有就用最後一筆）。結構對不上回空清單。"""
     out = []
-    try:
-        cyclones = (((data.get("records") or {}).get("tropicalCyclones") or {}).get("tropicalCyclone") or [])
-    except AttributeError:
-        return out
-    for c in cyclones if isinstance(cyclones, list) else [cyclones]:
-        name = c.get("typhoonName") or c.get("cwaTyphoonName") or c.get("cwaTdNo")
+    tcs = _ci(_ci(_ci(data, 'records'), 'TropicalCyclones'), 'TropicalCyclone')
+    for c in _as_list(tcs):
+        name = _ci(c, 'TyphoonName') or _ci(c, 'CwaTyphoonName') or _ci(c, 'CwaTdNo')
+        an = _as_list(_ci(_ci(c, 'AnalysisData'), 'Fix'))
+        fc = _as_list(_ci(_ci(c, 'ForecastData'), 'Fix'))
+        init = _utc(_ci(fc[0], 'InitialTime')) if fc else None
+        now = None
+        if an:
+            now = next((a for a in an if init and _utc(_ci(a, 'DateTime')) == init), an[-1])
+        base = init or (_utc(_ci(now, 'DateTime')) if now else None)
         pts = []
-        an = ((c.get("analysisData") or {}).get("fix") or [])
-        an = an if isinstance(an, list) else [an]
-        last = an[-1] if an else None
-        issue = None
-        if last:
-            la, lo = _coord(last.get("coordinate"))
-            if la is not None:
-                pts.append({'h': 0, 'lat': la, 'lon': lo, 'kt': _ms_to_kt(last.get("maxWindSpeed")),
-                            'hpa': _num(last.get("pressure")), 'r70_km': None})
-                issue = last.get("fixTime")
-        fc = ((c.get("forecastData") or {}).get("fix") or [])
-        for f in fc if isinstance(fc, list) else [fc]:
-            la, lo = _coord(f.get("coordinate"))
-            tau = _num(f.get("tau"))
-            if la is None or tau is None:
+        if now:
+            la, lo = _num(_ci(now, 'CoordinateLatitude')), _num(_ci(now, 'CoordinateLongitude'))
+            if la is not None and lo is not None:
+                pts.append({'h': 0, 'lat': la, 'lon': lo, 'kt': _ms_to_kt(_ci(now, 'MaxWindSpeed')),
+                            'hpa': _num(_ci(now, 'Pressure')), 'r70_km': None})
+        for f in fc:
+            la, lo = _num(_ci(f, 'CoordinateLatitude')), _num(_ci(f, 'CoordinateLongitude'))
+            tau = _num(_ci(f, 'ForecastHour'))
+            if la is None or lo is None or not tau:
                 continue
-            pts.append({'h': int(tau), 'lat': la, 'lon': lo, 'kt': _ms_to_kt(f.get("maxWindSpeed")),
-                        'hpa': _num(f.get("pressure")),
-                        'r70_km': _num(f.get("radiusOf70PercentProbability"))})
-        if pts:
-            out.append({'agency': 'CWA', 'name': name, 'issue': issue, 'points': sorted(pts, key=lambda q: q['h'])})
+            pts.append({'h': int(tau), 'lat': la, 'lon': lo, 'kt': _ms_to_kt(_ci(f, 'MaxWindSpeed')),
+                        'hpa': _num(_ci(f, 'Pressure')), 'r70_km': _num(_ci(f, 'Radius70PercentProbability'))})
+        if pts and pts[0]['h'] == 0:
+            out.append({'agency': 'CWA', 'name': name,
+                        'issue': base.strftime('%Y-%m-%dT%H:%MZ') if base else None,
+                        'points': sorted(pts, key=lambda q: q['h'])})
     return out
-
-
-def _coord(txt):
-    """'125.4,20.8'（經度,緯度）→ (lat, lon)。"""
-    try:
-        lo, la = (float(x) for x in str(txt).split(","))
-        return la, lo
-    except (TypeError, ValueError):
-        return None, None
 
 
 def _ms_to_kt(x):
