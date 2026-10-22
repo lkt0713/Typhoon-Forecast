@@ -469,9 +469,12 @@ def _score_metric_cards(card: dict, sample: str) -> dict:
 
 
 def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set) -> str:
-    """一個分頁（範圍 × 樣本）裡的指標切換：路徑／沿路徑／跨路徑／強度。"""
+    """一個分頁（範圍 × 樣本）的內容：路徑誤差照原本的圖表放最前面，
+    下面再接「其他指標」分頁：沿路徑／跨路徑／強度。"""
+    track = cards.get('track') or {}
+    html = _score_chart(track, order, det_names, 'track') + _score_table(track, order, det_names, 'track')
     tabs, panels = [], []
-    for i, (mk, lkey, ltxt, _, _) in enumerate(SCORE_METRICS):
+    for i, (mk, lkey, ltxt, _, _) in enumerate(m for m in SCORE_METRICS if m[0] != 'track'):
         c = cards.get(mk) or {}
         tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
                     f'data-track="{_esc(key)}-m" data-model="{mk}"><span data-i18n="{lkey}">{ltxt}</span></button>')
@@ -482,8 +485,10 @@ def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set
         hide = '' if i == 0 else ' style="display:none;"'
         panels.append(f'<div class="model-panel" data-track="{_esc(key)}-m" data-model="{mk}"{hide}>'
                       f'{note}{body}</div>')
-    return (f'<div class="seg model-tabs score-metrics" role="tablist"><span class="seg-ind"></span>'
-            f'{"".join(tabs)}</div>' + ''.join(panels))
+    html += (f'<h4 class="score-more" data-i18n="score.more">More measures</h4>'
+             f'<div class="seg model-tabs score-metrics" role="tablist"><span class="seg-ind"></span>'
+             f'{"".join(tabs)}</div>' + ''.join(panels))
+    return html
 
 
 def _score_block(track_key: str, scope_cards: list, order: list[str], det_names: set) -> str:
@@ -1235,7 +1240,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">🏁</span>
-                    <span data-i18n="panel.score">Forecast Error by Model</span>
+                    <span data-i18n="panel.score">Track Error by Model</span>
                 </div>
                 {body}
                 <p class="map-note" data-i18n="note.score">
@@ -1536,7 +1541,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
                         <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
-                        <div><h4 data-i18n="panel.score">Forecast Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
+                        <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
                     </div>
                 </div>
@@ -2273,6 +2278,7 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .run-btn:hover { color: var(--text); border-color: var(--text); }
 .run-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 .off-table td.c-off { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score-more { margin: 28px 0 10px; font-size: 1em; font-weight: 750; }
 /* ── 颱風歷史存檔 ── */
 .arch-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 18px 0 22px; }
 .arch-card { position:relative; display:flex; flex-direction:column; gap: 7px; text-align:left; padding: 16px 18px 15px; border: 1px solid var(--border); border-top: 3px solid var(--cat); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: border-color .2s, transform .2s, box-shadow .2s; }
@@ -3090,7 +3096,7 @@ const I18N = {
     'tmap.na':          'not issued yet',
     'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
     'sub.score':        'Verification',
-    'panel.score':      'Forecast Error by Model',
+    'panel.score':      'Track Error by Model',
     'score.model':      'Model',
     'score.all':        'All storms (last 90 days)',
     'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
@@ -3121,6 +3127,7 @@ const I18N = {
     'panel.steer':      'Steering Flow (500 hPa)',
     'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
     'score.m.track': 'Track',
+    'score.more':     'More measures: along-track, cross-track and intensity',
     'score.m.at': 'Along-track',
     'score.m.ct': 'Cross-track',
     'score.m.int': 'Intensity',
@@ -3293,7 +3300,7 @@ const I18N = {
     'tmap.na':          '尚未出報',
     'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
     'sub.score':        '成績',
-    'panel.score':      '模式預報誤差',
+    'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
     'score.all':        '所有颱風合計（近 90 天）',
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
@@ -3324,6 +3331,7 @@ const I18N = {
     'panel.steer':      '駛流場（500 hPa）',
     'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',
     'score.m.track': '路徑誤差',
+    'score.more':     '其他指標：沿路徑、跨路徑與強度',
     'score.m.at': '沿路徑',
     'score.m.ct': '跨路徑',
     'score.m.int': '強度',
