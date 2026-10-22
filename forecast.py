@@ -2489,8 +2489,11 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
         _setup_plain_axes(ax, extent)
         kw = {}
     handles, labels = [], []
-    for f in fcs:
+    # 各單位標籤放不同側（右上／左上／右下），路徑貼在一起時字才不會疊在一起
+    label_pos = [(0.35, 0.25, 'left'), (-0.35, 0.25, 'right'), (0.35, -0.75, 'left')]
+    for i, f in enumerate(fcs):
         c = OFFICIAL_COLORS.get(f['agency'], MEAN_COLOR)
+        dx, dy, ha = label_pos[i % len(label_pos)]
         pts = f['points']
         plon = _normalize_lon_values(np.array([p['lon'] for p in pts]), use_360=use_360)
         plat = np.array([p['lat'] for p in pts])
@@ -2500,11 +2503,15 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
         # 線照樣連過所有點，前 24 小時圓點只畫 12 小時整數倍，跟 JTWC 一致；之後每個預報點都畫
         dot = np.array([p['h'] % 12 == 0 or p['h'] > 24 for p in pts])
         ax.scatter(plon[dot], plat[dot], s=30, facecolors='white', edgecolors=c, linewidths=1.6, zorder=5, **kw)
+        # 標籤寫實際時間（UTC），不寫預報時數：各單位起報時間不同（例如 JTWC 06Z、JMA 12Z），
+        # 同樣寫 +24 其實差了好幾小時，寫成 23/12Z 才能直接對照同一時刻在哪裡
+        base = pd.Timestamp(f['issue']).floor('h') if f.get('issue') else None
         for p, x, y in zip(pts, plon, plat):
-            if p['h'] in (24, 48, 72, 96, 120):
-                ax.text(x + 0.35, y + 0.25, f"+{p['h']}", fontsize=7.5, color=c, fontweight='bold', zorder=6,
+            if base is not None and p['h'] > 0 and (p['h'] % 24 == 0 or (p['h'] > 24 and p['h'] % 12)):
+                t = base + pd.Timedelta(hours=p['h'])
+                ax.text(x + dx, y + dy, f"{t:%d/%H}Z", fontsize=7.5, color=c, fontweight='bold', zorder=6, ha=ha,
                         path_effects=[mpe.withStroke(linewidth=2.4, foreground='white')], **kw)
-        issue = pd.Timestamp(f['issue']).strftime('%m/%d %HZ') if f.get('issue') else ''
+        issue = base.strftime('%m/%d %HZ') if base is not None else ''
         handles.append(mlines.Line2D([], [], color=c, lw=2.4, marker='o', ms=5, markerfacecolor='white', markeredgecolor=c))
         labels.append(f"{f['agency']}  {issue}")
     leg = ax.legend(handles, labels, loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42, **LEGEND_KW)
@@ -2512,7 +2519,7 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
     name = next((f['name'] for f in fcs if f.get('name')), None)
     ax.set_title(f"Official Forecasts  ·  {tid}" + (f" ({str(name).upper()})" if name else ''), loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, "JTWC 1-min winds  ·  JMA / CWA 10-min winds  ·  Labels = forecast hour",
+    ax.text(0, 1.012, "JTWC 1-min winds  ·  JMA / CWA 10-min winds  ·  Labels = valid time (day/hour UTC)",
             transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
     plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
