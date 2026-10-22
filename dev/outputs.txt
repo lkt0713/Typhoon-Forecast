@@ -1,5 +1,0 @@
-WP_Steering_*
-WP_Steering.json
-*_Official.png
-archive
-WP_OHC.png
