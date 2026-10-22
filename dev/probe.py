@@ -1,5 +1,6 @@
 """Temporary probes run on the GitHub runner (the dev sandbox cannot reach these hosts)."""
-import json, os, requests
+import json, os, sys, requests
+sys.path.insert(0, os.getcwd())
 
 H = {"User-Agent": "Mozilla/5.0 (typhoon-forecast dev probe)"}
 
