@@ -23,8 +23,11 @@ jobs:
     # 上一輪的 update 還沒跑完時，新的一輪排隊等，不要兩輪同時改 docs/。
     # 只鎖 update 這個 job，不鎖整輪：Pages 部署排隊卡住時（2026-10-22 等了 20 分鐘），
     # 下一輪的預報照樣跑，網站等部署恢復後由最新一輪的 deploy 一次補上
+    # group 名稱不用舊的 auto-update：2026-10-22 13:46 那輪成了幽靈（job 全結束、run 卻永遠
+    # in_progress，取消 API 回「not in progress」），一直佔著 auto-update 這個 group，
+    # 之後同名的都排不進去
     concurrency:
-      group: auto-update
+      group: forecast-update
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 40
