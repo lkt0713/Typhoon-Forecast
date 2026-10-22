@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.6.2"
+SITE_VERSION = "6.6.3"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1841,7 +1841,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     Ensemble track forecasts from DeepMind WeatherNext
                     (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data
                     (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>
-                    Official intensity guidance from JTWC. Data refreshed automatically.
+                    Official forecasts from JTWC, JMA and CWA; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup.
+                    Data refreshed automatically.
                 </p>
             </div>
             <div class="footer-links">
@@ -1852,6 +1853,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <a href="https://nomads.ncep.noaa.gov/" class="footer-link" target="_blank" rel="noopener"
                    data-i18n="footer.link3">🇺🇸 NOAA NOMADS</a>
                 <a href="https://www.metoc.navy.mil/jtwc/jtwc.html" class="footer-link" target="_blank" rel="noopener">🛰 JTWC</a>
+                <a href="https://www.jma.go.jp/bosai/map.html#contents=typhoon" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link4">🇯🇵 JMA Typhoon Information</a>
+                <a href="https://opendata.cwa.gov.tw/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link5">🇹🇼 CWA Open Data</a>
+                <a href="https://marine.copernicus.eu/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link6">🌊 Copernicus Marine (CMEMS)</a>
+                <a href="https://www.hycom.org/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link7">🌊 HYCOM</a>
             </div>
             <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
             <div class="footer-credit" data-i18n="footer.credit">Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a></div>
@@ -3346,10 +3355,14 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official intensity guidance from JTWC. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official forecasts from JTWC, JMA and CWA; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
+    'footer.link4':     '🇯🇵 JMA Typhoon Information',
+    'footer.link5':     '🇹🇼 CWA Open Data',
+    'footer.link6':     '🌊 Copernicus Marine (CMEMS)',
+    'footer.link7':     '🌊 HYCOM',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
     'footer.credit':    'Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a>',
     'lb.close':         'Close',
@@ -3549,10 +3562,14 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方強度指引來自 JTWC，資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方預報來自 JTWC、日本氣象廳與中央氣象署；海洋熱含量來自哥白尼海洋服務（CMEMS），HYCOM 為備援。資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
+    'footer.link4':     '🇯🇵 日本氣象廳颱風資訊',
+    'footer.link5':     '🇹🇼 中央氣象署開放資料',
+    'footer.link6':     '🌊 哥白尼海洋服務（CMEMS）',
+    'footer.link7':     '🌊 HYCOM 海洋模式',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
     'footer.credit':    '設計參考 <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency（usta.agency）</a>',
     'lb.close':         '關閉',
