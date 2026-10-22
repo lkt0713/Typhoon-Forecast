@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.6.3"
+SITE_VERSION = "6.7.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1652,7 +1652,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them on a common style every 10 minutes, next to the official JTWC forecast.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -1675,6 +1675,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
+                        <div><h4 data-i18n="arch.title">Storm Archive</h4><p class="map-note" data-i18n="arch.lead"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
                     </div>
                 </div>
@@ -1686,6 +1687,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step animation frames</span></div>
                         <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the enlarged image</span></div>
                     </div>
+                </div>
+                <div class="panel reveal about-app">
+                    <div class="panel-header"><span class="panel-icon">📱</span><span data-i18n="about.app">Use it like an app</span></div>
+                    <p class="map-note" data-i18n="about.app.text">iPhone: open the site in Safari, tap Share → Add to Home Screen. Android: open it in Chrome, tap ⋮ → Add to home screen. It opens full screen like an app and always shows the latest forecast. Links shared on LINE or Facebook show a preview card with the latest map, storm name, intensity and update time.</p>
                 </div>
                 <div class="panel reveal disclaimer">
                     <div class="panel-header"><span class="panel-icon">⚠️</span><span data-i18n="about.notice">Notice</span></div>
@@ -2549,10 +2554,11 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 /* 寬螢幕排成三欄時，注意事項固定放右下（快捷鍵下方），不要掉到左邊第二列 */
 @media (min-width: 1340px) {
     .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
-    .about-scale { grid-column: 1; grid-row: 1 / span 2; }
-    .about-read  { grid-column: 2; grid-row: 1 / span 2; }
+    .about-scale { grid-column: 1; grid-row: 1 / span 3; }
+    .about-read  { grid-column: 2; grid-row: 1 / span 3; }
     .about-keys  { grid-column: 3; grid-row: 1; }
-    .about-grid .disclaimer { grid-column: 3; grid-row: 2; }
+    .about-app   { grid-column: 3; grid-row: 2; }
+    .about-grid .disclaimer { grid-column: 3; grid-row: 3; }
 }
 .scale-row { display:grid; grid-template-columns: 70px 1fr auto; align-items:center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-weight: 650; font-size:.9em; }
 .scale-row .badge-cat { text-align:center; }
@@ -3343,11 +3349,13 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a scorecard of track, along-/cross-track and intensity errors.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
     'about.keys':       'Keyboard shortcuts',
+    'about.app':        'Use it like an app',
+    'about.app.text':   'iPhone: open the site in Safari, tap Share → Add to Home Screen. Android: open it in Chrome, tap ⋮ → Add to home screen. It opens full screen like an app and always shows the latest forecast. Links shared on LINE or Facebook show a preview card with the latest map, storm name, intensity and update time.',
     'about.notice':     'Notice',
     'about.disclaimer': 'Not for operational use. For official warnings, follow your national meteorological agency.',
     'key.views':        'Switch pages',
@@ -3550,11 +3558,13 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報，以及模式的路徑、沿／跨路徑與強度誤差成績單。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、各國官方預報比較、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報、颱風底下的海洋熱含量、500 hPa 駛流場，以及模式的路徑、沿／跨路徑與強度誤差成績單。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
     'about.keys':       '鍵盤快捷鍵',
+    'about.app':        '像 App 一樣使用',
+    'about.app.text':   'iPhone：用 Safari 打開本站，按「分享 → 加入主畫面」。Android：用 Chrome 打開，按 ⋮ →「加到主畫面」。點圖示會以全螢幕打開，每次都是最新的預報。分享到 LINE 或 Facebook 的連結會顯示預覽卡片：最新的預報圖、颱風名稱、強度與更新時間。',
     'about.notice':     '注意事項',
     'about.disclaimer': '本站僅供參考，不可作為作業依據；官方警報請以各國氣象單位發布為準。',
     'key.views':        '切換頁面',
