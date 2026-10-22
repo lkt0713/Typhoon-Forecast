@@ -75,7 +75,8 @@ def _load_cached(max_age_h: float, source: str | None = None):
     src = str(d['source']) if 'source' in d.files else 'HYCOM'
     if source is not None and src != source:
         return None
-    return d['time'], d['lat'], d['lon'], d['tchp'], src
+    # np.load 讀回的時間是 0 維陣列，取出成 datetime64 純量（pd.Timestamp 不收陣列）
+    return d['time'][()], d['lat'], d['lon'], d['tchp'], src
 
 
 def fetch() -> tuple:
