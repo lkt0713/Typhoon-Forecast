@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.5.1"
+SITE_VERSION = "6.6.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -665,6 +665,140 @@ def _load_archive(docs_dir: str) -> list[dict]:
                     'n': sum(len(v) for v in fc.values()), 'models': len(fc)})
     out.sort(key=lambda e: e['last'] or '', reverse=True)
     return out
+
+
+# ── 分享預覽（LINE／Facebook 的 Open Graph 卡片）與加到主畫面（Web App Manifest）──
+# 預覽圖與圖示的網址必須是絕對網址；在 GitHub Actions 裡由 GITHUB_REPOSITORY 推出 Pages 網址，
+# 也可用環境變數 SITE_URL 覆寫（例如改用自訂網域時）
+SITE_NAME = "Pillar's Tropical Cyclone Forecast"
+SITE_SHORT_NAME = "颱風預報"
+APP_BG = '#071320'          # 深色主題的底色，也是主畫面啟動畫面的底色
+SHARE_IMAGE = 'share.png'   # 1200×630，Open Graph 建議尺寸
+APP_ICONS = (('icon-192.png', 192), ('icon-512.png', 512), ('apple-touch-icon.png', 180))
+
+
+def _site_url() -> str:
+    url = os.environ.get('SITE_URL', '').strip()
+    if not url:
+        owner, _, repo = os.environ.get('GITHUB_REPOSITORY', 'lkt0713/Typhoon-Forecast').partition('/')
+        url = f"https://{owner.lower()}.github.io/{repo}/"
+    return url if url.endswith('/') else url + '/'
+
+
+def _font(size: int, bold: bool = True):
+    from PIL import ImageFont  # type: ignore
+    from matplotlib import font_manager  # type: ignore
+    path = font_manager.findfont(font_manager.FontProperties(family='DejaVu Sans', weight='bold' if bold else 'normal'))
+    return ImageFont.truetype(path, size)
+
+
+def _app_icon(size: int):
+    """主畫面圖示：網站主色漸層底＋白色熱帶氣旋符號。整張滿版（不自己切圓角），
+    符號留在中間 60% 內，Android 的圓形／圓角遮罩（maskable）切掉邊緣也不會切到符號。"""
+    import numpy as np  # type: ignore
+    from PIL import Image, ImageDraw  # type: ignore
+    S = size * 4                                      # 先畫 4 倍大再縮小，邊緣比較平滑
+    y = np.linspace(0, 1, S)[:, None]
+    x = np.linspace(0, 1, S)[None, :]
+    t = np.clip((x + y) / 2, 0, 1)[..., None]
+    a, b = np.array([27, 92, 148]), np.array([15, 155, 142])   # --accent → --accent-2
+    img = Image.fromarray((a + (b - a) * t).astype('uint8'), 'RGB')
+    d = ImageDraw.Draw(img)
+    c, r, R, w = S / 2, S * 0.1, S * 0.2, int(S * 0.045)
+    d.ellipse([c - r, c - r, c + r, c + r], outline='white', width=w)
+    # 兩條旋臂（天氣圖上的颱風符號）：從圓的右緣往上甩向左、從左緣往下甩向右，北半球逆時針
+    for cx, a0, a1 in ((c + r - R, 210, 360), (c - r + R, 30, 180)):
+        d.arc([cx - R, c - R, cx + R, c + R], a0, a1, fill='white', width=w)
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def _write_app_assets(docs_dir: str) -> None:
+    """圖示只在不存在時畫一次；manifest 每次重寫（內容固定，git 不會出現變動）。"""
+    for fn, size in APP_ICONS:
+        path = os.path.join(docs_dir, fn)
+        if not os.path.exists(path):
+            _app_icon(size).save(path, optimize=True)
+    manifest = {
+        'name': SITE_NAME, 'short_name': SITE_SHORT_NAME,
+        'description': 'AI and physics-based ensemble forecasts for Western Pacific tropical cyclones',
+        'lang': 'zh-TW', 'start_url': './', 'scope': './', 'display': 'standalone',
+        'background_color': APP_BG, 'theme_color': APP_BG,
+        'icons': [{'src': fn, 'sizes': f'{n}x{n}', 'type': 'image/png', 'purpose': 'any maskable'}
+                  for fn, n in APP_ICONS if fn.startswith('icon-')],
+    }
+    with open(os.path.join(docs_dir, 'manifest.webmanifest'), 'w', encoding='utf-8') as fh:
+        json.dump(manifest, fh, ensure_ascii=False, indent=1)
+
+
+def _write_share_image(docs_dir: str, lead: dict | None, updated: str, genesis_png: str | None) -> bool:
+    """分享卡片圖：左邊文字（站名、颱風名、強度、更新時間），右邊最新的模式比較圖；
+    沒有颱風時改放生成潛勢圖。兩者都沒有就不產生（網頁也不放 og:image）。"""
+    from PIL import Image, ImageDraw  # type: ignore
+    src = os.path.join(docs_dir, f"{lead['id']}_Model_Comparison.png") if lead else None
+    if not (src and os.path.exists(src)):
+        src = genesis_png if genesis_png and os.path.exists(genesis_png) else None
+    if not src:
+        return False
+    W, H, LW = 1200, 630, 400
+    card = Image.new('RGB', (W, H), 'white')
+    card.paste(APP_BG, (0, 0, LW, H))
+    m = Image.open(src).convert('RGB')
+    scale = min((W - LW) / m.width, H / m.height)    # 整張圖放進右側，不裁切
+    m = m.resize((round(m.width * scale), round(m.height * scale)), Image.LANCZOS)
+    card.paste(m, (LW + (W - LW - m.width) // 2, (H - m.height) // 2))
+    d = ImageDraw.Draw(card)
+    d.rectangle([0, 0, 8, H], fill='#58b0e8')
+    d.text((44, 48), "Pillar's\nTropical Cyclone\nForecast", font=_font(28), fill='#c9dbea', spacing=8)
+    if lead:
+        name = (lead['name'] or lead['id']).upper()
+        size = 60 if len(name) <= 9 else 44
+        d.text((44, 210), name, font=_font(size), fill='white')
+        sub = lead['id'] + (f"  ·  {lead['wind']:.0f} kt" if lead.get('wind') is not None else '')
+        d.text((44, 210 + size + 22), sub, font=_font(30, bold=False), fill='white')
+        d.rounded_rectangle([44, 210 + size + 76, 44 + 150, 210 + size + 84], 4, fill=lead['color'])
+    else:
+        d.text((44, 210), 'Genesis\nOutlook', font=_font(56), fill='white', spacing=10)
+    d.text((44, H - 84), 'Updated', font=_font(22, bold=False), fill='#8fa6ba')
+    d.text((44, H - 56), updated, font=_font(26), fill='white')
+    card.save(os.path.join(docs_dir, SHARE_IMAGE), optimize=True)
+    return True
+
+
+def _share_meta(lead: dict | None, track_ids: list, updated: str, has_image: bool, stamp: str) -> str:
+    url = _site_url()
+    if lead:
+        name = (lead['name'] or lead['id']).upper()
+        wind = f" {lead['wind']:.0f} kt" if lead.get('wind') is not None else ''
+        others = f"（另有 {len(track_ids) - 1} 個系統）" if len(track_ids) > 1 else ''
+        desc = f"{name}{wind}{others} · 更新 {updated} · AI 與物理模式系集路徑、侵襲機率、登陸臺灣機率"
+    else:
+        desc = f"目前沒有活躍颱風 · 西太平洋生成潛勢 · 更新 {updated}"
+    title = f"{SITE_NAME} | {' / '.join(track_ids) or 'Forecast'}"
+    tags = [
+        f'<meta name="description" content="{_esc(desc)}">',
+        f'<meta name="theme-color" content="{APP_BG}">',
+        '<link rel="manifest" href="manifest.webmanifest">',
+        '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">',
+        '<link rel="apple-touch-icon" href="apple-touch-icon.png">',
+        '<meta name="apple-mobile-web-app-capable" content="yes">',
+        '<meta name="mobile-web-app-capable" content="yes">',
+        f'<meta name="apple-mobile-web-app-title" content="{_esc(SITE_SHORT_NAME)}">',
+        '<meta property="og:type" content="website">',
+        f'<meta property="og:site_name" content="{_esc(SITE_NAME)}">',
+        f'<meta property="og:title" content="{_esc(title)}">',
+        f'<meta property="og:description" content="{_esc(desc)}">',
+        f'<meta property="og:url" content="{_esc(url)}">',
+        '<meta property="og:locale" content="zh_TW">',
+    ]
+    if has_image:
+        # 每次更新換查詢字串，LINE／Facebook 才會重抓新圖，不沿用舊快取
+        img = f"{url}{SHARE_IMAGE}?v={stamp}"
+        tags += [f'<meta property="og:image" content="{_esc(img)}">',
+                 '<meta property="og:image:width" content="1200">',
+                 '<meta property="og:image:height" content="630">',
+                 '<meta name="twitter:card" content="summary_large_image">',
+                 f'<meta name="twitter:image" content="{_esc(img)}">']
+    return '\n    '.join(tags)
 
 
 def generate_forecast_html(storms: list[dict], output_path: str,
@@ -1630,12 +1764,24 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     }
     site_json = json.dumps(site_data, ensure_ascii=False).replace('</', '<\\/')
 
+    docs_dir = os.path.dirname(output_path) or '.'
+    share_time = now_local.strftime('%m/%d %H:%M UTC%z').replace('+0800', '+8')
+    try:
+        _write_app_assets(docs_dir)
+        has_share = _write_share_image(docs_dir, lead, share_time,
+                                       os.path.join(docs_dir, _genesis_entries[0][1]) if _genesis_entries else None)
+    except Exception as e:  # 預覽圖失敗不該讓整個網站停更
+        print(f"[HTML] 分享預覽圖／圖示產生失敗，略過: {e}")
+        has_share = os.path.exists(os.path.join(docs_dir, SHARE_IMAGE))
+    share_meta = _share_meta(lead, track_ids, share_time, has_share, now_local.strftime('%Y%m%d%H%M'))
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
+    {share_meta}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200..800&family=Oswald:wght@300..700&family=Noto+Sans+TC:wght@300..900&display=swap">
