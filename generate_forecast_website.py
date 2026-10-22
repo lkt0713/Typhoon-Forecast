@@ -1166,9 +1166,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 if not p:
                     return '<td class="c-nil">—</td>'
                 kt = f"{p['kt']:.0f} kt" if p.get('kt') is not None else '–'
-                r70 = f" · 70% {p['r70_km']:.0f} km" if p.get('r70_km') and f['agency'] == 'CWA' else ''
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
-                        f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}{r70}</span></td>')
+                        f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
                            f'<span class="eta">{_esc(f["issue"][5:16].replace("-", "/").replace("T", " ")) if f.get("issue") else ""}</span></th>'
                            for f in fcs)
@@ -1184,7 +1183,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="city-table-wrap"><table class="city-table off-table">
                     <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
                 </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; Shaded circles = CWA 70% probability circles: the center should end up inside with 70% chance &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)</p>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)</p>
             </div>"""
 
         steer_html = ""
@@ -3097,7 +3096,7 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.hour':         'Hour',
-    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; Shaded circles = CWA 70% probability circles: the center should end up inside with 70% chance &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)',
+    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
     'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
@@ -3297,7 +3296,7 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.hour':         '時數',
-    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; 淡色圓＝CWA 的 70% 機率圓：颱風中心有 70% 機率落在圓內 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝發布時間（UTC）',
+    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝發布時間（UTC）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
     'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',

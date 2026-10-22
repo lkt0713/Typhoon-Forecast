@@ -2437,11 +2437,9 @@ def compute_scorecard() -> dict:
 
 
 # ── 官方預報比較（JTWC／JMA／CWA）──────────────────────────────────────
-# 三個單位的官方路徑疊在同一張圖，加上 CWA 的 70% 機率圓；網頁另附各時數的位置與風速表。
+# 三個單位的官方路徑疊在同一張圖（只畫路徑，不畫機率圓）；網頁另附各時數的位置與風速表。
 # JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一個颱風 JTWC 的數字通常比較大。
 OFFICIAL_COLORS = {'JTWC': '#DC2626', 'JMA': '#2563EB', 'CWA': '#059669'}
-# 只畫 CWA 的 70% 機率圓；JMA 的不畫（使用者要求，圖面較乾淨）
-OFFICIAL_CIRCLES = {'CWA'}
 OFFICIAL_MATCH_KM = 300.0
 OFFICIAL_TABLE_H = [0, 24, 48, 72, 96, 120]
 
@@ -2496,13 +2494,6 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
         pts = f['points']
         plon = _normalize_lon_values(np.array([p['lon'] for p in pts]), use_360=use_360)
         plat = np.array([p['lat'] for p in pts])
-        for p, x, y in zip(pts, plon, plat):     # 70% 機率圓（只畫 CWA）：近似成經緯度上的橢圓
-            if p.get('r70_km') and f['agency'] in OFFICIAL_CIRCLES:
-                th = np.linspace(0, 2 * np.pi, 72)
-                dy = p['r70_km'] / 111.2
-                dx = dy / max(np.cos(np.radians(y)), 0.2)
-                ax.fill(x + dx * np.cos(th), y + dy * np.sin(th), color=c, alpha=0.10, lw=0, zorder=1.8, **kw)
-                ax.plot(x + dx * np.cos(th), y + dy * np.sin(th), color=c, alpha=0.45, lw=0.8, zorder=1.9, **kw)
         ax.plot(plon, plat, color='white', lw=4.6, alpha=0.8, zorder=3, **kw)
         ax.plot(plon, plat, color=c, lw=2.4, zorder=3.1, **kw)
         ax.scatter(plon, plat, s=30, facecolors='white', edgecolors=c, linewidths=1.6, zorder=5, **kw)
@@ -2512,8 +2503,7 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
                         path_effects=[mpe.withStroke(linewidth=2.4, foreground='white')], **kw)
         issue = pd.Timestamp(f['issue']).strftime('%m/%d %HZ') if f.get('issue') else ''
         handles.append(mlines.Line2D([], [], color=c, lw=2.4, marker='o', ms=5, markerfacecolor='white', markeredgecolor=c))
-        labels.append(f"{f['agency']}  {issue}" + ('  · 70% circles' if f['agency'] in OFFICIAL_CIRCLES
-                                                         and any(p.get('r70_km') for p in pts) else ''))
+        labels.append(f"{f['agency']}  {issue}")
     leg = ax.legend(handles, labels, loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42, **LEGEND_KW)
     _style_legend(leg)
     name = next((f['name'] for f in fcs if f.get('name')), None)
