@@ -51,6 +51,8 @@ jobs:
         env:
           TZ: Asia/Taipei
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
         run: python forecast.py 2>&1 | tee forecast.log | grep -vE "已生成第|FRAME\]" | tail -150
       - name: Save outputs to the branch
         if: hashFiles('dev/PROBE_ONLY') == ''

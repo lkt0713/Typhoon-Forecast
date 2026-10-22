@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes ecmwf-opendata netCDF4
+          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes ecmwf-opendata netCDF4 copernicusmarine
 
       # 下載目錄在 .gitignore 裡不進 repo；用 cache 在各輪之間保留，
       # _resolve_cycle 回溯舊 cycle 與潛勢圖的退路才有檔案可用。
@@ -74,6 +74,10 @@ jobs:
         timeout-minutes: 25
         env:
           TZ: Asia/Taipei
+          # 選用：氣象署官方預報、CMEMS 海洋熱含量；沒設 secret 時各自略過或改用備援來源
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
         run: python forecast.py
 
       - name: Compute cache key

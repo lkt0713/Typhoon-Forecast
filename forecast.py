@@ -2552,7 +2552,7 @@ def make_official_forecasts(storms: list) -> None:
             os.remove(os.path.join(OUTPUT_DIR, name))
 
 
-# ── 海洋熱含量（由 HYCOM 水溫算的 TCHP）＋颱風目前位置 ───────────────────────────
+# ── 海洋熱含量（由 CMEMS／HYCOM 水溫算的 TCHP）＋颱風目前位置 ───────────────────────────
 # 一張西北太平洋圖：最新一天的 TCHP（kJ/cm²），50 kJ/cm² 等值線（有利增強的常用門檻），
 # 疊上每顆颱風目前位置（依強度上色）與 JTWC 已走過的路徑。資料抓取見 ohc.py。
 OHC_EXTENT = (100, 180, 0, 50)
@@ -2560,55 +2560,64 @@ OHC_PATH = os.path.join(OUTPUT_DIR, "WP_OHC.png")
 OHC_THRESHOLD = 50
 
 
-def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str) -> str:
-    from matplotlib.colors import BoundaryNorm
-    fig = plt.figure(figsize=(11, 7.6), facecolor='white')
+OHC_LEVELS = [0, 20, 40, 50, 80, 100, 150, 200]
+# 色階照 CMEMS OHC 產品圖（使用者指定的樣式）：青→綠→黃綠→黃→琥珀→橘→紅，200 以上洋紅；陸地黑色、白色海岸線
+OHC_COLORS = ['#00C7C7', '#00D18C', '#A1E530', '#E5DB30', '#E5B02E', '#F08229', '#FA3D3D']
+OHC_OVER = '#F00082'
+
+
+def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source: str = 'CMEMS') -> str:
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+    fig = plt.figure(figsize=(11, 7.0), facecolor='white')
     if HAS_CARTOPY:
         ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
-        _setup_basemap(ax, OHC_EXTENT)
+        ax.set_extent(OHC_EXTENT, crs=ccrs.PlateCarree())
+        ax.set_facecolor('black')
         kw = dict(transform=ccrs.PlateCarree())
     else:
         ax = fig.add_subplot(111)
-        _setup_plain_axes(ax, OHC_EXTENT)
+        ax.set_xlim(OHC_EXTENT[0], OHC_EXTENT[1]); ax.set_ylim(OHC_EXTENT[2], OHC_EXTENT[3])
+        ax.set_facecolor('black')
         kw = {}
-    levels = [0, 10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200]
-    cmap = plt.get_cmap('YlOrRd', len(levels))
-    pm = ax.pcolormesh(lon, lat, np.ma.masked_invalid(tchp), cmap=cmap,
-                       norm=BoundaryNorm(levels, cmap.N, extend='max'), shading='auto', zorder=1, **kw)
-    c50 = ax.contour(lon, lat, np.nan_to_num(tchp, nan=0.0), levels=[OHC_THRESHOLD], colors='#16324F',
-                     linewidths=1.3, linestyles='--', zorder=2, **kw)
-    ax.clabel(c50, fmt={OHC_THRESHOLD: f'{OHC_THRESHOLD}'}, fontsize=8, inline=True)
+    cmap = ListedColormap(OHC_COLORS)
+    cmap.set_over(OHC_OVER)
+    cmap.set_bad('black')
+    cmap.set_under('black')
+    # 熱含量 0（水溫不到 26°C）照參考圖畫成黑色，跟陸地一樣
+    pm = ax.pcolormesh(lon, lat, np.ma.masked_invalid(np.where(tchp > 0, tchp, -1.0)), cmap=cmap,
+                       norm=BoundaryNorm(OHC_LEVELS, cmap.N), shading='auto', zorder=1, **kw)
     if HAS_CARTOPY:
-        ax.add_feature(cfeature.LAND, facecolor=BASEMAP['land'], zorder=2.2)
+        ax.add_feature(cfeature.LAND, facecolor='black', zorder=2)
+        ax.coastlines(resolution='50m', linewidth=0.8, color='white', zorder=2.5)
+        gl = ax.gridlines(draw_labels=True, linewidth=0, alpha=0)
+        gl.right_labels = gl.top_labels = False
+        gl.xlocator = mticker.FixedLocator(range(100, 181, 10))
+        gl.ylocator = mticker.FixedLocator(range(0, 51, 10))
+        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_DARK}
     for st in storms_now:
         if st.get('track') and len(st['track']) > 1:
             tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
-            ax.plot(tl, [p[0] for p in st['track']], color='white', lw=3.4, alpha=0.85, zorder=3, **kw)
-            ax.plot(tl, [p[0] for p in st['track']], color=MEAN_COLOR, lw=1.6, zorder=3.1, **kw)
+            ax.plot(tl, [p[0] for p in st['track']], color='black', lw=3.4, alpha=0.75, zorder=3, **kw)
+            ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3.1, **kw)
         col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
-        ax.scatter([st['lon']], [st['lat']], s=210, marker='o', color=col, edgecolors='white',
-                   linewidths=2.2, zorder=6, **kw)
-        ax.scatter([st['lon']], [st['lat']], s=26, marker='o', color='white', zorder=6.1, **kw)
+        ax.scatter([st['lon']], [st['lat']], s=230, marker='o', color=col, edgecolors='white',
+                   linewidths=2.4, zorder=6, **kw)
+        ax.scatter([st['lon']], [st['lat']], s=28, marker='o', color='white', zorder=6.1, **kw)
         label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
-        ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9, fontweight='bold', color=TEXT_DARK, zorder=7,
-                path_effects=[mpe.withStroke(linewidth=2.8, foreground='white')], **kw)
-    cb = fig.colorbar(pm, ax=ax, orientation='horizontal', pad=0.06, fraction=0.04, aspect=45, shrink=0.8)
-    cb.set_label('Tropical cyclone heat potential (kJ/cm²)', color=TEXT_MUTED, fontsize=9)
-    cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
-    cb.outline.set_edgecolor(BOX_EDGE)
-    handles = [mlines.Line2D([], [], color='#16324F', lw=1.3, ls='--'),
-               mlines.Line2D([], [], color=MEAN_COLOR, lw=1.6, marker='o', ms=9,
-                             markerfacecolor='#DC3A4E', markeredgecolor='white')]
-    leg = ax.legend(handles, [f'{OHC_THRESHOLD} kJ/cm² (favors intensification above)',
-                              'Current position (JTWC) · line = track so far'],
-                    loc='lower left', fontsize=8, borderpad=0.7, labelspacing=0.4, **LEGEND_KW)
-    _style_legend(leg)
-    ax.set_title("Ocean Heat Content  ·  Tropical Cyclone Heat Potential", loc='left',
-                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, f"Analysis {pd.Timestamp(date):%Y-%m-%d %HZ}  ·  Heat above 26 °C from the surface to the 26 °C isotherm  ·  "
-            "Computed from HYCOM ESPC (US Navy)", transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
-    _watermark(ax, side='right')
-    plt.savefig(save_path, dpi=170, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+        ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9.5, fontweight='bold', color='white', zorder=7,
+                path_effects=[mpe.withStroke(linewidth=3, foreground='black')], **kw)
+    cb = fig.colorbar(pm, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
+                      ticks=OHC_LEVELS, extend='both')
+    cb.ax.set_title('kJ/cm²', fontsize=9, color=TEXT_DARK, pad=8)
+    cb.ax.tick_params(labelsize=8.5, colors=TEXT_DARK)
+    src = 'CMEMS (Copernicus Marine) 1/12°' if source == 'CMEMS' else 'HYCOM (US Navy)'
+    ax.set_title(f"Ocean Heat Content (OHC)  ·  {pd.Timestamp(date):%Y/%m/%d}", loc='left',
+                 fontsize=14, fontweight='bold', color=TEXT_DARK, pad=22)
+    ax.text(0, 1.012, f"Heat above 26 °C down to the 26 °C isotherm  ·  {src}  ·  Dot = current JTWC position",
+            transform=ax.transAxes,
+            ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
+    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     return save_path
 
@@ -2638,9 +2647,9 @@ def make_ohc_map(storms: list) -> str | None:
         if os.path.exists(OHC_PATH):
             os.remove(OHC_PATH)
         return None
-    date, lat, lon, tchp = ohc.fetch()
-    plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH)
-    print(f"[OHC] 已畫 {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
+    date, lat, lon, tchp, source = ohc.fetch()
+    plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH, source)
+    print(f"[OHC] 已畫 {source} {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
     return OHC_PATH
 
 

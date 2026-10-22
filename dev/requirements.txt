@@ -1,2 +1,3 @@
 ecmwf-opendata
 netCDF4
+copernicusmarine
