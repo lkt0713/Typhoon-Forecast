@@ -1963,7 +1963,8 @@ def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list
                 continue
             it = pd.Timestamp(datetime.strptime(m.group(1), '%Y%m%d%H'), tz='UTC')
             try:
-                f = pd.read_csv(os.path.join(fdir, fname)).dropna()
+                # 只看位置欄：存檔另有 wind 欄，風速缺值的點不能連位置一起丟掉
+                f = pd.read_csv(os.path.join(fdir, fname)).dropna(subset=['lead_h', 'lat', 'lon'])
             except Exception:
                 continue
             f = _cut_extratropical(f, [], 'lead_h')
@@ -2112,8 +2113,42 @@ def _parse_latlon(txt: str) -> float | None:
     return -v if m.group(2) in 'SW' else v
 
 
+def _verif_frame(lead_h, lat, lon, wind=None) -> pd.DataFrame:
+    """校驗存檔的欄位：lead_h, lat, lon, wind（kt；沒有風速時整欄空白）。"""
+    out = pd.DataFrame({'lead_h': np.round(np.asarray(lead_h, dtype=float), 2),
+                        'lat': np.round(np.asarray(lat, dtype=float), 3),
+                        'lon': np.round(np.asarray(lon, dtype=float), 3)})
+    w = np.full(len(out), np.nan) if wind is None else np.asarray(wind, dtype=float)
+    out['wind'] = np.round(w, 1)
+    return out
+
+
+def _save_verif_fcst(path: str, new: pd.DataFrame) -> None:
+    """寫一期預報的校驗檔。已存在就不覆寫（同一期只留第一份），只有一個例外：
+    舊檔是加入強度校驗前存的、沒有 wind 欄，而這次有風速時，用預報時數把風速補進去，
+    位置照舊。"""
+    if not os.path.exists(path):
+        new.to_csv(path, index=False)
+        return
+    try:
+        old = pd.read_csv(path)
+    except Exception:
+        return
+    if 'wind' in old.columns or new['wind'].isna().all():
+        return
+    w = new.dropna(subset=['lead_h', 'wind']).sort_values('lead_h')
+    old['wind'] = np.round(np.interp(old['lead_h'], w['lead_h'], w['wind'],
+                                     left=np.nan, right=np.nan), 1)
+    old.to_csv(path, index=False)
+
+
+def _df_verif_frame(df: pd.DataFrame, init) -> pd.DataFrame:
+    lead = (pd.to_datetime(df['valid_time']) - pd.to_datetime(init)).dt.total_seconds() / 3600.0
+    return _verif_frame(lead, df['lat'], df['lon'], df['wind'] if 'wind' in df.columns else None)
+
+
 def archive_verification(storms: list) -> None:
-    """存本輪的預報與 JTWC 實況；已存在的檔案不覆寫（同一期只留第一份）。"""
+    """存本輪的預報與 JTWC 實況；已存在的檔案不覆寫（同一期只留第一份，見 _save_verif_fcst）。"""
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     os.makedirs(fdir, exist_ok=True)
     os.makedirs(odir, exist_ok=True)
@@ -2124,18 +2159,12 @@ def archive_verification(storms: list) -> None:
         if mdf is not None and not mdf.empty and it is not None:
             slug = str(model).replace(' ', '~')   # 檔名不放空格
             p = os.path.join(fdir, f"{slug}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
-            if not os.path.exists(p):
-                lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
-                pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
-                              'lon': mdf['lon'].round(3)}).to_csv(p, index=False)
+            _save_verif_fcst(p, _df_verif_frame(mdf, it))
         # 決定報可能比系集新一期，存檔與時距都照它自己的起報時間
         ddf, dname, dit = s.get('det_df'), s.get('det_name'), s.get('det_init_time') or it
         if ddf is not None and not ddf.empty and dname and dit is not None:
             p = os.path.join(fdir, f"{str(dname).replace(' ', '~')}_{tid}_{pd.to_datetime(dit):%Y%m%d%H}.csv")
-            if not os.path.exists(p):
-                lead = (pd.to_datetime(ddf['valid_time']) - pd.to_datetime(dit)).dt.total_seconds() / 3600.0
-                pd.DataFrame({'lead_h': lead.round(2), 'lat': ddf['lat'].round(3),
-                              'lon': ddf['lon'].round(3)}).to_csv(p, index=False)
+            _save_verif_fcst(p, _df_verif_frame(ddf, dit))
         jt = (s.get('current_info') or {}).get('jtwc') or {}
         if not jt or tid in seen_jtwc:
             continue
@@ -2192,30 +2221,125 @@ def archive_noaa_backfill(storms: list) -> None:
                     continue
                 for tid in tids & set(df['track_id'].astype(str)):
                     p = os.path.join(fdir, f"{str(name).replace(' ', '~')}_{tid}_{init:%Y%m%d%H}.csv")
-                    if os.path.exists(p):
-                        continue
                     g = df[df['track_id'].astype(str) == tid].sort_values('lead_time_hours')
-                    pd.DataFrame({'lead_h': g['lead_time_hours'].astype(float).round(2),
-                                  'lat': g['lat'].round(3), 'lon': g['lon'].round(3)}).to_csv(p, index=False)
+                    _save_verif_fcst(p, _verif_frame(
+                        g['lead_time_hours'].astype(float), g['lat'], g['lon'],
+                        g.get('maximum_sustained_wind_speed_knots')))
+
+
+def _verif_lacks_wind(path: str) -> bool:
+    """校驗存檔存在、但是加入強度校驗前存的（表頭沒有 wind 欄）。"""
+    try:
+        with open(path, encoding='utf-8') as f:
+            return 'wind' not in f.readline().strip().split(',')
+    except OSError:
+        return False
+
+
+def backfill_verif_wind(storms: list) -> None:
+    """替加入強度校驗前存的校驗檔補上風速。
+
+    下載目錄還留著最近 KEEP_CYCLES 期的原始 CSV（含風速），同一期就用它補，
+    強度校驗一上線就有約三天的資料可比，不必從零累積。更早的期數已無原始檔，維持沒有風速。
+    """
+    fdir = os.path.join(VERIF_DIR, 'fcst')
+    if not os.path.isdir(fdir):
+        return
+    tids = {s['track_id'] for s in storms}
+    for cfg in MODEL_CONFIGS:
+        for src_dir, suffix, name in ((cfg["mean_dir"], "paired", _ens_name(cfg)),
+                                      (cfg.get("det_dir"), "deterministic", cfg.get("det_name"))):
+            if not (src_dir and name and os.path.isdir(src_dir)):
+                continue
+            slug = str(name).replace(' ', '~')
+            for fn in sorted(os.listdir(src_dir)):
+                if not (fn.startswith(f"{cfg['local_prefix']}_") and fn.endswith(f"_{suffix}.csv")):
+                    continue
+                init = _cycle_from_stamp(fn)
+                if init is None:
+                    continue
+                paths = {tid: os.path.join(fdir, f"{slug}_{tid}_{init:%Y%m%d%H}.csv") for tid in tids}
+                todo = [tid for tid, p in paths.items() if _verif_lacks_wind(p)]
+                if not todo:
+                    continue
+                try:
+                    df = pd.read_csv(os.path.join(src_dir, fn), comment='#')
+                except Exception:
+                    continue
+                if 'maximum_sustained_wind_speed_knots' not in df.columns:
+                    continue
+                for tid in todo:
+                    g = df[df['track_id'].astype(str) == tid].copy()
+                    if g.empty:
+                        continue
+                    vt = pd.to_datetime(g['valid_time'], errors='coerce', utc=True)
+                    lead = (vt - pd.Timestamp(init)).dt.total_seconds() / 3600.0
+                    _save_verif_fcst(paths[tid], _verif_frame(
+                        lead, g['lat'], g['lon'], g['maximum_sustained_wind_speed_knots']))
+
+
+# 沿路徑／跨路徑誤差要知道颱風「實際往哪走」：用前後兩筆實況算移動方向。
+# 前後各最多找 VERIF_MOTION_MAX_H 小時；移動太慢（滯留、打轉）時方向不可靠，不算。
+VERIF_MOTION_MAX_H = 12
+VERIF_MOTION_MIN_KMH = 5.0
+EARTH_R_KM = 6371.0
+
+
+def _local_xy(lat0, lon0, lat, lon):
+    """以 (lat0, lon0) 為原點的局地平面座標（km，x 向東、y 向北）。"""
+    dlon = (np.asarray(lon, dtype=float) - lon0 + 180.0) % 360.0 - 180.0
+    x = EARTH_R_KM * np.radians(dlon) * np.cos(np.radians(lat0))
+    y = EARTH_R_KM * np.radians(np.asarray(lat, dtype=float) - lat0)
+    return x, y
+
+
+def _obs_motion(o: pd.DataFrame, i) -> tuple[float, float] | None:
+    """第 i 筆實況的移動方向單位向量 (東, 北)；優先用前後各一筆的中央差分。"""
+    t = o.at[i, 't']
+    win = pd.Timedelta(hours=VERIF_MOTION_MAX_H)
+    prev = o[(o['t'] < t) & (o['t'] >= t - win)]
+    nxt = o[(o['t'] > t) & (o['t'] <= t + win)]
+    a = prev.iloc[-1] if not prev.empty else o.loc[i]
+    b = nxt.iloc[0] if not nxt.empty else o.loc[i]
+    hours = (b['t'] - a['t']).total_seconds() / 3600.0
+    if hours <= 0:
+        return None
+    x, y = _local_xy(float(o.at[i, 'lat']), float(o.at[i, 'lon']),
+                     [a['lat'], b['lat']], [a['lon'], b['lon']])
+    dx, dy = x[1] - x[0], y[1] - y[0]
+    dist = float(np.hypot(dx, dy))
+    if dist / hours < VERIF_MOTION_MIN_KMH:
+        return None
+    return dx / dist, dy / dist
 
 
 def compute_scorecard() -> dict:
-    """路徑誤差成績單：{範圍: {'all': {model: {lead: [平均 km, n]}}, 'homog': {...}}}。
+    """模式成績單：{範圍: 各指標的 {'all': {model: {lead: [...]}}, 'homog': {...}}}。
 
     範圍為 track_id，或 '_all'（所有颱風合計）。'all' 用各模式全部校驗得到的預報；
     'homog' 是同質樣本：同一颱風、同一起報時間、同一預報時數上，這顆颱風有出現的
     模式全部都有預報才算進來。各模式碰到的情境相同，平均誤差才能直接比較。
+
+    指標（每格的 list）：
+      card['all'] / card['homog']   路徑誤差      [平均 km, n]
+      card['at'][樣本]              沿路徑誤差    [平均 km（+ 跑太快、− 太慢）, n, 平均絕對值]
+      card['ct'][樣本]              跨路徑誤差    [平均 km（+ 偏實際路徑右側、− 左側）, n, 平均絕對值]
+      card['int'][樣本]             強度誤差      [平均絕對誤差 kt, n, 平均偏差 kt（+ 預報太強）]
+    沿／跨路徑只在實況移動方向明確時才算（見 _obs_motion）；強度只算有存風速的預報。
     """
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     if not os.path.isdir(fdir) or not os.path.isdir(odir):
         return {}
-    obs = {}
+    obs, motion = {}, {}
     for name in os.listdir(odir):
         if name.endswith('.csv'):
             o = pd.read_csv(os.path.join(odir, name))
             o['t'] = pd.to_datetime(o['time'], utc=True)
+            o = o.sort_values('t').reset_index(drop=True)
             obs[name[:-4]] = o
-    recs = []      # (track_id, model, 起報 YYYYmmddHH, 預報時數, 誤差 km)
+            motion[name[:-4]] = {i: _obs_motion(o, i) for i in o.index}
+    # (track_id, model, 起報 YYYYmmddHH, 預報時數, 路徑誤差 km, 沿路徑 km|None, 跨路徑 km|None, 強度誤差 kt|None)
+    recs = []
     seen: set = set()
     for name in sorted(os.listdir(fdir)):
         m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
@@ -2231,9 +2355,10 @@ def compute_scorecard() -> dict:
             continue
         seen.add((model, tid, m.group(3)))
         init = pd.Timestamp(datetime.strptime(m.group(3), '%Y%m%d%H'), tz='UTC')
-        f = pd.read_csv(os.path.join(fdir, name)).dropna()
+        f = pd.read_csv(os.path.join(fdir, name)).dropna(subset=['lead_h', 'lat', 'lon'])
         if len(f) < 2:
             continue
+        fw = (f.dropna(subset=['wind']) if 'wind' in f.columns else f.iloc[0:0])
         o = obs[tid]
         for lead in VERIF_LEADS:
             if lead > f['lead_h'].max():
@@ -2242,19 +2367,44 @@ def compute_scorecard() -> dict:
             dt = (o['t'] - target).abs()
             if dt.empty or dt.min() > pd.Timedelta(hours=VERIF_MATCH_H):
                 continue
-            ob = o.loc[dt.idxmin()]
+            i = dt.idxmin()
+            ob = o.loc[i]
             flat = float(np.interp(lead, f['lead_h'], f['lat']))
             # 經度內插前先展開，跨換日線也不會內插到地球另一邊
             flon = float(np.interp(lead, f['lead_h'], np.unwrap(np.radians(f['lon'])) * 180 / np.pi))
             e = float(_haversine_km(ob['lat'], ob['lon'] % 360, flat, flon % 360))
-            recs.append((tid, model, m.group(3), lead, e))
+            at = ct = None
+            u = motion[tid].get(i)
+            if u is not None:
+                x, y = _local_xy(float(ob['lat']), float(ob['lon']), flat, flon)
+                x, y = float(x), float(y)
+                at = x * u[0] + y * u[1]            # 投影到移動方向：+ 跑在實況前面
+                ct = x * u[1] - y * u[0]            # 投影到右手法向：+ 偏右
+            ie = None
+            if (len(fw) >= 2 and fw['lead_h'].min() <= lead <= fw['lead_h'].max()
+                    and pd.notna(ob.get('wind'))):
+                ie = float(np.interp(lead, fw['lead_h'], fw['wind'])) - float(ob['wind'])
+            recs.append((tid, model, m.group(3), lead, e, at, ct, ie))
 
-    def _agg(rs):
+    def _agg(rs, k):
         out: dict = {}
-        for _, mdl, _, ld, e in rs:
-            out.setdefault(mdl, {}).setdefault(ld, []).append(e)
+        for r in rs:
+            out.setdefault(r[1], {}).setdefault(r[3], []).append(r[k])
+        return out
+
+    def _track(rs):
         return {mdl: {ld: [round(float(np.mean(v)), 0), len(v)] for ld, v in d.items()}
-                for mdl, d in out.items()}
+                for mdl, d in _agg(rs, 4).items()}
+
+    def _signed(rs, k):
+        return {mdl: {ld: [round(float(np.mean(v)), 0), len(v), round(float(np.mean(np.abs(v))), 0)]
+                      for ld, v in d.items()}
+                for mdl, d in _agg(rs, k).items()}
+
+    def _intensity(rs):
+        return {mdl: {ld: [round(float(np.mean(np.abs(v))), 1), len(v), round(float(np.mean(v)), 1)]
+                      for ld, v in d.items()}
+                for mdl, d in _agg(rs, 7).items()}
 
     def _homog(rs):
         # 每顆颱風、每個時數各自要求「該颱風出現過的模式全到」：只在某些颱風才有的模式
@@ -2264,7 +2414,8 @@ def compute_scorecard() -> dict:
         present: dict = {}
         cases: dict = {}
         first: dict = {}
-        for t, mdl, ini, ld, _ in rs:
+        for r in rs:
+            t, mdl, ini, ld = r[:4]
             present.setdefault((t, ld), set()).add(mdl)
             cases.setdefault((t, ini, ld), set()).add(mdl)
             first[(t, mdl)] = min(first.get((t, mdl), ini), ini)
@@ -2275,8 +2426,451 @@ def compute_scorecard() -> dict:
     card = {}
     for scope in sorted({r[0] for r in recs}) + (['_all'] if recs else []):
         rs = recs if scope == '_all' else [r for r in recs if r[0] == scope]
-        card[scope] = {'all': _agg(rs), 'homog': _agg(_homog(rs))}
+        rx = [r for r in rs if r[5] is not None]
+        ri = [r for r in rs if r[7] is not None]
+        hx, hi = _homog(rx), _homog(ri)
+        card[scope] = {'all': _track(rs), 'homog': _track(_homog(rs)),
+                       'at': {'all': _signed(rx, 5), 'homog': _signed(hx, 5)},
+                       'ct': {'all': _signed(rx, 6), 'homog': _signed(hx, 6)},
+                       'int': {'all': _intensity(ri), 'homog': _intensity(hi)}}
     return card
+
+
+# ── 官方預報比較（JTWC／JMA／CWA）──────────────────────────────────────
+# 三個單位的官方路徑疊在同一張圖（只畫路徑，不畫機率圓）；網頁另附各時數的位置與風速表。
+# JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一個颱風 JTWC 的數字通常比較大。
+OFFICIAL_COLORS = {'JTWC': '#DC2626', 'JMA': '#2563EB', 'CWA': '#059669'}
+OFFICIAL_MATCH_KM = 300.0
+OFFICIAL_TABLE_H = [0, 24, 48, 72, 96, 120]
+
+
+def _storm_now(s: dict):
+    """颱風目前位置：優先用 JTWC 公報，其次用系集平均第一點。"""
+    jt = (s.get('current_info') or {}).get('jtwc') or {}
+    la, lo = _parse_latlon(jt.get('latitude')), _parse_latlon(jt.get('longitude'))
+    if la is not None and lo is not None:
+        return la, lo
+    mdf = s.get('mean_df')
+    if mdf is not None and not mdf.empty:
+        p = mdf.sort_values('valid_time').iloc[0]
+        return float(p['lat']), float(p['lon'])
+    return None
+
+
+def _jtwc_official(s: dict) -> dict | None:
+    jt = (s.get('current_info') or {}).get('jtwc') or {}
+    la, lo = _parse_latlon(jt.get('latitude')), _parse_latlon(jt.get('longitude'))
+    if la is None or lo is None:
+        return None
+    pts = [{'h': 0, 'lat': la, 'lon': lo, 'kt': jt.get('max_winds_kt'), 'hpa': jt.get('pressure_mb'), 'r70_km': None}]
+    for la_, lo_, kt, tau in jt.get('forecast_track') or []:
+        if tau > 0:
+            pts.append({'h': int(tau), 'lat': la_, 'lon': lo_, 'kt': kt, 'hpa': None, 'r70_km': None})
+    wt = _jtwc_warning_time(jt)
+    return {'agency': 'JTWC', 'name': jt.get('name'), 'issue': wt.strftime('%Y-%m-%dT%H:%MZ') if wt is not None else None,
+            'points': pts}
+
+
+def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
+    lats = [p['lat'] for f in fcs for p in f['points']]
+    lons = [p['lon'] for f in fcs for p in f['points']]
+    if len(lats) < 2:
+        return None
+    extent, use_360 = _auto_extent(np.array(lats), np.array(lons), pad_deg=4)
+    extent = _fit_extent_to_aspect(extent, FIG_AR, use_360)
+    fig = plt.figure(figsize=(10, 7.6), facecolor='white')
+    if HAS_CARTOPY:
+        proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
+        ax = plt.axes(projection=proj)
+        _setup_basemap(ax, extent)
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        ax = fig.add_subplot(111)
+        _setup_plain_axes(ax, extent)
+        kw = {}
+    handles, labels = [], []
+    for f in fcs:
+        c = OFFICIAL_COLORS.get(f['agency'], MEAN_COLOR)
+        pts = f['points']
+        plon = _normalize_lon_values(np.array([p['lon'] for p in pts]), use_360=use_360)
+        plat = np.array([p['lat'] for p in pts])
+        ax.plot(plon, plat, color='white', lw=4.6, alpha=0.8, zorder=3, **kw)
+        ax.plot(plon, plat, color=c, lw=2.4, zorder=3.1, **kw)
+        ax.scatter(plon, plat, s=30, facecolors='white', edgecolors=c, linewidths=1.6, zorder=5, **kw)
+        for p, x, y in zip(pts, plon, plat):
+            if p['h'] in (24, 48, 72, 96, 120):
+                ax.text(x + 0.35, y + 0.25, f"+{p['h']}", fontsize=7.5, color=c, fontweight='bold', zorder=6,
+                        path_effects=[mpe.withStroke(linewidth=2.4, foreground='white')], **kw)
+        issue = pd.Timestamp(f['issue']).strftime('%m/%d %HZ') if f.get('issue') else ''
+        handles.append(mlines.Line2D([], [], color=c, lw=2.4, marker='o', ms=5, markerfacecolor='white', markeredgecolor=c))
+        labels.append(f"{f['agency']}  {issue}")
+    leg = ax.legend(handles, labels, loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42, **LEGEND_KW)
+    _style_legend(leg)
+    name = next((f['name'] for f in fcs if f.get('name')), None)
+    ax.set_title(f"Official Forecasts  ·  {tid}" + (f" ({str(name).upper()})" if name else ''), loc='left',
+                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax.text(0, 1.012, "JTWC 1-min winds  ·  JMA / CWA 10-min winds  ·  Labels = forecast hour",
+            transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_official_forecasts(storms: list) -> None:
+    """抓 JMA／CWA、與 JTWC 一起掛到各颱風第一個 storm dict 的 'official'（圖檔路徑＋表格資料）。"""
+    import official
+    others = []
+    for fetch in (official.fetch_jma, official.fetch_cwa):
+        try:
+            others += fetch()
+        except Exception as e:
+            print(f"[OFFICIAL] {fetch.__name__} 失敗，略過: {e}")
+    keep = set()
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        head = next(s for s in storms if s['track_id'] == tid)
+        now = _storm_now(head)
+        fcs = [f for f in [_jtwc_official(head)] if f]
+        if now is not None:
+            for f in others:
+                a = f['points'][0]
+                if a['h'] == 0 and float(_haversine_km(now[0], now[1] % 360, a['lat'], a['lon'] % 360)) <= OFFICIAL_MATCH_KM:
+                    fcs.append(f)
+        if len(fcs) < 2:          # 只有 JTWC 一家就不畫（網頁上已有 JTWC 官方圖）
+            continue
+        path = os.path.join(OUTPUT_DIR, f"{tid}_Official.png")
+        try:
+            if plot_official_map(tid, fcs, path):
+                head['official'] = {'path': path, 'forecasts': fcs}
+                keep.add(tid)
+                print(f"[OFFICIAL] {tid}: {' / '.join(f['agency'] for f in fcs)}")
+        except Exception as e:
+            print(f"[OFFICIAL] {tid} 畫圖失敗，略過: {e}")
+    for name in os.listdir(OUTPUT_DIR):
+        m = re.match(r"^((?:WP|CP|EP)\d{6})_Official\.png$", name)
+        if m and m.group(1) not in keep:
+            os.remove(os.path.join(OUTPUT_DIR, name))
+
+
+# ── 海洋熱含量（由 CMEMS／HYCOM 水溫算的 TCHP）＋颱風目前位置 ───────────────────────────
+# 一張西北太平洋圖：最新一天的 TCHP（kJ/cm²），50 kJ/cm² 等值線（有利增強的常用門檻），
+# 疊上每顆颱風目前位置（依強度上色）與 JTWC 已走過的路徑。資料抓取見 ohc.py。
+OHC_EXTENT = (100, 180, 0, 50)
+OHC_PATH = os.path.join(OUTPUT_DIR, "WP_OHC.png")
+OHC_THRESHOLD = 50
+
+
+OHC_LEVELS = [0, 20, 40, 50, 80, 100, 150, 200]
+# 色階照 CMEMS OHC 產品圖（使用者指定的樣式）：青→綠→黃綠→黃→琥珀→橘→紅，200 以上洋紅；陸地黑色、白色海岸線
+OHC_COLORS = ['#00C7C7', '#00D18C', '#A1E530', '#E5DB30', '#E5B02E', '#F08229', '#FA3D3D']
+OHC_OVER = '#F00082'
+
+
+def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source: str = 'CMEMS') -> str:
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+    fig = plt.figure(figsize=(11, 7.0), facecolor='white')
+    if HAS_CARTOPY:
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
+        ax.set_extent(OHC_EXTENT, crs=ccrs.PlateCarree())
+        ax.set_facecolor('black')
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        ax = fig.add_subplot(111)
+        ax.set_xlim(OHC_EXTENT[0], OHC_EXTENT[1]); ax.set_ylim(OHC_EXTENT[2], OHC_EXTENT[3])
+        ax.set_facecolor('black')
+        kw = {}
+    cmap = ListedColormap(OHC_COLORS)
+    cmap.set_over(OHC_OVER)
+    cmap.set_bad('black')
+    cmap.set_under('black')
+    # 熱含量 0（水溫不到 26°C）照參考圖畫成黑色，跟陸地一樣
+    pm = ax.pcolormesh(lon, lat, np.ma.masked_invalid(np.where(tchp > 0, tchp, -1.0)), cmap=cmap,
+                       norm=BoundaryNorm(OHC_LEVELS, cmap.N), shading='auto', zorder=1, **kw)
+    if HAS_CARTOPY:
+        ax.add_feature(cfeature.LAND, facecolor='black', zorder=2)
+        ax.coastlines(resolution='50m', linewidth=0.8, color='white', zorder=2.5)
+        gl = ax.gridlines(draw_labels=True, linewidth=0, alpha=0)
+        gl.right_labels = gl.top_labels = False
+        gl.xlocator = mticker.FixedLocator(range(100, 181, 10))
+        gl.ylocator = mticker.FixedLocator(range(0, 51, 10))
+        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_DARK}
+    for st in storms_now:
+        if st.get('track') and len(st['track']) > 1:
+            tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
+            ax.plot(tl, [p[0] for p in st['track']], color='black', lw=3.4, alpha=0.75, zorder=3, **kw)
+            ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3.1, **kw)
+        col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
+        ax.scatter([st['lon']], [st['lat']], s=230, marker='o', color=col, edgecolors='white',
+                   linewidths=2.4, zorder=6, **kw)
+        ax.scatter([st['lon']], [st['lat']], s=28, marker='o', color='white', zorder=6.1, **kw)
+        label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
+        ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9.5, fontweight='bold', color='white', zorder=7,
+                path_effects=[mpe.withStroke(linewidth=3, foreground='black')], **kw)
+    cb = fig.colorbar(pm, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
+                      ticks=OHC_LEVELS, extend='both')
+    cb.ax.set_title('kJ/cm²', fontsize=9, color=TEXT_DARK, pad=8)
+    cb.ax.tick_params(labelsize=8.5, colors=TEXT_DARK)
+    src = 'CMEMS (Copernicus Marine) 1/12°' if source == 'CMEMS' else 'HYCOM (US Navy)'
+    ax.set_title(f"Ocean Heat Content (OHC)  ·  {pd.Timestamp(date):%Y/%m/%d}", loc='left',
+                 fontsize=14, fontweight='bold', color=TEXT_DARK, pad=22)
+    ax.text(0, 1.012, f"Heat above 26 °C down to the 26 °C isotherm  ·  {src}  ·  Dot = current JTWC position",
+            transform=ax.transAxes,
+            ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
+    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_ohc_map(storms: list) -> str | None:
+    """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。"""
+    import ohc
+    now = []
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        head = next(s for s in storms if s['track_id'] == tid)
+        pos = _storm_now(head)
+        if pos is None:
+            continue
+        jt = (head.get('current_info') or {}).get('jtwc') or {}
+        track = []
+        op = os.path.join(VERIF_DIR, 'obs', f"{tid}.csv")
+        if os.path.exists(op):
+            try:
+                o = pd.read_csv(op).sort_values('time')
+                track = [[float(a), float(b)] for a, b in zip(o['lat'], o['lon'])]
+            except Exception:
+                track = []
+        name = str(jt.get('name')).title() if jt.get('name') else tid
+        now.append({'name': name, 'lat': pos[0], 'lon': pos[1], 'kt': jt.get('max_winds_kt'),
+                    'track': track + [[pos[0], pos[1]]]})
+    if not now:
+        if os.path.exists(OHC_PATH):
+            os.remove(OHC_PATH)
+        return None
+    date, lat, lon, tchp, source = ohc.fetch()
+    plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH, source)
+    print(f"[OHC] 已畫 {source} {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
+    return OHC_PATH
+
+
+# ── 駛流場（ECMWF HRES 500 hPa 高度與風場）────────────────────────────
+# 每個時距一張西北太平洋圖：500 hPa 流線＋風速、等高線與 5880 gpm 線（太平洋高壓的邊緣），
+# 疊上同一期 ECMWF HRES 的颱風路徑與該時刻位置，看颱風被什麼氣流帶著走。
+# 一期只畫一次：STEER_MARK 記著畫過的起報時間與颱風，沒變就沿用現有圖檔。
+STEER_EXTENT = (100, 180, 0, 50)
+STEER_PREFIX = "WP_Steering_"
+STEER_MARK = os.path.join(OUTPUT_DIR, "WP_Steering.json")
+STEER_RAW = os.path.join("__pycache__", "steering_500.grib2")
+STEER_5880 = 5880.0
+
+
+def _steer_tracks(storms: list) -> tuple:
+    """(起報時間或 None, {tid: det_df})：用 ECMWF HRES 決定報當疊圖路徑，起報時間也照它，
+    高度場與路徑才是同一期。沒有 HRES 時回 (None, {})，改抓最新一期、不疊路徑。"""
+    tracks, cycle = {}, None
+    for s in storms:
+        ddf = s.get('det_df')
+        if s.get('model') == 'ECMWF' and ddf is not None and not ddf.empty and s.get('det_init_time') is not None:
+            it = pd.Timestamp(s['det_init_time'])
+            it = it.tz_convert('UTC') if it.tzinfo else it.tz_localize('UTC')
+            if cycle is None or it > cycle:
+                cycle, tracks = it, {}
+            if it == cycle:
+                tracks[s['track_id']] = ddf.sort_values('valid_time')
+    return (cycle.to_pydatetime() if cycle is not None else None), tracks
+
+
+def plot_steering_map(f: dict, step: int, cycle, tracks: dict, save_path: str) -> str:
+    lon, lat = f['lon'], f['lat']
+    spd = np.hypot(f['u'], f['v']) * 1.94384          # m/s → kt
+    fig = plt.figure(figsize=(11, 7.6), facecolor='white')
+    if HAS_CARTOPY:
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
+        _setup_basemap(ax, STEER_EXTENT)
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        ax = fig.add_subplot(111)
+        _setup_plain_axes(ax, STEER_EXTENT)
+        kw = {}
+    levels = [10, 20, 30, 40, 50, 60, 80]
+    cf = ax.contourf(lon, lat, spd, levels=levels, cmap='PuBu', alpha=0.55, extend='max', zorder=1, **kw)
+    ax.streamplot(lon, lat, f['u'], f['v'], density=1.6, color='#3A4A5C', linewidth=0.55,
+                  arrowsize=0.7, zorder=1.5, **kw)
+    gh = f['gh']
+    lo, hi = np.floor(np.nanmin(gh) / 30) * 30, np.ceil(np.nanmax(gh) / 30) * 30
+    lv = [x for x in np.arange(lo, hi + 1, 30) if abs(x - STEER_5880) > 1]
+    ax.contour(lon, lat, gh, levels=lv, colors='#6B7785', linewidths=0.5, alpha=0.8, zorder=1.6, **kw)
+    c58 = ax.contour(lon, lat, gh, levels=[STEER_5880], colors='#D9463A', linewidths=2.4, zorder=2.6, **kw)
+    ax.clabel(c58, fmt={STEER_5880: '5880'}, fontsize=8, inline=True)
+    valid = pd.Timestamp(cycle) + pd.Timedelta(hours=step)
+    for tid, ddf in tracks.items():
+        lead = (pd.to_datetime(ddf['valid_time']) - pd.Timestamp(cycle)).dt.total_seconds().to_numpy() / 3600.0
+        lons = np.unwrap(np.radians(ddf['lon'].to_numpy())) * 180 / np.pi
+        ax.plot(lons, ddf['lat'], color='white', lw=3.6, alpha=0.8, zorder=3, **kw)
+        ax.plot(lons, ddf['lat'], color=MEAN_COLOR, lw=1.8, zorder=3.1, **kw)
+        if lead.min() <= step <= lead.max():
+            la, lo_ = float(np.interp(step, lead, ddf['lat'])), float(np.interp(step, lead, lons))
+            w = float(np.interp(step, lead, ddf['wind'])) if 'wind' in ddf.columns and ddf['wind'].notna().any() else None
+            col = COLOR_MAP.get(ss_category(w), MEAN_COLOR) if w is not None else MEAN_COLOR
+            ax.scatter([lo_], [la], s=150, color=col, edgecolors='white', linewidths=1.8, zorder=6, **kw)
+            ax.text(lo_ + 1.0, la + 0.6, f"{tid}" + (f"  {w:.0f} kt" if w is not None else ""),
+                    fontsize=8.5, fontweight='bold', color=TEXT_DARK, zorder=6,
+                    path_effects=[mpe.withStroke(linewidth=2.6, foreground='white')], **kw)
+    cb = fig.colorbar(cf, ax=ax, orientation='horizontal', pad=0.06, fraction=0.04, aspect=45, shrink=0.8)
+    cb.set_label('500 hPa wind speed (kt)', color=TEXT_MUTED, fontsize=9)
+    cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
+    cb.outline.set_edgecolor(BOX_EDGE)
+    handles = [mlines.Line2D([], [], color='#D9463A', lw=2.4),
+               mlines.Line2D([], [], color='#6B7785', lw=0.8),
+               mlines.Line2D([], [], color='#3A4A5C', lw=0.8, marker='>', ms=4)]
+    labels = ['5880 gpm (edge of the subtropical high)', 'Height every 30 gpm', 'Streamlines = 500 hPa wind']
+    if tracks:
+        handles.append(mlines.Line2D([], [], color=MEAN_COLOR, lw=1.8, marker='o', ms=7,
+                                     markerfacecolor='#E0AC2B', markeredgecolor='white'))
+        labels.append('ECMWF HRES track · dot = position at this time')
+    leg = ax.legend(handles, labels, loc='lower left', fontsize=8, borderpad=0.7, labelspacing=0.4, **LEGEND_KW)
+    _style_legend(leg)
+    ax.set_title("ECMWF HRES  ·  500 hPa Height & Steering Flow", loc='left',
+                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax.text(0, 1.012, f"Init {pd.Timestamp(cycle):%Y-%m-%d %HZ}  ·  +{step} h  ·  Valid {valid:%m/%d %HZ}  ·  "
+            "Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
+            ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_steering_maps(storms: list) -> list:
+    """畫（或沿用）各時距的駛流場圖，回傳 [(標籤, 路徑), ...]；失敗回空清單。"""
+    import json
+    import ecmwf_steering as es
+    cycle, tracks = _steer_tracks(storms)
+    want = {'cycle': cycle.strftime('%Y%m%d%H') if cycle else None, 'tracks': sorted(tracks)}
+    try:
+        with open(STEER_MARK, encoding='utf-8') as fh:
+            mark = json.load(fh)
+    except (OSError, ValueError):
+        mark = {}
+    have = [(f"+{st} h", os.path.join(OUTPUT_DIR, f"{STEER_PREFIX}{st:03d}h.png")) for st in mark.get('steps', [])]
+    # 沒有 HRES 時（cycle 是 None）每輪都會想抓最新一期；已經畫過同一期就不重抓
+    if have and all(os.path.exists(p) for _, p in have) and (
+            (cycle is not None and mark.get('cycle') == want['cycle'] and mark.get('tracks') == want['tracks'])
+            or (cycle is None and not mark.get('tracks') and mark.get('fetched') and
+                (datetime.now(timezone.utc) - datetime.fromisoformat(mark['fetched'])).total_seconds() < 3 * 3600)):
+        print(f"[STEER] 沿用 {mark.get('cycle')} 的駛流場圖")
+        return have
+    try:
+        got = es.fetch(cycle, STEER_RAW)
+    except Exception as e:
+        if cycle is None:
+            raise
+        print(f"[STEER] 抓不到 {cycle:%m/%d %HZ}（{e}），改抓最新一期、不疊路徑")
+        got, tracks = es.fetch(None, STEER_RAW), {}
+    try:
+        fields = es.decode(STEER_RAW)
+    finally:
+        if os.path.exists(STEER_RAW):
+            os.remove(STEER_RAW)
+    out, steps = [], []
+    for st in sorted(fields):
+        path = os.path.join(OUTPUT_DIR, f"{STEER_PREFIX}{st:03d}h.png")
+        plot_steering_map(fields[st], st, got, tracks, path)
+        out.append((f"+{st} h", path))
+        steps.append(st)
+    for name in os.listdir(OUTPUT_DIR):          # 這期沒有的時距（06/18Z 只到 90 h）把舊圖清掉
+        m = re.match(rf"^{STEER_PREFIX}(\d{{3}})h\.png$", name)
+        if m and int(m.group(1)) not in steps:
+            os.remove(os.path.join(OUTPUT_DIR, name))
+    with open(STEER_MARK, 'w', encoding='utf-8') as fh:
+        json.dump({'cycle': got.strftime('%Y%m%d%H'), 'tracks': sorted(tracks), 'steps': steps,
+                   'fetched': datetime.now(timezone.utc).isoformat(timespec='seconds')}, fh)
+    print(f"[STEER] 已畫 {got:%m/%d %HZ} 駛流場 {len(out)} 張（疊 {', '.join(sorted(tracks)) or '無'} 路徑）")
+    return out
+
+
+# ── 颱風歷史存檔 ───────────────────────────────────────────────────────
+# 颱風消散後網頁上它的頁面就不見了；這裡替每顆颱風留一個小 JSON（docs/archive/{tid}.json）：
+# JTWC 實況路徑、各模式每一期的系集平均／決定報路徑（每 12 h 一點、到 168 h）與成績單。
+# 每輪合併更新，不刪舊資料，所以校驗存檔過了 VERIF_KEEP_DAYS 被清掉之後，存檔裡還留著。
+ARCHIVE_DIR = os.path.join(OUTPUT_DIR, 'archive')
+ARCHIVE_STEP_H = 12
+ARCHIVE_MAX_LEAD = 168
+
+
+def _archive_points(f: pd.DataFrame) -> list:
+    """校驗存檔 → [[lead, lat, lon, wind|None], ...]，每 ARCHIVE_STEP_H 小時一點。"""
+    f = f.dropna(subset=['lead_h', 'lat', 'lon']).sort_values('lead_h')
+    f = f[(f['lead_h'] <= ARCHIVE_MAX_LEAD)
+          & (np.abs(f['lead_h'] / ARCHIVE_STEP_H - np.round(f['lead_h'] / ARCHIVE_STEP_H)) < 1e-3)]
+    wind = f['wind'] if 'wind' in f.columns else pd.Series(np.nan, index=f.index)
+    return [[int(round(h)), round(float(la), 2), round(float(lo), 2),
+             None if pd.isna(w) else int(round(float(w)))]
+            for h, la, lo, w in zip(f['lead_h'], f['lat'], f['lon'], wind)]
+
+
+def update_storm_archive(storms: list, card: dict) -> None:
+    """把每顆有 JTWC 實況的颱風合併寫進 docs/archive/{tid}.json（見上方說明）。"""
+    import json
+    fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
+    if not os.path.isdir(odir):
+        return
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+    active = {s['track_id'] for s in storms}
+    names = {}
+    for s in storms:
+        nm = ((s.get('current_info') or {}).get('jtwc') or {}).get('name')
+        if nm:
+            names[s['track_id']] = str(nm).title()
+    det_models = {s.get('det_name') for s in storms if s.get('det_name')}
+    fnames = sorted(os.listdir(fdir)) if os.path.isdir(fdir) else []
+    for oname in sorted(os.listdir(odir)):
+        if not oname.endswith('.csv'):
+            continue
+        tid = oname[:-4]
+        path = os.path.join(ARCHIVE_DIR, f"{tid}.json")
+        try:
+            with open(path, encoding='utf-8') as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            data = {'id': tid, 'obs': [], 'fcst': {}, 'det': []}
+        try:
+            o = pd.read_csv(os.path.join(odir, oname))
+        except Exception:
+            continue
+        obs = {r[0]: r for r in data.get('obs', [])}
+        for t, la, lo, w in zip(o['time'], o['lat'], o['lon'], o.get('wind', pd.Series(np.nan, index=o.index))):
+            obs[str(t)] = [str(t), round(float(la), 2), round(float(lo), 2),
+                           None if pd.isna(w) else int(round(float(w)))]
+        data['obs'] = [obs[k] for k in sorted(obs)]
+        fc = data.setdefault('fcst', {})
+        for name in fnames:
+            m = re.match(rf"(.+)_{re.escape(tid)}_(\d{{10}})\.csv$", name)
+            if not m:
+                continue
+            model = VERIF_LEGACY_NAMES.get(m.group(1).replace('~', ' '), m.group(1).replace('~', ' '))
+            if model == 'JTWC':
+                continue
+            try:
+                pts = _archive_points(pd.read_csv(os.path.join(fdir, name)))
+            except Exception:
+                continue
+            if len(pts) >= 2:
+                fc.setdefault(model, {})[m.group(2)] = pts
+        if tid in names:
+            data['name'] = names[tid]
+        data['det'] = sorted(set(data.get('det', [])) | (det_models & set(fc)))
+        if card.get(tid):
+            data['card'] = card[tid]
+        winds = [r[3] for r in data['obs'] if r[3] is not None]
+        data['peak'] = max(winds) if winds else None
+        data['first'], data['last'] = (data['obs'][0][0], data['obs'][-1][0]) if data['obs'] else (None, None)
+        data['active'] = tid in active
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(data, fh, separators=(',', ':'), ensure_ascii=False)
+        except OSError as e:
+            print(f"[ARCHIVE] 警告: 寫入 {path} 失敗: {e}")
 
 
 # ── 互動式地圖資料 ───────────────────────────────────────────────────────
@@ -4006,13 +4600,41 @@ def main():
     try:
         archive_verification(storms)
         archive_noaa_backfill(storms)
+        backfill_verif_wind(storms)
         card = compute_scorecard()
         for tid in dict.fromkeys(s['track_id'] for s in storms):
             head = next(s for s in storms if s['track_id'] == tid)
             head['scorecard'] = card.get(tid, {})
             head['scorecard_all'] = card.get('_all', {})
     except Exception as e:
+        card = {}
         print(f"[VERIF] 路徑校驗失敗，略過: {e}")
+    try:
+        update_storm_archive(storms, card)
+    except Exception as e:
+        print(f"[ARCHIVE] 颱風歷史存檔失敗，略過: {e}")
+
+    try:
+        make_official_forecasts(storms)
+    except Exception as e:
+        print(f"[OFFICIAL] 官方預報比較失敗，略過: {e}")
+
+    try:
+        ohc_path = make_ohc_map(storms)
+    except Exception as e:
+        ohc_path = None
+        print(f"[OHC] 海洋熱含量圖失敗，略過: {e}")
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        next(s for s in storms if s['track_id'] == tid)['ohc_path'] = ohc_path
+
+    # 駛流場：每顆颱風頁共用同一組區域圖。加分項，失敗不影響其他產品
+    try:
+        steer = make_steering_maps(storms)
+    except Exception as e:
+        steer = []
+        print(f"[STEER] 駛流場失敗，略過: {e}")
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        next(s for s in storms if s['track_id'] == tid)['steering_maps'] = steer
 
     # 只留下本次仍在追蹤的颱風產物（JTWC 官方圖與模式比較圖都是每顆颱風一份，
     # 跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失）

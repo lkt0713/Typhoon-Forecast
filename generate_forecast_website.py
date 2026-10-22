@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.4.2"
+SITE_VERSION = "6.5.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -322,20 +322,62 @@ def _score_groups(models: list, det_names: set) -> list:
          'verified against its own warning positions, which flatters JTWC — not ranked', off)) if g[4]]
 
 
-def _score_table(card: dict, order: list[str], det_names: set) -> str:
-    """模式路徑誤差表：card = {model: {lead: [km, n]}}。
+# 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
+#   track 路徑誤差、at 沿路徑誤差、ct 跨路徑誤差（後兩者看正負＝系統性偏差）、int 強度誤差
+SCORE_METRICS = [
+    ('track', 'score.m.track', 'Track', 'km', False),
+    ('at', 'score.m.at', 'Along-track', 'km', True),
+    ('ct', 'score.m.ct', 'Cross-track', 'km', True),
+    ('int', 'score.m.int', 'Intensity', 'kt', False),
+]
+SCORE_METRIC_TEXT = {
+    'track': ('score.chart.y', 'Mean track error (km)', None, ''),
+    'at': ('score.chart.at', 'Mean along-track error (km) · + too fast, − too slow', 'score.note.at',
+           'Along-track error: measured along the storm\'s real direction of motion, is the forecast '
+           'position ahead of (+) or behind (−) the real storm? A steady + means the model moves the storm '
+           'too fast, − too slow. The small |e| is the average size ignoring the sign. Only counted while the '
+           'storm moves at least 5 km/h; when it stalls or loops its direction is unreliable.'),
+    'ct': ('score.chart.ct', 'Mean cross-track error (km) · + right of track, − left', 'score.note.ct',
+           'Cross-track error: at right angles to the real motion, is the forecast to the right (+) or left (−) '
+           'of the real track? A model that stays on one side usually has a systematic steering bias, for '
+           'example in how far west the subtropical high reaches. The small |e| is the average size ignoring the sign.'),
+    'int': ('score.chart.int', 'Mean absolute intensity error (kt)', 'score.note.int',
+            'Intensity error: difference between the forecast maximum wind and the JTWC maximum wind (kt, '
+            'average size ignoring the sign). The small "bias" is the signed average: + = too strong, '
+            '− = too weak. Ensemble means smooth out the members and usually run weak, and coarser models '
+            'often underestimate strong typhoons. Wind speeds were only archived from late October 2026 on, '
+            'so older forecasts have no intensity to compare.'),
+}
 
-    每個預報時數各自比較：n ≥ SCORE_MIN_N 的格子依誤差由綠（最好）到紅（最差）上色，
-    最好的標 ★、其餘標比最好多幾 %；樣本不足的格子淡化、不參與排名。
+
+def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'track') -> str:
+    """模式誤差表：card = {model: {lead: [值, n, (副值)]}}。
+
+    每個預報時數各自比較：n ≥ SCORE_MIN_N 的格子依誤差由綠（最好）到紅（最差）上色。
+    路徑／強度誤差最小的標 ★、其餘標比最好多幾 %；沿／跨路徑誤差有正負號，依絕對值上色
+    （越接近 0 越綠），小字附不分正負的平均大小 |e|。樣本不足的格子淡化、不參與排名。
     """
+    unit, signed = next((u, sg) for k, _, _, u, sg in SCORE_METRICS if k == metric)
     models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
     if not models:
         return ''
+    mag = (lambda v: abs(v[0])) if signed else (lambda v: v[0])
     rank = {}
     for ld in SCORE_LEADS:
         # JTWC 用自己的警報位置當實況、數字偏有利，不跟模式一起排名
-        vals = [v[0] for m in models if m != 'JTWC' and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
+        vals = [mag(v) for m in models if m != 'JTWC' and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
         rank[ld] = (min(vals), max(vals)) if vals else None
+    fmt = (lambda x: f'{x:+.0f}'.replace('-', '−')) if signed else (lambda x: f'{x:.0f}')
+
+    def extra(v):
+        if len(v) < 3:
+            return ''
+        if signed:
+            return f' · |e| {v[2]:.0f}'
+        if metric == 'int':
+            return f' · <span data-i18n="score.bias">bias</span> {v[2]:+.0f}'.replace('-', '−')
+        return ''
+
     span = len(SCORE_LEADS) + 1
     rows = []
     for gk, gtxt, sk, stxt, ms in _score_groups(models, det_names):
@@ -348,47 +390,57 @@ def _score_table(card: dict, order: list[str], det_names: set) -> str:
                 if not v:
                     cells.append('<td class="c-nil">—</td>')
                     continue
-                km, n = v
+                n = v[1]
                 if m == 'JTWC' and n >= SCORE_MIN_N:
-                    cells.append(f'<td class="c-ref">{km:.0f}<span class="eta">n={n}</span></td>')
+                    cells.append(f'<td class="c-ref">{fmt(v[0])}<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
                 if n < SCORE_MIN_N or rank[ld] is None:
-                    cells.append(f'<td class="c-low" title="n &lt; {SCORE_MIN_N}">{km:.0f}'
-                                 f'<span class="eta">n={n}</span></td>')
+                    cells.append(f'<td class="c-low" title="n &lt; {SCORE_MIN_N}">{fmt(v[0])}'
+                                 f'<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
                 lo, hi = rank[ld]
-                rel = (km - lo) / (hi - lo) if hi > lo else 0.0
-                tag = '★' if km == lo else f'+{(km - lo) / lo * 100:.0f}%'
+                rel = (mag(v) - lo) / (hi - lo) if hi > lo else 0.0
+                if signed:
+                    tag = ''
+                else:
+                    tag = ' · ★' if mag(v) == lo else (f' · +{(mag(v) - lo) / lo * 100:.0f}%' if lo > 0 else '')
                 bg = _score_heat(rel)
                 r_, g_, b_ = (int(bg[i:i + 2], 16) for i in (1, 3, 5))
                 fg = '#16324F' if 0.299 * r_ + 0.587 * g_ + 0.114 * b_ > 150 else '#fff'
-                cells.append(f'<td style="background:{bg};color:{fg};">{km:.0f}'
-                             f'<span class="eta">n={n} · {tag}</span></td>')
+                cells.append(f'<td style="background:{bg};color:{fg};">{fmt(v[0])}'
+                             f'<span class="eta">n={n}{extra(v)}{tag}</span></td>')
             name_cls = 'c-name c-detname' if m in det_names else 'c-name'
             rows.append(f'<tr><td class="{name_cls}">{_esc(m)}</td>{"".join(cells)}</tr>')
-    head = ''.join(f'<th>{ld} h<span class="eta">km</span></th>' for ld in SCORE_LEADS)
+    head = ''.join(f'<th>{ld} h<span class="eta">{unit}</span></th>' for ld in SCORE_LEADS)
     return (f'<div class="city-table-wrap"><table class="city-table score-table">'
             f'<thead><tr><th data-i18n="score.model">Model</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
 
-def _score_chart(card: dict, order: list[str], det_names: set) -> str:
-    """平均路徑誤差隨預報時數的折線圖（inline SVG，跟著網站深淺主題變色）。"""
+def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'track') -> str:
+    """平均誤差隨預報時數的折線圖（inline SVG，跟著網站深淺主題變色）。
+
+    沿／跨路徑誤差有正負號，y 軸上下對稱並畫出 0 線。"""
+    unit, signed = next((u, sg) for k, _, _, u, sg in SCORE_METRICS if k == metric)
+    ykey, ytxt = SCORE_METRIC_TEXT[metric][:2]
     models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
     pts = {m: [(ld, v[0], v[1]) for ld in SCORE_LEADS if (v := _score_get(card, m, ld))] for m in models}
     pts = {m: p for m, p in pts.items() if p}
     if not pts:
         return ''
     W, H, L, R, T, B = 900, 300, 52, 16, 12, 34
-    ymax = max(e for p in pts.values() for _, e, _ in p) * 1.1
-    step = 50 if ymax <= 400 else 100
-    ymax = (int(ymax // step) + 1) * step
+    top = max(abs(e) for p in pts.values() for _, e, _ in p) * 1.1 or 1.0
+    step = next(st for st in (5, 10, 20, 25, 50, 100, 200, 500) if top / st <= 8)
+    ymax = (int(top // step) + 1) * step
+    ymin = -ymax if signed else 0
     x = lambda ld: L + (ld - SCORE_LEADS[0]) / (SCORE_LEADS[-1] - SCORE_LEADS[0]) * (W - L - R)
-    y = lambda e: T + (1 - e / ymax) * (H - T - B)
+    y = lambda e: T + (ymax - e) / (ymax - ymin) * (H - T - B)
     g = []
-    for k in range(0, ymax + 1, step):
-        g.append(f'<line x1="{L}" x2="{W - R}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)" stroke-width="1"/>'
-                 f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{k}</text>')
+    for k in range(ymin, ymax + 1, step):
+        lbl = f'{k:+d}'.replace('-', '−') if signed and k else f'{k}'
+        g.append(f'<line x1="{L}" x2="{W - R}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)" '
+                 f'stroke-width="{2 if signed and k == 0 else 1}"/>'
+                 f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{lbl}</text>')
     for ld in SCORE_LEADS:
         g.append(f'<text x="{x(ld):.1f}" y="{H - 12}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{ld} h</text>')
     for m, p in pts.items():
@@ -398,27 +450,58 @@ def _score_chart(card: dict, order: list[str], det_names: set) -> str:
         g.append(f'<polyline points="{path}" fill="none" stroke="{c}" stroke-width="2.2"{dash}/>')
         for ld, e, n in p:
             fill = c if n >= SCORE_MIN_N else 'none'
+            val = f'{e:+.0f}' if signed else f'{e:.0f}'
             g.append(f'<circle cx="{x(ld):.1f}" cy="{y(e):.1f}" r="3.6" fill="{fill}" stroke="{c}" stroke-width="1.6">'
-                     f'<title>{_esc(m)} · {ld} h · {e:.0f} km · n={n}</title></circle>')
+                     f'<title>{_esc(m)} · {ld} h · {val} {unit} · n={n}</title></circle>')
     legend = ''.join(
         f'<span><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
         f'{";opacity:.55" if m in det_names or m == "JTWC" else ""}"></i>{_esc(m)}</span>' for m in pts)
-    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="score.chart.y">Mean track error (km)</div>'
-            f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Track error by forecast hour">{"".join(g)}</svg>'
+    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="{ykey}">{ytxt}</div>'
+            f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{_esc(ytxt)}">{"".join(g)}</svg>'
             f'<div class="sc-legend">{legend}</div></div>')
 
 
-def _score_block(track_key: str, scope_cards: list, order: list[str], det_names: set) -> str:
-    """成績區塊：分頁（範圍 × 樣本）＋每頁折線圖與表格。scope_cards = [(範圍鍵, card), ...]。
+def _score_metric_cards(card: dict, sample: str) -> dict:
+    """某個樣本（homog／all）下四種指標各自的 {model: {lead: [...]}}。"""
+    card = card or {}
+    return {'track': card.get(sample) or {},
+            **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
 
-    內容完全相同的分頁合併成一個，免得四個分頁點來點去都一樣：同質＝全部（每期各模式
-    都到齊）時只留一個；只有一顆颱風有資料時「這顆颱風」與「所有颱風」也相同。
+
+def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set) -> str:
+    """一個分頁（範圍 × 樣本）的內容：路徑誤差照原本的圖表放最前面，
+    下面再接「其他指標」分頁：沿路徑／跨路徑／強度。"""
+    track = cards.get('track') or {}
+    html = _score_chart(track, order, det_names, 'track') + _score_table(track, order, det_names, 'track')
+    tabs, panels = [], []
+    for i, (mk, lkey, ltxt, _, _) in enumerate(m for m in SCORE_METRICS if m[0] != 'track'):
+        c = cards.get(mk) or {}
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+                    f'data-track="{_esc(key)}-m" data-model="{mk}"><span data-i18n="{lkey}">{ltxt}</span></button>')
+        nkey, ntxt = SCORE_METRIC_TEXT[mk][2:]
+        note = f'<p class="map-note" style="margin:0 0 10px;" data-i18n="{nkey}">{ntxt}</p>' if nkey else ''
+        body = (_score_chart(c, order, det_names, mk) + _score_table(c, order, det_names, mk)) if c else (
+            '<p class="map-note" data-i18n="score.m.pending">Not enough data for this measure yet.</p>')
+        hide = '' if i == 0 else ' style="display:none;"'
+        panels.append(f'<div class="model-panel" data-track="{_esc(key)}-m" data-model="{mk}"{hide}>'
+                      f'{note}{body}</div>')
+    html += (f'<h4 class="score-more" data-i18n="score.more">More measures</h4>'
+             f'<div class="seg model-tabs score-metrics" role="tablist"><span class="seg-ind"></span>'
+             f'{"".join(tabs)}</div>' + ''.join(panels))
+    return html
+
+
+def _score_block(track_key: str, scope_cards: list, order: list[str], det_names: set) -> str:
+    """成績區塊：分頁（範圍 × 樣本），每頁再分指標（路徑／沿路徑／跨路徑／強度）。
+
+    scope_cards = [(範圍鍵, card), ...]。內容完全相同的分頁合併成一個，免得點來點去都一樣：
+    同質＝全部（每期各模式都到齊）時只留一個；只有一顆颱風有資料時「這顆颱風」與「所有颱風」也相同。
     """
     items, notes = [], []
     for scope, card in scope_cards:
-        h, a = (card or {}).get('homog') or {}, (card or {}).get('all') or {}
-        cands = ([('same', h)] if h and h == a else
-                 [(smp, c) for smp, c in (('homog', h), ('all', a)) if c])
+        h, a = _score_metric_cards(card, 'homog'), _score_metric_cards(card, 'all')
+        cands = ([('same', h)] if h['track'] and h == a else
+                 [(smp, c) for smp, c in (('homog', h), ('all', a)) if c['track']])
         for sample, c in cands:
             if any(c == prev for _, _, prev in items):
                 if scope == 'storm' and 'score.onestorm' not in notes:
@@ -439,7 +522,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
                     f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
         hide = '' if i == 0 else ' style="display:none;"'
         panels.append(f'<div class="model-panel" data-track="{_esc(track_key)}" data-model="{key}"{hide}>'
-                      f'{_score_chart(c, order, det_names)}{_score_table(c, order, det_names)}</div>')
+                      f'{_score_metric_panels(f"{track_key}-{key}", c, order, det_names)}</div>')
     head = (f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{"".join(tabs)}</div>'
             if len(tabs) > 1 else
             f'<div class="model-label" data-i18n="score.tab.{items[0][0]}.{items[0][1]}">{items[0][0]}</div>')
@@ -516,6 +599,7 @@ ICONS = {
     'genesis': (f'<svg {_ICON_ATTR}><circle cx="12" cy="12" r="9"/>'
                 '<path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg>'),
     'about': f'<svg {_ICON_ATTR}><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg>',
+    'archive': f'<svg {_ICON_ATTR}><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
     'play': '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
     'pause': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect fill="currentColor" x="6.5" y="5" width="4" height="14" rx="1.2"/><rect fill="currentColor" x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>',
     'prev': f'<svg {_ICON_ATTR}><path d="M15 6l-6 6 6 6"/></svg>',
@@ -536,6 +620,51 @@ def _marquee(items: list[tuple], reverse: bool = False) -> str:
         spans.append(f'<span class="mq{" o" if outline else ""}"{style}>{_esc(text)}</span>')
     run = "".join(spans)
     return f'<div class="strip{" reverse" if reverse else ""}">{run}{run}</div>'
+
+
+OFFICIAL_COLORS = {'JTWC': '#DC2626', 'JMA': '#2563EB', 'CWA': '#059669'}
+OFFICIAL_TABLE_H = [0, 12, 24, 48, 72, 96, 120]
+
+# 颱風歷史存檔（forecast.update_storm_archive 寫的 docs/archive/{tid}.json）
+ARCHIVE_MODEL_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'WN2-C 1000', 'GENC', 'AIFS-ENS', 'AIFS-single',
+                       'ECMWF-ENS', 'ECMWF HRES', 'AIGEFS', 'AIGFS', 'GEFS', 'GFS']
+
+
+def _load_archive(docs_dir: str) -> list[dict]:
+    """讀歷史存檔，順便把每顆颱風的成績單寫成 archive/{tid}_score.html 片段（網頁點開時才載入）。
+
+    只列有模式預報的颱風（只有一兩筆實況、沒有任何預報可看的不列），最近結束的排前面。
+    """
+    adir = os.path.join(docs_dir, 'archive')
+    out = []
+    if not os.path.isdir(adir):
+        return out
+    for fn in sorted(os.listdir(adir)):
+        if not fn.endswith('.json'):
+            continue
+        try:
+            with open(os.path.join(adir, fn), encoding='utf-8') as fh:
+                d = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        fc = d.get('fcst') or {}
+        if not fc or not d.get('obs'):
+            continue
+        tid = d.get('id') or fn[:-5]
+        card = d.get('card') or {}
+        score = ''
+        if card:
+            score = _score_block(f'arch-{tid}-score', [('storm', card)], ARCHIVE_MODEL_ORDER, set(d.get('det') or []))
+        try:
+            with open(os.path.join(adir, f'{tid}_score.html'), 'w', encoding='utf-8') as fh:
+                fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
+        except OSError:
+            pass
+        out.append({'id': tid, 'name': d.get('name'), 'first': d.get('first'), 'last': d.get('last'),
+                    'peak': d.get('peak'), 'active': bool(d.get('active')),
+                    'n': sum(len(v) for v in fc.values()), 'models': len(fc)})
+    out.sort(key=lambda e: e['last'] or '', reverse=True)
+    return out
 
 
 def generate_forecast_html(storms: list[dict], output_path: str,
@@ -642,9 +771,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     _genesis_entries = _place_1000(_genesis_entries, label=lambda e: e[0])
 
     # 路由順序同時決定導覽列排列與換頁動畫的方向（往右的頁面從右邊滑入）
+    _archive = _load_archive(os.path.dirname(output_path) or '.')
     routes = ['overview'] + [f'storm/{tid}' for tid in order]
     if _genesis_entries:
         routes.append('genesis')
+    if _archive:
+        routes.append('archive')
     routes.append('about')
 
     active_models = set()
@@ -1027,6 +1159,68 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the '
                 'forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
                 f"{track_id} {CLUSTER_LABEL} Strike Probability")
+        official_html = ""
+        _off = next((m.get('official') for m in models if isinstance(m, dict) and m.get('official')), None)
+        if _off and os.path.exists(_off['path']):
+            sec_id = f"sec-{key_prefix}-official"
+            sections.append((sec_id, 'sub.official', 'Official'))
+            fcs = _off['forecasts']
+            hours = [h for h in OFFICIAL_TABLE_H if any(p['h'] == h for f in fcs for p in f['points'])]
+            def _cell(f, h):
+                p = next((q for q in f['points'] if q['h'] == h), None)
+                if not p:
+                    return '<td class="c-nil">—</td>'
+                kt = f"{p['kt']:.0f} kt" if p.get('kt') is not None else '–'
+                return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
+                        f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
+            head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
+                           f'<span class="eta">{_esc(f["issue"][5:16].replace("-", "/").replace("T", " ")) if f.get("issue") else ""}</span></th>'
+                           for f in fcs)
+            rows = ''.join(f'<tr><td class="c-name">{"<span data-i18n=\"off.now\">Now</span>" if h == 0 else f"+{h} h"}</td>'
+                           f'{"".join(_cell(f, h) for f in fcs)}</tr>' for h in hours)
+            official_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🏛️</span>
+                    <span data-i18n="panel.official">Official Forecasts Compared</span>
+                </div>
+                {_figure(os.path.basename(_off['path']), f"{track_id} Official Forecasts")}
+                <div class="city-table-wrap"><table class="city-table off-table">
+                    <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
+                </table></div>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)</p>
+            </div>"""
+
+        ohc_html = ""
+        _ohc = next((m.get('ohc_path') for m in models if isinstance(m, dict) and m.get('ohc_path')), None)
+        if _ohc and os.path.exists(_ohc):
+            sec_id = f"sec-{key_prefix}-ohc"
+            sections.append((sec_id, 'sub.ohc', 'Ocean heat'))
+            ohc_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🌊</span>
+                    <span data-i18n="panel.ohc">Ocean Heat Content</span>
+                </div>
+                {_figure(os.path.basename(_ohc), f"{track_id} Ocean Heat Content")}
+                <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far</p>
+            </div>"""
+
+        steer_html = ""
+        _steer = next((m.get('steering_maps') for m in models
+                       if isinstance(m, dict) and m.get('steering_maps')), None)
+        steer_items = [(lbl, p) for lbl, p in (_steer or []) if p and os.path.exists(p)]
+        if steer_items:
+            sec_id = f"sec-{key_prefix}-steer"
+            sections.append((sec_id, 'sub.steer', 'Steering'))
+            steer_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-steer", '🌬️', 'panel.steer', 'Steering Flow (500 hPa)',
+                steer_items, 'note.steer',
+                'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) '
+                '&nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move '
+                'around it, west while the high extends west, turning north where it ends &nbsp;·&nbsp; '
+                'Navy line and dot = ECMWF HRES track and the storm\'s position at that time',
+                f"{track_id} Steering Flow")
         score_html = ""
         _card_m = next((m for m in models if isinstance(m, dict) and 'scorecard' in m), None)
         if _card_m is not None:
@@ -1149,7 +1343,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
         # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
-        page_order = ['cmp', 'anim', 'maps', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'score']
+        page_order = ['cmp', 'anim', 'maps', 'official', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
         sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
                       if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
         subnav = "".join(
@@ -1178,10 +1372,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <nav class="subnav" aria-label="Sections">{subnav}</nav>
             {_pair(cmp_html, anim_html)}
             {maps_html}
+            {official_html}
             {tmap_html}
             {_pair(strike_html, extra_html)}
             {cities_html}
             {_pair(trend_html, plume_html)}
+            {ohc_html}
+            {steer_html}
             {score_html}
         </div>
     </section>""")
@@ -1276,6 +1473,46 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <span class="mono">{_range_txt(lo, hi, i)}</span>
                     </div>""" for i, (c, lo, hi) in enumerate(CAT_RANGES))
 
+    archive_view = ""
+    if _archive:
+        def _md(iso):
+            return f"{iso[5:7]}/{iso[8:10]}" if iso else '?'
+        cards = []
+        for e in _archive:
+            cat = ss_category(e['peak']) if e['peak'] is not None else 'Unknown'
+            live = '<span class="arch-live" data-i18n="arch.active">Active</span>' if e['active'] else ''
+            cards.append(
+                f'<button type="button" class="arch-card" data-arch="{_esc(e["id"])}" style="--cat:{CAT_COLOR_MAP[cat]}">'
+                f'<span class="arch-top"><span class="arch-name storm-name">{_esc(e["name"] or e["id"])}</span>{live}</span>'
+                f'<span class="arch-meta mono">{_esc(e["id"])} · {_md(e["first"])}–{_md(e["last"])}</span>'
+                f'<span class="arch-meta"><span class="badge-cat" style="background:{CAT_COLOR_MAP[cat]};color:{CAT_TEXT_MAP[cat]}">{cat}</span>'
+                f' <span class="mono">{e["peak"] if e["peak"] is not None else "–"} kt</span>'
+                f' · <span data-i18n="arch.inits" data-i18n-n="{e["n"]}">{e["n"]} forecasts</span></span>'
+                f'</button>')
+        archive_view = f"""
+    <section class="view" data-view="archive" data-title-key="nav.archive">
+        <div class="page">
+            <div class="page-head reveal">
+                <div class="kicker" data-i18n="arch.kicker">Past storms</div>
+                <h2 class="page-title" data-i18n="arch.title">Storm Archive</h2>
+                <p class="page-lead" data-i18n="arch.lead">Every storm this site has followed: the real JTWC track, how each model's forecasts changed run by run, and how far off they turned out to be.</p>
+            </div>
+            <div class="arch-grid reveal">{"".join(cards)}</div>
+            <div class="panel arch-detail" hidden>
+                <div class="panel-header"><span class="panel-icon">🗂️</span><span class="arch-title"></span></div>
+                <div class="tm-controls arch-controls">
+                    <select class="arch-model" aria-label="Model"></select>
+                    <span class="tm-init"><span data-i18n="arch.init">Init</span> <b class="arch-init-val"></b></span>
+                    <input type="range" class="arch-slider" min="0" max="0" value="0" aria-label="Init">
+                    <label><input type="checkbox" class="arch-all" checked> <span data-i18n="arch.all">Show every run</span></label>
+                </div>
+                <div class="arch-map"></div>
+                <p class="map-note" data-i18n="note.arch.map">Thick colored line = the real JTWC track, colored by intensity &nbsp;·&nbsp; Orange = the selected run's ensemble-mean (or deterministic) forecast, with a dot every 24 h &nbsp;·&nbsp; Thin lines = all other runs of the same model, light = older, dark = newer &nbsp;·&nbsp; Drag the slider to step through the runs</p>
+                <div class="arch-score"></div>
+            </div>
+        </div>
+    </section>"""
+
     about_view = f"""
     <section class="view" data-view="about" data-title-key="nav.about">
         <div class="page">
@@ -1301,6 +1538,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
+                        <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
+                        <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
+                        <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
                     </div>
@@ -1349,6 +1589,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             f'</button><div class="nav-menu" role="menu">{menu_items}</div></div>')
     if _genesis_entries:
         nav_links.append(f'<a class="nav-link" href="#/genesis" data-route="genesis">{ICONS["genesis"]}<span data-i18n="nav.genesis">Genesis</span></a>')
+    if _archive:
+        nav_links.append(f'<a class="nav-link" href="#/archive" data-route="archive">{ICONS["archive"]}<span data-i18n="nav.archive">Archive</span></a>')
     nav_links.append(f'<a class="nav-link" href="#/about" data-route="about">{ICONS["about"]}<span data-i18n="nav.about">About</span></a>')
 
     bottom = [f'<a href="#/overview" data-route="overview">{ICONS["overview"]}<span data-i18n="nav.overview">Overview</span></a>']
@@ -1359,6 +1601,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                       f'<span data-i18n="nav.storms">Storms</span></a>')
     if _genesis_entries:
         bottom.append(f'<a href="#/genesis" data-route="genesis">{ICONS["genesis"]}<span data-i18n="nav.genesis">Genesis</span></a>')
+    if _archive:
+        bottom.append(f'<a href="#/archive" data-route="archive">{ICONS["archive"]}<span data-i18n="nav.archive">Archive</span></a>')
     bottom.append(f'<a href="#/about" data-route="about">{ICONS["about"]}<span data-i18n="nav.about">About</span></a>')
 
     # 給前端腳本的資料（路由、主視覺參數、更新時間）
@@ -1366,6 +1610,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     title_track_ids = joined_ids or "Forecast"
     site_data = {
         'routes': routes,
+        'archiveOrder': ARCHIVE_MODEL_ORDER,
         'updatedIso': now_local.isoformat(timespec='seconds'),
         'hero': {'rgb': hero_rgb, 'strength': round(hero_strength, 3)},
         'trackIds': joined_ids,
@@ -1436,6 +1681,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 {overview_view}
 {"".join(storm_views)}
 {genesis_view}
+{archive_view}
 {about_view}
     </main>
 
@@ -2031,6 +2277,23 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .run-btn { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); font: inherit; font-size: .8em; font-weight: 600; cursor: pointer; transition: all .2s; }
 .run-btn:hover { color: var(--text); border-color: var(--text); }
 .run-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.off-table td.c-off { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score-more { margin: 28px 0 10px; font-size: 1em; font-weight: 750; }
+/* ── 颱風歷史存檔 ── */
+.arch-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 18px 0 22px; }
+.arch-card { position:relative; display:flex; flex-direction:column; gap: 7px; text-align:left; padding: 16px 18px 15px; border: 1px solid var(--border); border-top: 3px solid var(--cat); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: border-color .2s, transform .2s, box-shadow .2s; }
+.arch-card:hover { border-color: var(--cat); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.arch-card.active { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.arch-top { display:flex; align-items:center; justify-content:space-between; gap: 8px; }
+.arch-name { font-size: 1.35em; font-weight: 800; letter-spacing: -.01em; }
+.arch-meta { color: var(--text-2); font-size: .82em; display:flex; align-items:center; gap: 6px; flex-wrap: wrap; }
+.arch-meta .badge-cat { padding: 3px 8px; font-size: .9em; }
+.arch-live { font-size: .7em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--bg); background: var(--accent); padding: 3px 7px; border-radius: 6px; }
+.arch-detail { scroll-margin-top: calc(var(--header-h) + 20px); }
+.arch-controls { display:flex; align-items:center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.arch-slider { flex: 1 1 220px; min-width: 160px; accent-color: var(--accent); }
+.arch-detail .arch-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
+.arch-score { margin-top: 22px; }
 .zoomable { position:relative; border-radius: 12px; overflow:hidden; cursor: zoom-in; background: var(--surface-2); border: 1px solid var(--border); }
 .zoomable.skel:not(.loaded) { min-height: 240px; }
 .zoomable.skel:not(.loaded)::before {
@@ -2762,6 +3025,16 @@ const I18N = {
     'nav.storms':       'Storms',
     'nav.genesis':      'Genesis',
     'nav.about':        'About',
+    'nav.archive':      'Archive',
+    'arch.kicker':      'Past storms',
+    'arch.title':       'Storm Archive',
+    'arch.lead':        'Every storm this site has followed: the real JTWC track, how each model\'s forecasts changed run by run, and how far off they turned out to be. Pick a storm to open it.',
+    'arch.active':      'Active',
+    'arch.inits':       '{n} forecasts',
+    'arch.init':        'Run',
+    'arch.all':         'Show every run',
+    'arch.noscore':     'No verified forecasts for this storm yet.',
+    'note.arch.map':    'Thick colored line = the real JTWC track, colored by intensity &nbsp;·&nbsp; Orange = the selected run\'s forecast, with a dot every 24 h &nbsp;·&nbsp; Thin lines = all other runs of the same model, light = older, dark = newer &nbsp;·&nbsp; Drag the slider to step through the runs; the number after each model is how many runs were saved',
     'hero.eyebrow.live':  'Now tracking',
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
@@ -2827,7 +3100,7 @@ const I18N = {
     'score.model':      'Model',
     'score.all':        'All storms (last 90 days)',
     'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
-    'note.score':       'Mean distance (km) between each forecast position and the JTWC warning position at the same time &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
+    'note.score':       'Track error = mean distance (km) between each forecast position and the JTWC warning position at the same time; the other tabs split it into along-/cross-track parts or check intensity &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst (along-/cross-track: green = closest to 0); ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.tab.allst.all': 'All storms · all forecasts',
     'score.tab.storm.homog': 'This storm · homogeneous',
@@ -2842,6 +3115,30 @@ const I18N = {
     'score.grp.jtwc': 'Official (JTWC)',
     'score.grp.jtwc.sub': 'verified against its own warning positions, which flatters JTWC — not ranked',
     'score.chart.y': 'Mean track error (km)',
+    'sub.official':     'Official',
+    'panel.official':   'Official Forecasts Compared',
+    'off.now':          'Now',
+    'off.hour':         'Hour',
+    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)',
+    'sub.ohc':          'Ocean heat',
+    'panel.ohc':        'Ocean Heat Content',
+    'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far',
+    'sub.steer':        'Steering',
+    'panel.steer':      'Steering Flow (500 hPa)',
+    'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
+    'score.m.track': 'Track',
+    'score.more':     'More measures: along-track, cross-track and intensity',
+    'score.m.at': 'Along-track',
+    'score.m.ct': 'Cross-track',
+    'score.m.int': 'Intensity',
+    'score.m.pending': 'Not enough data for this measure yet.',
+    'score.bias': 'bias',
+    'score.chart.at': 'Mean along-track error (km) · + too fast, − too slow',
+    'score.chart.ct': 'Mean cross-track error (km) · + right of track, − left',
+    'score.chart.int': 'Mean absolute intensity error (kt)',
+    'score.note.at': 'Along-track error: measured along the storm\'s real direction of motion, is the forecast position ahead of (+) or behind (−) the real storm? A steady + means the model moves the storm too fast, − too slow. The small |e| is the average size ignoring the sign. Only counted while the storm moves at least 5 km/h; when it stalls or loops its direction is unreliable.',
+    'score.note.ct': 'Cross-track error: at right angles to the real motion, is the forecast to the right (+) or left (−) of the real track? A model that stays on one side usually has a systematic steering bias, for example in how far west the subtropical high reaches. The small |e| is the average size ignoring the sign.',
+    'score.note.int': 'Intensity error: difference between the forecast maximum wind and the JTWC maximum wind (kt, average size ignoring the sign). The small "bias" is the signed average: + = too strong, − = too weak. Ensemble means smooth out the members and usually run weak, and coarser models often underestimate strong typhoons. Wind speeds were only archived from late October 2026 on, so older forecasts have no intensity to compare.',
     'sub.strikex':      'By Period',
     'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
@@ -2893,7 +3190,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a track-error scorecard.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official JTWC forecast. Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast and a scorecard of track, along-/cross-track and intensity errors.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -2932,6 +3229,16 @@ const I18N = {
     'nav.storms':       '颱風',
     'nav.genesis':      '生成潛勢',
     'nav.about':        '說明',
+    'nav.archive':      '歷史',
+    'arch.kicker':      '過往颱風',
+    'arch.title':       '颱風歷史存檔',
+    'arch.lead':        '本站追蹤過的每一顆颱風：JTWC 的實際路徑、各模式每一期的預報如何變化，以及最後誤差有多大。點一顆颱風打開。',
+    'arch.active':      '進行中',
+    'arch.inits':       '{n} 筆預報',
+    'arch.init':        '起報',
+    'arch.all':         '顯示所有期數',
+    'arch.noscore':     '這顆颱風還沒有可校驗的預報。',
+    'note.arch.map':    '粗的彩色線＝JTWC 實際路徑，依強度上色 &nbsp;·&nbsp; 橘線＝選取那一期的預報，每 24 小時一個圓點 &nbsp;·&nbsp; 細線＝同一模式的其他期數，淺＝較舊、深＝較新 &nbsp;·&nbsp; 拖動滑桿逐期查看；模式名稱後的數字是存了幾期',
     'hero.eyebrow.live':  '正在追蹤',
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
     'hero.quiet.title': '目前風平浪靜',
@@ -2997,7 +3304,7 @@ const I18N = {
     'score.model':      '模式',
     'score.all':        '所有颱風合計（近 90 天）',
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
-    'note.score':       '各預報位置與同時間 JTWC 警報位置的平均距離（公里） &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
+    'note.score':       '路徑誤差＝各預報位置與同時間 JTWC 警報位置的平均距離（公里）；其他分頁把它拆成沿／跨路徑，或比較強度 &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差（沿／跨路徑：越接近 0 越綠）；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.tab.allst.all': '所有颱風・全部樣本',
     'score.tab.storm.homog': '這顆颱風・同質樣本',
@@ -3012,6 +3319,30 @@ const I18N = {
     'score.grp.jtwc': '官方預報（JTWC）',
     'score.grp.jtwc.sub': '以 JTWC 自己的警報位置為實況，數字會偏有利，不參與排名',
     'score.chart.y': '平均路徑誤差（公里）',
+    'sub.official':     '官方預報',
+    'panel.official':   '各國官方預報比較',
+    'off.now':          '現在',
+    'off.hour':         '時數',
+    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝發布時間（UTC）',
+    'sub.ohc':          '海洋熱含量',
+    'panel.ohc':        '海洋熱含量',
+    'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，線＝目前為止的路徑',
+    'sub.steer':        '駛流場',
+    'panel.steer':      '駛流場（500 hPa）',
+    'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',
+    'score.m.track': '路徑誤差',
+    'score.more':     '其他指標：沿路徑、跨路徑與強度',
+    'score.m.at': '沿路徑',
+    'score.m.ct': '跨路徑',
+    'score.m.int': '強度',
+    'score.m.pending': '這項指標的資料還在累積中。',
+    'score.bias': '偏差',
+    'score.chart.at': '平均沿路徑誤差（公里）・＋偏快、−偏慢',
+    'score.chart.ct': '平均跨路徑誤差（公里）・＋偏右、−偏左',
+    'score.chart.int': '平均強度誤差（kt，不分正負）',
+    'score.note.at': '沿路徑誤差：沿著颱風實際的移動方向，預報位置在實際颱風的前面（＋）還是後面（−）。持續為＋代表模式把颱風移得太快，−代表太慢。小字 |e| 是不分正負的平均大小。只在颱風移動速度至少 5 km/h 時計算；滯留或打轉時方向不可靠。',
+    'score.note.ct': '跨路徑誤差：垂直於實際移動方向，預報偏在實際路徑的右側（＋）還是左側（−）。一直偏同一側，通常代表模式對駛流有系統性偏差，例如太平洋高壓西伸的程度。小字 |e| 是不分正負的平均大小。',
+    'score.note.int': '強度誤差：預報最大風速與 JTWC 實況最大風速的差距（kt，不分正負的平均）。小字「偏差」是有正負的平均：＋＝預報太強、−＝太弱。系集平均會把成員的強度平滑掉，通常偏弱；解析度較粗的模式也常低估強颱。2026 年 10 月下旬才開始存預報風速，更早的預報沒有強度可比。',
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
@@ -3063,7 +3394,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報與模式路徑誤差。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC 官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報，以及模式的路徑、沿／跨路徑與強度誤差成績單。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -3603,6 +3934,113 @@ const tmIO = ('IntersectionObserver' in window) ? new IntersectionObserver(es =>
     if (e.isIntersecting) { tmIO.unobserve(e.target); initTrackMap(e.target); }
 }), {rootMargin: '200px'}) : null;
 document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : initTrackMap(b));
+
+// ── 颱風歷史存檔：點颱風卡片 → 載入 archive/{tid}.json 畫路徑、載入成績單片段 ──
+(() => {
+    const view = document.querySelector('.view[data-view="archive"]');
+    if (!view) return;
+    const box = view.querySelector('.arch-detail');
+    const sel = box.querySelector('.arch-model');
+    const slider = box.querySelector('.arch-slider');
+    const allBox = box.querySelector('.arch-all');
+    const initVal = box.querySelector('.arch-init-val');
+    const mapEl = box.querySelector('.arch-map');
+    const scoreEl = box.querySelector('.arch-score');
+    const OLD = [126, 196, 232], NEW = [59, 47, 143];          // 舊期淺藍 → 新期深紫，同趨勢圖
+    const PICK = '#E8963A';
+    const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = (iso, h = 0) => {
+        const d = new Date(new Date(iso).getTime() + h * 3600e3);
+        return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
+    };
+    const isoOf = st => `${st.slice(0, 4)}-${st.slice(4, 6)}-${st.slice(6, 8)}T${st.slice(8, 10)}:00:00Z`;
+    const mix = f => `rgb(${OLD.map((a, i) => Math.round(a + (NEW[i] - a) * f)).join(',')})`;
+    const unwrap = pts => { let prev = null; return pts.map(p => {
+        let lon = p[2];
+        if (prev != null) { while (lon - prev > 180) lon -= 360; while (lon - prev < -180) lon += 360; }
+        prev = lon; return [p[1], lon, p]; }); };
+    let L = null, map = null, layer = null, tiles = null, data = null, inits = [];
+    const i18nIn = el => el.querySelectorAll('[data-i18n]').forEach(x => {
+        const txt = t(x.dataset.i18n, i18nParams(x)); if (txt) x.innerHTML = txt; });
+
+    function draw(fit) {
+        layer.clearLayers();
+        const m = sel.value, fc = data.fcst[m] || {};
+        const k = +slider.value, pick = inits[k];
+        initVal.textContent = pick ? fmt(isoOf(pick)) : '–';
+        const bounds = [];
+        if (allBox.checked) inits.forEach((st, i) => {
+            if (st === pick) return;
+            const pts = unwrap(fc[st]);
+            L.polyline(pts.map(p => [p[0], p[1]]), {color: mix(inits.length > 1 ? i / (inits.length - 1) : 1), weight: 1.4, opacity: .55})
+                .bindTooltip(`${m} · ${fmt(isoOf(st))}`, {sticky: true}).addTo(layer);
+        });
+        // 實況：白邊＋依強度分段上色，每個定位點一個小圓點
+        const obs = (data.obs || []).map(r => [r[1], r[2], r]);
+        let prev = null;
+        const ob = obs.map(o => { let lon = o[1]; if (prev != null) { while (lon - prev > 180) lon -= 360; while (lon - prev < -180) lon += 360; } prev = lon; return [o[0], lon, o[2]]; });
+        L.polyline(ob.map(p => [p[0], p[1]]), {color: '#fff', weight: 7, opacity: .75}).addTo(layer);
+        for (let i = 0; i < ob.length - 1; i++)
+            L.polyline([[ob[i][0], ob[i][1]], [ob[i + 1][0], ob[i + 1][1]]], {color: TM_COLORS[tmCat(ob[i][2][3])], weight: 4.5, opacity: 1}).addTo(layer);
+        ob.forEach(p => {
+            L.circleMarker([p[0], p[1]], {radius: 3.2, color: '#16324F', weight: 1, fillColor: TM_COLORS[tmCat(p[2][3])], fillOpacity: 1})
+                .bindTooltip(`JTWC · ${fmt(p[2][0])} · ${p[2][3] ?? '–'} kt`).addTo(layer);
+            bounds.push([p[0], p[1]]);
+        });
+        if (pick) {
+            const pts = unwrap(fc[pick]), ll = pts.map(p => [p[0], p[1]]);
+            L.polyline(ll, {color: '#fff', weight: 5.2, opacity: .8}).addTo(layer);
+            L.polyline(ll, {color: PICK, weight: 3.2, opacity: 1}).bindTooltip(`${m} · ${fmt(isoOf(pick))}`, {sticky: true}).addTo(layer);
+            pts.filter(p => p[2][0] % 24 === 0).forEach(p =>
+                L.circleMarker([p[0], p[1]], {radius: 4, color: PICK, weight: 1.6, fillColor: '#fff', fillOpacity: 1})
+                    .bindTooltip(`${m} +${p[2][0]}h · ${fmt(isoOf(pick), p[2][0])} · ${p[2][3] ?? '–'} kt`).addTo(layer));
+            ll.forEach(p => bounds.push(p));
+        }
+        if (fit && bounds.length) map.fitBounds(bounds, {padding: [24, 24]});
+    }
+    function setModel(fit) {
+        inits = Object.keys(data.fcst[sel.value] || {}).sort();
+        slider.max = Math.max(0, inits.length - 1);
+        slider.value = slider.max;
+        draw(fit);
+    }
+    async function open(tid, card) {
+        view.querySelectorAll('.arch-card').forEach(c => c.classList.toggle('active', c === card));
+        box.hidden = false;
+        box.querySelector('.arch-title').textContent = card.querySelector('.arch-name').textContent + ' · ' + tid;
+        try {
+            const [lib, d, html] = await Promise.all([loadLeaflet(), fetch(`archive/${tid}.json`).then(r => r.json()),
+                fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            L = lib; data = d;
+            if (!map) {
+                map = L.map(mapEl, {preferCanvas: true}).setView([20, 130], 4);
+                tiles = tmTiles(L).addTo(map);
+                new MutationObserver(() => { map.removeLayer(tiles); tiles = tmTiles(L).addTo(map); })
+                    .observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+                layer = L.layerGroup().addTo(map);
+            }
+            const models = Object.keys(data.fcst);
+            models.sort((a, b) => (ARCH_ORDER.indexOf(a) + 99) % 99 - (ARCH_ORDER.indexOf(b) + 99) % 99);
+            sel.innerHTML = '';
+            models.forEach(m => sel.add(new Option(`${m}（${Object.keys(data.fcst[m]).length}）`, m)));
+            sel.value = PREFER.find(m => data.fcst[m]) || models[0];
+            scoreEl.innerHTML = html;
+            i18nIn(scoreEl);
+            setModel(true);
+            requestAnimationFrame(() => { map.invalidateSize(); updateIndicators(); });
+            box.scrollIntoView({behavior: reduced() ? 'auto' : 'smooth', block: 'start'});
+        } catch (e) {
+            mapEl.textContent = 'Archive failed to load';
+            console.log('[archive]', e);
+        }
+    }
+    const ARCH_ORDER = SITE.archiveOrder || [];
+    sel.onchange = () => setModel(false);
+    slider.oninput = () => draw(false);
+    allBox.onchange = () => draw(false);
+    view.addEventListener('click', e => { const c = e.target.closest('.arch-card'); if (c) open(c.dataset.arch, c); });
+})();
 
 const revealIO = ('IntersectionObserver' in window) ? new IntersectionObserver(entries => {
     for (const e of entries) {
