@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import ssl
+from datetime import datetime, timedelta, timezone
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -58,10 +59,32 @@ def fetch_jma() -> list[dict]:
                         'kt': _num(wind), 'hpa': _num(p.get("pressure")),
                         'r70_km': _num((p.get("probabilityCircleRadius") or {}).get("km"))})
         if pts:
+            issue, shift = _jma_base((title.get("issue") or {}).get("UTC"), [q['h'] for q in pts])
+            for q in pts:
+                if q['h'] > 0:
+                    q['h'] += shift
             out.append({'agency': 'JMA', 'id': tcid, 'number': tc.get("typhoonNumber"), 'name': name,
-                        'issue': (title.get("issue") or {}).get("UTC"),
-                        'points': sorted(pts, key=lambda q: q['h'])})
+                        'issue': issue, 'points': sorted(pts, key=lambda q: q['h'])})
     return out
+
+
+def _jma_base(issue_utc, hours: list[int]):
+    """颱風接近日本時 JMA 每小時發一次「推定」更新（例如 13Z），但預報點還是 12Z 那一報的，
+    時數卻從 13Z 起算（+11、+23…），跟其他單位的 +12／+24 對不上。
+
+    JMA 24 小時以後的預報點從預報基準時間算都是 12 小時的整數倍，所以用它們推回基準時間
+    （13Z 發的 +47 → 差 1 小時 → 12Z）；沒有長期預報點時退回最近的 3 小時整點。
+    h=0 仍是最新推定位置，當作「現在」。回傳 (基準時間 ISO, 預報時數要補的小時數)。"""
+    if not issue_utc:
+        return issue_utc, 0
+    try:
+        t = datetime.fromisoformat(str(issue_utc).replace('Z', '+00:00')).astimezone(timezone.utc)
+    except ValueError:
+        return issue_utc, 0
+    t = t.replace(minute=0, second=0, microsecond=0)
+    longs = [h for h in hours if h >= 24]
+    shift = (-max(longs)) % 12 if longs else t.hour % 3
+    return (t - timedelta(hours=shift)).strftime('%Y-%m-%dT%H:%MZ'), shift
 
 
 class _LenientX509Adapter(HTTPAdapter):
