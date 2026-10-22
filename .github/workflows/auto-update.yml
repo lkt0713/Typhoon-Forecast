@@ -18,13 +18,14 @@ permissions:
   pages: write
   id-token: write
 
-# 上一輪還沒跑完時，新的一輪排隊等，不要兩輪同時改 docs/
-concurrency:
-  group: auto-update
-  cancel-in-progress: false
-
 jobs:
   update:
+    # 上一輪的 update 還沒跑完時，新的一輪排隊等，不要兩輪同時改 docs/。
+    # 只鎖 update 這個 job，不鎖整輪：Pages 部署排隊卡住時（2026-10-22 等了 20 分鐘），
+    # 下一輪的預報照樣跑，網站等部署恢復後由最新一輪的 deploy 一次補上
+    concurrency:
+      group: auto-update
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
@@ -160,9 +161,11 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    # 不取消進行中的部署：部署排隊比 10 分鐘還久時，取消會讓每一輪都被下一輪砍掉、網站永遠更新不了。
+    # 進行中的跑完；排隊中的只留最新一輪（GitHub 對同一 group 只保留一個 pending）
     concurrency:
       group: pages
-      cancel-in-progress: true
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -187,7 +190,8 @@ jobs:
   # 再用 workflow_dispatch 叫起下一輪（GITHUB_TOKEN 觸發 workflow_dispatch 是
   # GitHub 允許的例外）。schedule 仍保留，接力斷掉時靠它接回來。
   chain:
-    needs: [update, deploy]
+    # 不等 deploy：部署卡住不該拖住下一輪預報
+    needs: update
     # 本輪失敗也要接力，否則一次下載失敗整條鏈就斷了
     if: always()
     runs-on: ubuntu-latest
@@ -206,14 +210,15 @@ jobs:
             echo "[INFO] Sleeping ${wait}s until the next slot"
             sleep "$wait"
           fi
-          # 已經有別輪在排隊或執行（排程恢復了、或有人手動觸發）就不再加一輪，
-          # 避免同時跑出兩條接力鏈
+          # 已經有比本輪新的一輪在排隊或執行（排程恢復了、或有人手動觸發）就不再加一輪，
+          # 避免同時跑出兩條接力鏈。只看比本輪新的：舊的那輪可能只剩 deploy 還在排隊，
+          # 它的接力早就發出去了（就是本輪），不能因為它沒結束就不接
           # 只算 30 分鐘內建立的：GitHub 偶爾留下永遠 queued、取消也刪不掉的幽靈
           # run（2026-10-19 13:40 那輪），若照算，每輪都以為「已有別輪在排」而不接，
           # 整條鏈就斷在那裡
           others=$(gh run list --workflow auto-update.yml --limit 20 \
             --json databaseId,status,createdAt \
-            -q "[.[] | select(.databaseId != ${{ github.run_id }}) | select(.status != \"completed\") | select((now - (.createdAt | fromdateiso8601)) < 1800)] | length")
+            -q "[.[] | select(.databaseId != ${{ github.run_id }}) | select(.status != \"completed\") | select(.createdAt > \"$started\") | select((now - (.createdAt | fromdateiso8601)) < 1800)] | length")
           if [ "$others" -gt 0 ]; then
             echo "[INFO] Another run is already queued or running, not chaining"
             exit 0
