@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes ecmwf-opendata
+          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes ecmwf-opendata netCDF4
 
       # 下載目錄在 .gitignore 裡不進 repo；用 cache 在各輪之間保留，
       # _resolve_cycle 回溯舊 cycle 與潛勢圖的退路才有檔案可用。

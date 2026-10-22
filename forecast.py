@@ -2552,7 +2552,7 @@ def make_official_forecasts(storms: list) -> None:
             os.remove(os.path.join(OUTPUT_DIR, name))
 
 
-# ── 海洋熱含量（NOAA AOML TCHP）＋颱風目前位置 ───────────────────────────
+# ── 海洋熱含量（由 HYCOM 水溫算的 TCHP）＋颱風目前位置 ───────────────────────────
 # 一張西北太平洋圖：最新一天的 TCHP（kJ/cm²），50 kJ/cm² 等值線（有利增強的常用門檻），
 # 疊上每顆颱風目前位置（依強度上色）與 JTWC 已走過的路徑。資料抓取見 ohc.py。
 OHC_EXTENT = (100, 180, 0, 50)
@@ -2605,8 +2605,8 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str) -> str:
     _style_legend(leg)
     ax.set_title("Ocean Heat Content  ·  Tropical Cyclone Heat Potential", loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, f"Analysis {pd.Timestamp(date):%Y-%m-%d}  ·  Heat above 26 °C from the surface to the 26 °C isotherm  ·  "
-            "Data: NOAA AOML", transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    ax.text(0, 1.012, f"Analysis {pd.Timestamp(date):%Y-%m-%d %HZ}  ·  Heat above 26 °C from the surface to the 26 °C isotherm  ·  "
+            "Computed from HYCOM ESPC (US Navy)", transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
     plt.savefig(save_path, dpi=170, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
@@ -2638,7 +2638,7 @@ def make_ohc_map(storms: list) -> str | None:
         if os.path.exists(OHC_PATH):
             os.remove(OHC_PATH)
         return None
-    date, lat, lon, tchp = ohc.load(ohc.fetch())
+    date, lat, lon, tchp = ohc.fetch()
     plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH)
     print(f"[OHC] 已畫 {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
     return OHC_PATH
