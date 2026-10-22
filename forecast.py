@@ -2496,7 +2496,10 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
         plat = np.array([p['lat'] for p in pts])
         ax.plot(plon, plat, color='white', lw=4.6, alpha=0.8, zorder=3, **kw)
         ax.plot(plon, plat, color=c, lw=2.4, zorder=3.1, **kw)
-        ax.scatter(plon, plat, s=30, facecolors='white', edgecolors=c, linewidths=1.6, zorder=5, **kw)
+        # 颱風接近日本時 JMA 前 24 小時改成每 3 小時一點（外加 1 小時後推定），全部畫點會擠成一串；
+        # 線照樣連過所有點，前 24 小時圓點只畫 12 小時整數倍，跟 JTWC 一致；之後每個預報點都畫
+        dot = np.array([p['h'] % 12 == 0 or p['h'] > 24 for p in pts])
+        ax.scatter(plon[dot], plat[dot], s=30, facecolors='white', edgecolors=c, linewidths=1.6, zorder=5, **kw)
         for p, x, y in zip(pts, plon, plat):
             if p['h'] in (24, 48, 72, 96, 120):
                 ax.text(x + 0.35, y + 0.25, f"+{p['h']}", fontsize=7.5, color=c, fontweight='bold', zorder=6,
