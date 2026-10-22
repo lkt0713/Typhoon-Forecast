@@ -62,6 +62,12 @@ jobs:
           grep -E "ERROR|WARN|Traceback|STEER|OFFICIAL|ARCHIVE|VERIF" forecast.log | tail -80 > dev-output/log-excerpt.txt || true
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          cat dev-output/log-excerpt.txt
+          # 預報會改動 docs/ 底下的檔，只把 dev-output 提交到乾淨的分支頭上
+          git stash -q -u
+          git fetch -q --depth=1 origin "${GITHUB_REF_NAME}"
+          git checkout -q -B devout FETCH_HEAD
+          git checkout -q stash@{0}^3 -- dev-output 2>/dev/null || git checkout -q stash@{0} -- dev-output
           git add dev-output
           git commit -q -m "dev-test output (temporary)" || exit 0
-          for i in 1 2 3; do git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep 5; done
+          git push -q origin "HEAD:${GITHUB_REF_NAME}"
