@@ -1,0 +1,67 @@
+name: Dev test (branch only, temporary)
+
+# 只在開發分支上跑的測試：完整跑一次 forecast.py，把網頁與新產物存到 dev-output/
+# 推回同一分支供檢查。不碰 main、不部署 Pages。合併前會刪掉這個檔案。
+on:
+  push:
+    branches: [claude/intelligent-galileo-eirpg4]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-test
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy matplotlib requests scipy shapely pillow cartopy pdbufr eccodes
+          if [ -f dev/requirements.txt ]; then pip install -r dev/requirements.txt; fi
+      - name: Restore download cache (read only)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            deepmind_weather_*_2026/
+            ecmwf_*_2026/
+            noaa_*_2026/
+            ~/.local/share/cartopy
+          key: forecast-data-v2-restore
+          restore-keys: forecast-data-v2-
+      - name: Probes
+        if: hashFiles('dev/probe.py') != ''
+        env:
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: python dev/probe.py || true
+      - name: Run forecast
+        timeout-minutes: 25
+        env:
+          TZ: Asia/Taipei
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: python forecast.py 2>&1 | tee forecast.log | grep -vE "已生成第|FRAME\]" | tail -150
+      - name: Save outputs to the branch
+        run: |
+          rm -rf dev-output && mkdir -p dev-output
+          cp docs/index.html dev-output/
+          cp -r docs/verification dev-output/ 2>/dev/null || true
+          if [ -f dev/outputs.txt ]; then
+            while read -r pat; do [ -n "$pat" ] && cp -r docs/$pat dev-output/ 2>/dev/null || true; done < dev/outputs.txt
+          fi
+          grep -E "ERROR|WARN|Traceback|STEER|OFFICIAL|ARCHIVE|VERIF" forecast.log | tail -80 > dev-output/log-excerpt.txt || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add dev-output
+          git commit -q -m "dev-test output (temporary)" || exit 0
+          for i in 1 2 3; do git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep 5; done

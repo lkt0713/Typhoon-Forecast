@@ -1963,7 +1963,8 @@ def load_trend_means(cfg: dict, cycle, track_id: str, det: bool = False) -> list
                 continue
             it = pd.Timestamp(datetime.strptime(m.group(1), '%Y%m%d%H'), tz='UTC')
             try:
-                f = pd.read_csv(os.path.join(fdir, fname)).dropna()
+                # 只看位置欄：存檔另有 wind 欄，風速缺值的點不能連位置一起丟掉
+                f = pd.read_csv(os.path.join(fdir, fname)).dropna(subset=['lead_h', 'lat', 'lon'])
             except Exception:
                 continue
             f = _cut_extratropical(f, [], 'lead_h')
@@ -2112,8 +2113,42 @@ def _parse_latlon(txt: str) -> float | None:
     return -v if m.group(2) in 'SW' else v
 
 
+def _verif_frame(lead_h, lat, lon, wind=None) -> pd.DataFrame:
+    """校驗存檔的欄位：lead_h, lat, lon, wind（kt；沒有風速時整欄空白）。"""
+    out = pd.DataFrame({'lead_h': np.round(np.asarray(lead_h, dtype=float), 2),
+                        'lat': np.round(np.asarray(lat, dtype=float), 3),
+                        'lon': np.round(np.asarray(lon, dtype=float), 3)})
+    w = np.full(len(out), np.nan) if wind is None else np.asarray(wind, dtype=float)
+    out['wind'] = np.round(w, 1)
+    return out
+
+
+def _save_verif_fcst(path: str, new: pd.DataFrame) -> None:
+    """寫一期預報的校驗檔。已存在就不覆寫（同一期只留第一份），只有一個例外：
+    舊檔是加入強度校驗前存的、沒有 wind 欄，而這次有風速時，用預報時數把風速補進去，
+    位置照舊。"""
+    if not os.path.exists(path):
+        new.to_csv(path, index=False)
+        return
+    try:
+        old = pd.read_csv(path)
+    except Exception:
+        return
+    if 'wind' in old.columns or new['wind'].isna().all():
+        return
+    w = new.dropna(subset=['lead_h', 'wind']).sort_values('lead_h')
+    old['wind'] = np.round(np.interp(old['lead_h'], w['lead_h'], w['wind'],
+                                     left=np.nan, right=np.nan), 1)
+    old.to_csv(path, index=False)
+
+
+def _df_verif_frame(df: pd.DataFrame, init) -> pd.DataFrame:
+    lead = (pd.to_datetime(df['valid_time']) - pd.to_datetime(init)).dt.total_seconds() / 3600.0
+    return _verif_frame(lead, df['lat'], df['lon'], df['wind'] if 'wind' in df.columns else None)
+
+
 def archive_verification(storms: list) -> None:
-    """存本輪的預報與 JTWC 實況；已存在的檔案不覆寫（同一期只留第一份）。"""
+    """存本輪的預報與 JTWC 實況；已存在的檔案不覆寫（同一期只留第一份，見 _save_verif_fcst）。"""
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     os.makedirs(fdir, exist_ok=True)
     os.makedirs(odir, exist_ok=True)
@@ -2124,18 +2159,12 @@ def archive_verification(storms: list) -> None:
         if mdf is not None and not mdf.empty and it is not None:
             slug = str(model).replace(' ', '~')   # 檔名不放空格
             p = os.path.join(fdir, f"{slug}_{tid}_{pd.to_datetime(it):%Y%m%d%H}.csv")
-            if not os.path.exists(p):
-                lead = (pd.to_datetime(mdf['valid_time']) - pd.to_datetime(it)).dt.total_seconds() / 3600.0
-                pd.DataFrame({'lead_h': lead.round(2), 'lat': mdf['lat'].round(3),
-                              'lon': mdf['lon'].round(3)}).to_csv(p, index=False)
+            _save_verif_fcst(p, _df_verif_frame(mdf, it))
         # 決定報可能比系集新一期，存檔與時距都照它自己的起報時間
         ddf, dname, dit = s.get('det_df'), s.get('det_name'), s.get('det_init_time') or it
         if ddf is not None and not ddf.empty and dname and dit is not None:
             p = os.path.join(fdir, f"{str(dname).replace(' ', '~')}_{tid}_{pd.to_datetime(dit):%Y%m%d%H}.csv")
-            if not os.path.exists(p):
-                lead = (pd.to_datetime(ddf['valid_time']) - pd.to_datetime(dit)).dt.total_seconds() / 3600.0
-                pd.DataFrame({'lead_h': lead.round(2), 'lat': ddf['lat'].round(3),
-                              'lon': ddf['lon'].round(3)}).to_csv(p, index=False)
+            _save_verif_fcst(p, _df_verif_frame(ddf, dit))
         jt = (s.get('current_info') or {}).get('jtwc') or {}
         if not jt or tid in seen_jtwc:
             continue
@@ -2192,30 +2221,125 @@ def archive_noaa_backfill(storms: list) -> None:
                     continue
                 for tid in tids & set(df['track_id'].astype(str)):
                     p = os.path.join(fdir, f"{str(name).replace(' ', '~')}_{tid}_{init:%Y%m%d%H}.csv")
-                    if os.path.exists(p):
-                        continue
                     g = df[df['track_id'].astype(str) == tid].sort_values('lead_time_hours')
-                    pd.DataFrame({'lead_h': g['lead_time_hours'].astype(float).round(2),
-                                  'lat': g['lat'].round(3), 'lon': g['lon'].round(3)}).to_csv(p, index=False)
+                    _save_verif_fcst(p, _verif_frame(
+                        g['lead_time_hours'].astype(float), g['lat'], g['lon'],
+                        g.get('maximum_sustained_wind_speed_knots')))
+
+
+def _verif_lacks_wind(path: str) -> bool:
+    """校驗存檔存在、但是加入強度校驗前存的（表頭沒有 wind 欄）。"""
+    try:
+        with open(path, encoding='utf-8') as f:
+            return 'wind' not in f.readline().strip().split(',')
+    except OSError:
+        return False
+
+
+def backfill_verif_wind(storms: list) -> None:
+    """替加入強度校驗前存的校驗檔補上風速。
+
+    下載目錄還留著最近 KEEP_CYCLES 期的原始 CSV（含風速），同一期就用它補，
+    強度校驗一上線就有約三天的資料可比，不必從零累積。更早的期數已無原始檔，維持沒有風速。
+    """
+    fdir = os.path.join(VERIF_DIR, 'fcst')
+    if not os.path.isdir(fdir):
+        return
+    tids = {s['track_id'] for s in storms}
+    for cfg in MODEL_CONFIGS:
+        for src_dir, suffix, name in ((cfg["mean_dir"], "paired", _ens_name(cfg)),
+                                      (cfg.get("det_dir"), "deterministic", cfg.get("det_name"))):
+            if not (src_dir and name and os.path.isdir(src_dir)):
+                continue
+            slug = str(name).replace(' ', '~')
+            for fn in sorted(os.listdir(src_dir)):
+                if not (fn.startswith(f"{cfg['local_prefix']}_") and fn.endswith(f"_{suffix}.csv")):
+                    continue
+                init = _cycle_from_stamp(fn)
+                if init is None:
+                    continue
+                paths = {tid: os.path.join(fdir, f"{slug}_{tid}_{init:%Y%m%d%H}.csv") for tid in tids}
+                todo = [tid for tid, p in paths.items() if _verif_lacks_wind(p)]
+                if not todo:
+                    continue
+                try:
+                    df = pd.read_csv(os.path.join(src_dir, fn), comment='#')
+                except Exception:
+                    continue
+                if 'maximum_sustained_wind_speed_knots' not in df.columns:
+                    continue
+                for tid in todo:
+                    g = df[df['track_id'].astype(str) == tid].copy()
+                    if g.empty:
+                        continue
+                    vt = pd.to_datetime(g['valid_time'], errors='coerce', utc=True)
+                    lead = (vt - pd.Timestamp(init)).dt.total_seconds() / 3600.0
+                    _save_verif_fcst(paths[tid], _verif_frame(
+                        lead, g['lat'], g['lon'], g['maximum_sustained_wind_speed_knots']))
+
+
+# 沿路徑／跨路徑誤差要知道颱風「實際往哪走」：用前後兩筆實況算移動方向。
+# 前後各最多找 VERIF_MOTION_MAX_H 小時；移動太慢（滯留、打轉）時方向不可靠，不算。
+VERIF_MOTION_MAX_H = 12
+VERIF_MOTION_MIN_KMH = 5.0
+EARTH_R_KM = 6371.0
+
+
+def _local_xy(lat0, lon0, lat, lon):
+    """以 (lat0, lon0) 為原點的局地平面座標（km，x 向東、y 向北）。"""
+    dlon = (np.asarray(lon, dtype=float) - lon0 + 180.0) % 360.0 - 180.0
+    x = EARTH_R_KM * np.radians(dlon) * np.cos(np.radians(lat0))
+    y = EARTH_R_KM * np.radians(np.asarray(lat, dtype=float) - lat0)
+    return x, y
+
+
+def _obs_motion(o: pd.DataFrame, i) -> tuple[float, float] | None:
+    """第 i 筆實況的移動方向單位向量 (東, 北)；優先用前後各一筆的中央差分。"""
+    t = o.at[i, 't']
+    win = pd.Timedelta(hours=VERIF_MOTION_MAX_H)
+    prev = o[(o['t'] < t) & (o['t'] >= t - win)]
+    nxt = o[(o['t'] > t) & (o['t'] <= t + win)]
+    a = prev.iloc[-1] if not prev.empty else o.loc[i]
+    b = nxt.iloc[0] if not nxt.empty else o.loc[i]
+    hours = (b['t'] - a['t']).total_seconds() / 3600.0
+    if hours <= 0:
+        return None
+    x, y = _local_xy(float(o.at[i, 'lat']), float(o.at[i, 'lon']),
+                     [a['lat'], b['lat']], [a['lon'], b['lon']])
+    dx, dy = x[1] - x[0], y[1] - y[0]
+    dist = float(np.hypot(dx, dy))
+    if dist / hours < VERIF_MOTION_MIN_KMH:
+        return None
+    return dx / dist, dy / dist
 
 
 def compute_scorecard() -> dict:
-    """路徑誤差成績單：{範圍: {'all': {model: {lead: [平均 km, n]}}, 'homog': {...}}}。
+    """模式成績單：{範圍: 各指標的 {'all': {model: {lead: [...]}}, 'homog': {...}}}。
 
     範圍為 track_id，或 '_all'（所有颱風合計）。'all' 用各模式全部校驗得到的預報；
     'homog' 是同質樣本：同一颱風、同一起報時間、同一預報時數上，這顆颱風有出現的
     模式全部都有預報才算進來。各模式碰到的情境相同，平均誤差才能直接比較。
+
+    指標（每格的 list）：
+      card['all'] / card['homog']   路徑誤差      [平均 km, n]
+      card['at'][樣本]              沿路徑誤差    [平均 km（+ 跑太快、− 太慢）, n, 平均絕對值]
+      card['ct'][樣本]              跨路徑誤差    [平均 km（+ 偏實際路徑右側、− 左側）, n, 平均絕對值]
+      card['int'][樣本]             強度誤差      [平均絕對誤差 kt, n, 平均偏差 kt（+ 預報太強）]
+    沿／跨路徑只在實況移動方向明確時才算（見 _obs_motion）；強度只算有存風速的預報。
     """
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     if not os.path.isdir(fdir) or not os.path.isdir(odir):
         return {}
-    obs = {}
+    obs, motion = {}, {}
     for name in os.listdir(odir):
         if name.endswith('.csv'):
             o = pd.read_csv(os.path.join(odir, name))
             o['t'] = pd.to_datetime(o['time'], utc=True)
+            o = o.sort_values('t').reset_index(drop=True)
             obs[name[:-4]] = o
-    recs = []      # (track_id, model, 起報 YYYYmmddHH, 預報時數, 誤差 km)
+            motion[name[:-4]] = {i: _obs_motion(o, i) for i in o.index}
+    # (track_id, model, 起報 YYYYmmddHH, 預報時數, 路徑誤差 km, 沿路徑 km|None, 跨路徑 km|None, 強度誤差 kt|None)
+    recs = []
     seen: set = set()
     for name in sorted(os.listdir(fdir)):
         m = re.match(r"(.+)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
@@ -2231,9 +2355,10 @@ def compute_scorecard() -> dict:
             continue
         seen.add((model, tid, m.group(3)))
         init = pd.Timestamp(datetime.strptime(m.group(3), '%Y%m%d%H'), tz='UTC')
-        f = pd.read_csv(os.path.join(fdir, name)).dropna()
+        f = pd.read_csv(os.path.join(fdir, name)).dropna(subset=['lead_h', 'lat', 'lon'])
         if len(f) < 2:
             continue
+        fw = (f.dropna(subset=['wind']) if 'wind' in f.columns else f.iloc[0:0])
         o = obs[tid]
         for lead in VERIF_LEADS:
             if lead > f['lead_h'].max():
@@ -2242,19 +2367,44 @@ def compute_scorecard() -> dict:
             dt = (o['t'] - target).abs()
             if dt.empty or dt.min() > pd.Timedelta(hours=VERIF_MATCH_H):
                 continue
-            ob = o.loc[dt.idxmin()]
+            i = dt.idxmin()
+            ob = o.loc[i]
             flat = float(np.interp(lead, f['lead_h'], f['lat']))
             # 經度內插前先展開，跨換日線也不會內插到地球另一邊
             flon = float(np.interp(lead, f['lead_h'], np.unwrap(np.radians(f['lon'])) * 180 / np.pi))
             e = float(_haversine_km(ob['lat'], ob['lon'] % 360, flat, flon % 360))
-            recs.append((tid, model, m.group(3), lead, e))
+            at = ct = None
+            u = motion[tid].get(i)
+            if u is not None:
+                x, y = _local_xy(float(ob['lat']), float(ob['lon']), flat, flon)
+                x, y = float(x), float(y)
+                at = x * u[0] + y * u[1]            # 投影到移動方向：+ 跑在實況前面
+                ct = x * u[1] - y * u[0]            # 投影到右手法向：+ 偏右
+            ie = None
+            if (len(fw) >= 2 and fw['lead_h'].min() <= lead <= fw['lead_h'].max()
+                    and pd.notna(ob.get('wind'))):
+                ie = float(np.interp(lead, fw['lead_h'], fw['wind'])) - float(ob['wind'])
+            recs.append((tid, model, m.group(3), lead, e, at, ct, ie))
 
-    def _agg(rs):
+    def _agg(rs, k):
         out: dict = {}
-        for _, mdl, _, ld, e in rs:
-            out.setdefault(mdl, {}).setdefault(ld, []).append(e)
+        for r in rs:
+            out.setdefault(r[1], {}).setdefault(r[3], []).append(r[k])
+        return out
+
+    def _track(rs):
         return {mdl: {ld: [round(float(np.mean(v)), 0), len(v)] for ld, v in d.items()}
-                for mdl, d in out.items()}
+                for mdl, d in _agg(rs, 4).items()}
+
+    def _signed(rs, k):
+        return {mdl: {ld: [round(float(np.mean(v)), 0), len(v), round(float(np.mean(np.abs(v))), 0)]
+                      for ld, v in d.items()}
+                for mdl, d in _agg(rs, k).items()}
+
+    def _intensity(rs):
+        return {mdl: {ld: [round(float(np.mean(np.abs(v))), 1), len(v), round(float(np.mean(v)), 1)]
+                      for ld, v in d.items()}
+                for mdl, d in _agg(rs, 7).items()}
 
     def _homog(rs):
         # 每顆颱風、每個時數各自要求「該颱風出現過的模式全到」：只在某些颱風才有的模式
@@ -2264,7 +2414,8 @@ def compute_scorecard() -> dict:
         present: dict = {}
         cases: dict = {}
         first: dict = {}
-        for t, mdl, ini, ld, _ in rs:
+        for r in rs:
+            t, mdl, ini, ld = r[:4]
             present.setdefault((t, ld), set()).add(mdl)
             cases.setdefault((t, ini, ld), set()).add(mdl)
             first[(t, mdl)] = min(first.get((t, mdl), ini), ini)
@@ -2275,7 +2426,13 @@ def compute_scorecard() -> dict:
     card = {}
     for scope in sorted({r[0] for r in recs}) + (['_all'] if recs else []):
         rs = recs if scope == '_all' else [r for r in recs if r[0] == scope]
-        card[scope] = {'all': _agg(rs), 'homog': _agg(_homog(rs))}
+        rx = [r for r in rs if r[5] is not None]
+        ri = [r for r in rs if r[7] is not None]
+        hx, hi = _homog(rx), _homog(ri)
+        card[scope] = {'all': _track(rs), 'homog': _track(_homog(rs)),
+                       'at': {'all': _signed(rx, 5), 'homog': _signed(hx, 5)},
+                       'ct': {'all': _signed(rx, 6), 'homog': _signed(hx, 6)},
+                       'int': {'all': _intensity(ri), 'homog': _intensity(hi)}}
     return card
 
 
@@ -4006,6 +4163,7 @@ def main():
     try:
         archive_verification(storms)
         archive_noaa_backfill(storms)
+        backfill_verif_wind(storms)
         card = compute_scorecard()
         for tid in dict.fromkeys(s['track_id'] for s in storms):
             head = next(s for s in storms if s['track_id'] == tid)
