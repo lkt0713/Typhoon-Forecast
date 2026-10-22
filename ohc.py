@@ -8,12 +8,11 @@ COPERNICUSMARINE_SERVICE_USERNAME／COPERNICUSMARINE_SERVICE_PASSWORD（GitHub s
 TCHP 是海面到 26°C 等溫線之間、比 26°C 多出來的熱量：
     TCHP = ρ · cp · ∫ (T − 26°C) dz       （只積 T > 26°C 的部分，單位 kJ/cm²）
 颱風底下的暖水層越厚，颱風攪動海水時越不容易把冷水翻上來，越有利增強；一般以約
-50 kJ/cm² 當作有利增強的門檻。NOAA 的衛星 TCHP 產品（AOML／CoastWatch）2026 年起
-停在 1 月或 9 月，所以改用 HYCOM 自己算，定義與 NOAA 的產品相同。
+50 kJ/cm² 當作有利增強的門檻。圖的樣式照 CMEMS 的 OHC 產品圖。
 
-資料：HYCOM ESPC-D-V02 全球分析（美國海軍，tds.hycom.org，OPeNDAP），1/12° 網格、
+備援資料：HYCOM ESPC-D-V02 全球分析（美國海軍，tds.hycom.org，OPeNDAP），1/12° 網格、
 40 層深度。只抓西北太平洋、250 m 以淺、每 3 格取 1 格（約 0.24°），一次約 10 MB。
-算好的結果存在 OHC_DIR（noaa_ 開頭是為了跟著 GitHub Actions 的下載快取保留），
+算好的結果存在 OHC_DIR（目錄名稱 noaa_ 開頭只是為了符合 GitHub Actions 下載快取的路徑樣式，與資料來源無關），
 OHC_MAX_AGE_H 小時內不重算；HYCOM 一天出一次分析。
 """
 from __future__ import annotations
