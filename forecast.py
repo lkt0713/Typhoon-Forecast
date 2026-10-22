@@ -2570,10 +2570,13 @@ OHC_PATH = os.path.join(OUTPUT_DIR, "WP_OHC.png")
 OHC_THRESHOLD = 50
 
 
-OHC_LEVELS = [0, 20, 40, 50, 80, 100, 150, 200]
-# 色階照 CMEMS OHC 產品圖（使用者指定的樣式）：青→綠→黃綠→黃→琥珀→橘→紅，200 以上洋紅；陸地黑色、白色海岸線
-OHC_COLORS = ['#00C7C7', '#00D18C', '#A1E530', '#E5DB30', '#E5B02E', '#F08229', '#FA3D3D']
-OHC_OVER = '#F00082'
+# 色階照 CMEMS OHC 產品圖（使用者提供的參考圖，色條逐像素量出來的分界）：
+# 0–15 青、15–35 綠、35–50 黃綠、50–75 黃、75–100 琥珀、100–150 橘、150–200 紅、200–220 洋紅，
+# 超過 220 淡粉紅；色條刻度每 10 一格；0 以下（水溫不到 26°C）與陸地黑色、白色海岸線
+OHC_LEVELS = [0, 15, 35, 50, 75, 100, 150, 200, 220]
+OHC_COLORS = ['#00C7C7', '#00D18C', '#A1E530', '#E5DB30', '#E5B02E', '#F08229', '#FA3D3D', '#F00082']
+OHC_OVER = '#FFCBF8'
+OHC_TICKS = list(range(0, 221, 10))
 
 
 def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source: str = 'CMEMS') -> str:
@@ -2618,7 +2621,7 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
         ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9.5, fontweight='bold', color='white', zorder=7,
                 path_effects=[mpe.withStroke(linewidth=3, foreground='black')], **kw)
     cb = fig.colorbar(pm, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
-                      ticks=OHC_LEVELS, extend='both')
+                      ticks=OHC_TICKS, extend='both', spacing='proportional')
     cb.ax.set_title('kJ/cm²', fontsize=9, color=TEXT_DARK, pad=8)
     cb.ax.tick_params(labelsize=8.5, colors=TEXT_DARK)
     src = 'CMEMS (Copernicus Marine) 1/12°' if source == 'CMEMS' else 'HYCOM (US Navy)'
