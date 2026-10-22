@@ -2552,6 +2552,98 @@ def make_official_forecasts(storms: list) -> None:
             os.remove(os.path.join(OUTPUT_DIR, name))
 
 
+# ── 海洋熱含量（NOAA AOML TCHP）＋颱風目前位置 ───────────────────────────
+# 一張西北太平洋圖：最新一天的 TCHP（kJ/cm²），50 kJ/cm² 等值線（有利增強的常用門檻），
+# 疊上每顆颱風目前位置（依強度上色）與 JTWC 已走過的路徑。資料抓取見 ohc.py。
+OHC_EXTENT = (100, 180, 0, 50)
+OHC_PATH = os.path.join(OUTPUT_DIR, "WP_OHC.png")
+OHC_THRESHOLD = 50
+
+
+def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str) -> str:
+    from matplotlib.colors import BoundaryNorm
+    fig = plt.figure(figsize=(11, 7.6), facecolor='white')
+    if HAS_CARTOPY:
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
+        _setup_basemap(ax, OHC_EXTENT)
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        ax = fig.add_subplot(111)
+        _setup_plain_axes(ax, OHC_EXTENT)
+        kw = {}
+    levels = [0, 10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200]
+    cmap = plt.get_cmap('YlOrRd', len(levels))
+    pm = ax.pcolormesh(lon, lat, np.ma.masked_invalid(tchp), cmap=cmap,
+                       norm=BoundaryNorm(levels, cmap.N, extend='max'), shading='auto', zorder=1, **kw)
+    c50 = ax.contour(lon, lat, np.nan_to_num(tchp, nan=0.0), levels=[OHC_THRESHOLD], colors='#16324F',
+                     linewidths=1.3, linestyles='--', zorder=2, **kw)
+    ax.clabel(c50, fmt={OHC_THRESHOLD: f'{OHC_THRESHOLD}'}, fontsize=8, inline=True)
+    if HAS_CARTOPY:
+        ax.add_feature(cfeature.LAND, facecolor=BASEMAP['land'], zorder=2.2)
+    for st in storms_now:
+        if st.get('track') and len(st['track']) > 1:
+            tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
+            ax.plot(tl, [p[0] for p in st['track']], color='white', lw=3.4, alpha=0.85, zorder=3, **kw)
+            ax.plot(tl, [p[0] for p in st['track']], color=MEAN_COLOR, lw=1.6, zorder=3.1, **kw)
+        col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
+        ax.scatter([st['lon']], [st['lat']], s=210, marker='o', color=col, edgecolors='white',
+                   linewidths=2.2, zorder=6, **kw)
+        ax.scatter([st['lon']], [st['lat']], s=26, marker='o', color='white', zorder=6.1, **kw)
+        label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
+        ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9, fontweight='bold', color=TEXT_DARK, zorder=7,
+                path_effects=[mpe.withStroke(linewidth=2.8, foreground='white')], **kw)
+    cb = fig.colorbar(pm, ax=ax, orientation='horizontal', pad=0.06, fraction=0.04, aspect=45, shrink=0.8)
+    cb.set_label('Tropical cyclone heat potential (kJ/cm²)', color=TEXT_MUTED, fontsize=9)
+    cb.ax.tick_params(labelsize=8, colors=TEXT_DARK)
+    cb.outline.set_edgecolor(BOX_EDGE)
+    handles = [mlines.Line2D([], [], color='#16324F', lw=1.3, ls='--'),
+               mlines.Line2D([], [], color=MEAN_COLOR, lw=1.6, marker='o', ms=9,
+                             markerfacecolor='#DC3A4E', markeredgecolor='white')]
+    leg = ax.legend(handles, [f'{OHC_THRESHOLD} kJ/cm² (favors intensification above)',
+                              'Current position (JTWC) · line = track so far'],
+                    loc='lower left', fontsize=8, borderpad=0.7, labelspacing=0.4, **LEGEND_KW)
+    _style_legend(leg)
+    ax.set_title("Ocean Heat Content  ·  Tropical Cyclone Heat Potential", loc='left',
+                 fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
+    ax.text(0, 1.012, f"Analysis {pd.Timestamp(date):%Y-%m-%d}  ·  Heat above 26 °C from the surface to the 26 °C isotherm  ·  "
+            "Data: NOAA AOML", transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=170, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_ohc_map(storms: list) -> str | None:
+    """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。"""
+    import ohc
+    now = []
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        head = next(s for s in storms if s['track_id'] == tid)
+        pos = _storm_now(head)
+        if pos is None:
+            continue
+        jt = (head.get('current_info') or {}).get('jtwc') or {}
+        track = []
+        op = os.path.join(VERIF_DIR, 'obs', f"{tid}.csv")
+        if os.path.exists(op):
+            try:
+                o = pd.read_csv(op).sort_values('time')
+                track = [[float(a), float(b)] for a, b in zip(o['lat'], o['lon'])]
+            except Exception:
+                track = []
+        name = str(jt.get('name')).title() if jt.get('name') else tid
+        now.append({'name': name, 'lat': pos[0], 'lon': pos[1], 'kt': jt.get('max_winds_kt'),
+                    'track': track + [[pos[0], pos[1]]]})
+    if not now:
+        if os.path.exists(OHC_PATH):
+            os.remove(OHC_PATH)
+        return None
+    date, lat, lon, tchp = ohc.load(ohc.fetch())
+    plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH)
+    print(f"[OHC] 已畫 {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
+    return OHC_PATH
+
+
 # ── 駛流場（ECMWF HRES 500 hPa 高度與風場）────────────────────────────
 # 每個時距一張西北太平洋圖：500 hPa 流線＋風速、等高線與 5880 gpm 線（太平洋高壓的邊緣），
 # 疊上同一期 ECMWF HRES 的颱風路徑與該時刻位置，看颱風被什麼氣流帶著走。
@@ -4517,6 +4609,14 @@ def main():
         make_official_forecasts(storms)
     except Exception as e:
         print(f"[OFFICIAL] 官方預報比較失敗，略過: {e}")
+
+    try:
+        ohc_path = make_ohc_map(storms)
+    except Exception as e:
+        ohc_path = None
+        print(f"[OHC] 海洋熱含量圖失敗，略過: {e}")
+    for tid in dict.fromkeys(s['track_id'] for s in storms):
+        next(s for s in storms if s['track_id'] == tid)['ohc_path'] = ohc_path
 
     # 駛流場：每顆颱風頁共用同一組區域圖。加分項，失敗不影響其他產品
     try:

@@ -1186,6 +1186,21 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)</p>
             </div>"""
 
+        ohc_html = ""
+        _ohc = next((m.get('ohc_path') for m in models if isinstance(m, dict) and m.get('ohc_path')), None)
+        if _ohc and os.path.exists(_ohc):
+            sec_id = f"sec-{key_prefix}-ohc"
+            sections.append((sec_id, 'sub.ohc', 'Ocean heat'))
+            ohc_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🌊</span>
+                    <span data-i18n="panel.ohc">Ocean Heat Content</span>
+                </div>
+                {_figure(os.path.basename(_ohc), f"{track_id} Ocean Heat Content")}
+                <p class="map-note" data-i18n="note.ohc">NOAA AOML tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), latest daily analysis &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (dashed line) is a common threshold &nbsp;·&nbsp; Dot = current JTWC position, line = track so far</p>
+            </div>"""
+
         steer_html = ""
         _steer = next((m.get('steering_maps') for m in models
                        if isinstance(m, dict) and m.get('steering_maps')), None)
@@ -1323,7 +1338,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
         # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
-        page_order = ['cmp', 'anim', 'maps', 'official', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'steer', 'score']
+        page_order = ['cmp', 'anim', 'maps', 'official', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
         sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
                       if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
         subnav = "".join(
@@ -1357,6 +1372,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             {_pair(strike_html, extra_html)}
             {cities_html}
             {_pair(trend_html, plume_html)}
+            {ohc_html}
             {steer_html}
             {score_html}
         </div>
@@ -1518,6 +1534,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
                         <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
+                        <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.score">Forecast Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
@@ -3097,6 +3114,9 @@ const I18N = {
     'off.now':          'Now',
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)',
+    'sub.ohc':          'Ocean heat',
+    'panel.ohc':        'Ocean Heat Content',
+    'note.ohc':         'NOAA AOML tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), latest daily analysis &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (dashed line) is a common threshold &nbsp;·&nbsp; Dot = current JTWC position, line = track so far',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
     'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
@@ -3297,6 +3317,9 @@ const I18N = {
     'off.now':          '現在',
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝發布時間（UTC）',
+    'sub.ohc':          '海洋熱含量',
+    'panel.ohc':        '海洋熱含量',
+    'note.ohc':         'NOAA AOML 的熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），最新一天的分析 &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（虛線）當門檻 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，線＝目前為止的路徑',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
     'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',

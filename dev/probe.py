@@ -56,3 +56,15 @@ try:
             eccodes.codes_release(h)
 except Exception as e:
     print("ECMWF ERROR", repr(e))
+
+print("######## AOML TCHP")
+for u in ["https://erddap.aoml.noaa.gov/hdb/erddap/info/TCHP/index.json",
+          "https://cwcgom.aoml.noaa.gov/erddap/info/aomlTCHP/index.json"]:
+    r = show(u, 600)
+import ohc
+try:
+    p = ohc.fetch(); d, la, lo, t = ohc.load(p)
+    import numpy as np
+    print("TCHP", d, la.min(), la.max(), lo.min(), lo.max(), t.shape, np.nanmin(t), np.nanmax(t), os.path.getsize(p))
+except Exception as e:
+    print("TCHP ERROR", repr(e))
