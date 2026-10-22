@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import os
 import re
+import ssl
 
 import requests
+from requests.adapters import HTTPAdapter
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TyphoonForecastSite/1.0)"}
 JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data"
@@ -62,14 +64,45 @@ def fetch_jma() -> list[dict]:
     return out
 
 
+class _LenientX509Adapter(HTTPAdapter):
+    """照常驗證憑證，只關掉 Python 3.13 起預設開啟的 X509 嚴格檢查（VERIFY_X509_STRICT）。
+
+    氣象署的憑證鏈缺 Subject Key Identifier 擴充欄位，嚴格模式會以
+    「Missing Subject Key Identifier」拒絕連線；憑證本身與網域驗證不受影響。"""
+
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_STRICT', 0)
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+
 def fetch_cwa() -> list[dict]:
-    """CWA 熱帶氣旋路徑。沒有授權碼回空清單；資料結構確定前只回傳原始 JSON 的解析結果。"""
+    """CWA 熱帶氣旋路徑。沒有授權碼回空清單。"""
     key = os.environ.get("CWA_API_KEY", "").strip()
     if not key:
         return []
-    r = requests.get(CWA_URL, params={"Authorization": key, "format": "JSON"}, headers=HEADERS, timeout=TIMEOUT)
+    with requests.Session() as s:
+        s.mount("https://opendata.cwa.gov.tw/", _LenientX509Adapter())
+        r = s.get(CWA_URL, params={"Authorization": key, "format": "JSON"}, headers=HEADERS, timeout=TIMEOUT)
     r.raise_for_status()
-    return parse_cwa(r.json())
+    data = r.json()
+    out = parse_cwa(data)
+    if not out:
+        # 解析不出來時印出結構（只有欄位名稱，沒有授權碼），之後才知道要怎麼對欄位
+        print(f"[OFFICIAL] CWA 沒解析出颱風，JSON 結構: {_shape(data)}")
+    return out
+
+
+def _shape(x, depth=0):
+    """JSON 的欄位骨架（dict 的鍵、list 的第一個元素），給除錯用。"""
+    if depth > 9:
+        return '…'
+    if isinstance(x, dict):
+        return {k: _shape(v, depth + 1) for k, v in list(x.items())[:20]}
+    if isinstance(x, list):
+        return [_shape(x[0], depth + 1), f'×{len(x)}'] if x else []
+    return type(x).__name__
 
 
 def parse_cwa(data: dict) -> list[dict]:
