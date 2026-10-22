@@ -2292,7 +2292,7 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .arch-detail { scroll-margin-top: calc(var(--header-h) + 20px); }
 .arch-controls { display:flex; align-items:center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .arch-slider { flex: 1 1 220px; min-width: 160px; accent-color: var(--accent); }
-.arch-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
+.arch-detail .arch-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .arch-score { margin-top: 22px; }
 .zoomable { position:relative; border-radius: 12px; overflow:hidden; cursor: zoom-in; background: var(--surface-2); border: 1px solid var(--border); }
 .zoomable.skel:not(.loaded) { min-height: 240px; }
