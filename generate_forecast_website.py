@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.5.0"
+SITE_VERSION = "6.5.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -323,12 +323,12 @@ def _score_groups(models: list, det_names: set) -> list:
 
 
 # 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
-#   track 路徑誤差、at 沿路徑誤差、ct 跨路徑誤差（後兩者看正負＝系統性偏差）、int 強度誤差
+#   track 路徑誤差、at 沿路徑誤差、ct 跨路徑誤差、int 強度誤差（後三者看正負＝系統性偏差）
 SCORE_METRICS = [
     ('track', 'score.m.track', 'Track', 'km', False),
     ('at', 'score.m.at', 'Along-track', 'km', True),
     ('ct', 'score.m.ct', 'Cross-track', 'km', True),
-    ('int', 'score.m.int', 'Intensity', 'kt', False),
+    ('int', 'score.m.int', 'Intensity', 'kt', True),
 ]
 SCORE_METRIC_TEXT = {
     'track': ('score.chart.y', 'Mean track error (km)', None, ''),
@@ -341,12 +341,11 @@ SCORE_METRIC_TEXT = {
            'Cross-track error: at right angles to the real motion, is the forecast to the right (+) or left (−) '
            'of the real track? A model that stays on one side usually has a systematic steering bias, for '
            'example in how far west the subtropical high reaches. The small |e| is the average size ignoring the sign.'),
-    'int': ('score.chart.int', 'Mean absolute intensity error (kt)', 'score.note.int',
-            'Intensity error: difference between the forecast maximum wind and the JTWC maximum wind (kt, '
-            'average size ignoring the sign). The small "bias" is the signed average: + = too strong, '
-            '− = too weak. Ensemble means smooth out the members and usually run weak, and coarser models '
-            'often underestimate strong typhoons. Wind speeds were only archived from late October 2026 on, '
-            'so older forecasts have no intensity to compare.'),
+    'int': ('score.chart.int', 'Mean intensity error (kt) · + too strong, − too weak', 'score.note.int',
+            'Intensity error: forecast maximum wind minus the JTWC maximum wind (kt): + = forecast too strong, '
+            '− = too weak. The small |e| is the average size ignoring the sign. Ensemble means smooth out the '
+            'members and usually run weak, and coarser models often underestimate strong typhoons. Wind speeds '
+            'were only archived from late October 2026 on, so older forecasts have no intensity to compare.'),
 }
 
 
@@ -354,7 +353,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
     """模式誤差表：card = {model: {lead: [值, n, (副值)]}}。
 
     每個預報時數各自比較：n ≥ SCORE_MIN_N 的格子依誤差由綠（最好）到紅（最差）上色。
-    路徑／強度誤差最小的標 ★、其餘標比最好多幾 %；沿／跨路徑誤差有正負號，依絕對值上色
+    路徑誤差最小的標 ★、其餘標比最好多幾 %；沿／跨路徑與強度誤差有正負號，依絕對值上色
     （越接近 0 越綠），小字附不分正負的平均大小 |e|。樣本不足的格子淡化、不參與排名。
     """
     unit, signed = next((u, sg) for k, _, _, u, sg in SCORE_METRICS if k == metric)
@@ -372,11 +371,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
     def extra(v):
         if len(v) < 3:
             return ''
-        if signed:
-            return f' · |e| {v[2]:.0f}'
-        if metric == 'int':
-            return f' · <span data-i18n="score.bias">bias</span> {v[2]:+.0f}'.replace('-', '−')
-        return ''
+        return f' · |e| {v[2]:.0f}' if signed else ''
 
     span = len(SCORE_LEADS) + 1
     rows = []
@@ -462,10 +457,15 @@ def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'tr
 
 
 def _score_metric_cards(card: dict, sample: str) -> dict:
-    """某個樣本（homog／all）下四種指標各自的 {model: {lead: [...]}}。"""
+    """某個樣本（homog／all）下四種指標各自的 {model: {lead: [...]}}。
+
+    強度存成 [平均絕對誤差, n, 平均偏差]，這裡換成跟沿／跨路徑一樣的 [偏差, n, |e|]，主數字顯示正負。"""
     card = card or {}
-    return {'track': card.get(sample) or {},
-            **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
+    out = {'track': card.get(sample) or {},
+           **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
+    out['int'] = {m: {ld: ([v[2], v[1], v[0]] if len(v) >= 3 and v[2] is not None else v) for ld, v in leads.items()}
+                  for m, leads in out['int'].items()}
+    return out
 
 
 def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set) -> str:
@@ -1174,7 +1174,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
                         f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
-                           f'<span class="eta">{_esc(f["issue"][5:16].replace("-", "/").replace("T", " ")) if f.get("issue") else ""}</span></th>'
+                           f'<span class="eta">{_esc(f["issue"][5:13].replace("-", "/").replace("T", " ")) + ":00" if f.get("issue") else ""}</span></th>'
                            for f in fcs)
             rows = ''.join(f'<tr><td class="c-name">{"<span data-i18n=\"off.now\">Now</span>" if h == 0 else f"+{h} h"}</td>'
                            f'{"".join(_cell(f, h) for f in fcs)}</tr>' for h in hours)
@@ -1188,7 +1188,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="city-table-wrap"><table class="city-table off-table">
                     <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
                 </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)</p>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC)</p>
             </div>"""
 
         ohc_html = ""
@@ -3119,7 +3119,7 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.hour':         'Hour',
-    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = issue time (UTC)',
+    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC)',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far',
@@ -3132,13 +3132,12 @@ const I18N = {
     'score.m.ct': 'Cross-track',
     'score.m.int': 'Intensity',
     'score.m.pending': 'Not enough data for this measure yet.',
-    'score.bias': 'bias',
     'score.chart.at': 'Mean along-track error (km) · + too fast, − too slow',
     'score.chart.ct': 'Mean cross-track error (km) · + right of track, − left',
-    'score.chart.int': 'Mean absolute intensity error (kt)',
+    'score.chart.int': 'Mean intensity error (kt) · + too strong, − too weak',
     'score.note.at': 'Along-track error: measured along the storm\'s real direction of motion, is the forecast position ahead of (+) or behind (−) the real storm? A steady + means the model moves the storm too fast, − too slow. The small |e| is the average size ignoring the sign. Only counted while the storm moves at least 5 km/h; when it stalls or loops its direction is unreliable.',
     'score.note.ct': 'Cross-track error: at right angles to the real motion, is the forecast to the right (+) or left (−) of the real track? A model that stays on one side usually has a systematic steering bias, for example in how far west the subtropical high reaches. The small |e| is the average size ignoring the sign.',
-    'score.note.int': 'Intensity error: difference between the forecast maximum wind and the JTWC maximum wind (kt, average size ignoring the sign). The small "bias" is the signed average: + = too strong, − = too weak. Ensemble means smooth out the members and usually run weak, and coarser models often underestimate strong typhoons. Wind speeds were only archived from late October 2026 on, so older forecasts have no intensity to compare.',
+    'score.note.int': 'Intensity error: forecast maximum wind minus the JTWC maximum wind (kt): + = forecast too strong, − = too weak. The small |e| is the average size ignoring the sign. Ensemble means smooth out the members and usually run weak, and coarser models often underestimate strong typhoons. Wind speeds were only archived from late October 2026 on, so older forecasts have no intensity to compare.',
     'sub.strikex':      'By Period',
     'panel.strikex':    'WN2-C 1000 Strike Probability by Period &amp; 34-kt Wind',
     'note.strikex':     'Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members',
@@ -3323,7 +3322,7 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.hour':         '時數',
-    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝發布時間（UTC）',
+    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC）',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，線＝目前為止的路徑',
@@ -3336,13 +3335,12 @@ const I18N = {
     'score.m.ct': '跨路徑',
     'score.m.int': '強度',
     'score.m.pending': '這項指標的資料還在累積中。',
-    'score.bias': '偏差',
     'score.chart.at': '平均沿路徑誤差（公里）・＋偏快、−偏慢',
     'score.chart.ct': '平均跨路徑誤差（公里）・＋偏右、−偏左',
-    'score.chart.int': '平均強度誤差（kt，不分正負）',
+    'score.chart.int': '平均強度誤差（kt）・＋偏強、−偏弱',
     'score.note.at': '沿路徑誤差：沿著颱風實際的移動方向，預報位置在實際颱風的前面（＋）還是後面（−）。持續為＋代表模式把颱風移得太快，−代表太慢。小字 |e| 是不分正負的平均大小。只在颱風移動速度至少 5 km/h 時計算；滯留或打轉時方向不可靠。',
     'score.note.ct': '跨路徑誤差：垂直於實際移動方向，預報偏在實際路徑的右側（＋）還是左側（−）。一直偏同一側，通常代表模式對駛流有系統性偏差，例如太平洋高壓西伸的程度。小字 |e| 是不分正負的平均大小。',
-    'score.note.int': '強度誤差：預報最大風速與 JTWC 實況最大風速的差距（kt，不分正負的平均）。小字「偏差」是有正負的平均：＋＝預報太強、−＝太弱。系集平均會把成員的強度平滑掉，通常偏弱；解析度較粗的模式也常低估強颱。2026 年 10 月下旬才開始存預報風速，更早的預報沒有強度可比。',
+    'score.note.int': '強度誤差：預報最大風速減 JTWC 實況最大風速（kt）：＋＝預報太強、−＝太弱。小字 |e| 是不分正負的平均大小。系集平均會把成員的強度平滑掉，通常偏弱；解析度較粗的模式也常低估強颱。2026 年 10 月下旬才開始存預報風速，更早的預報沒有強度可比。',
     'sub.strikex':      '分時段',
     'panel.strikex':    'WN2-C 1000 分時段侵襲機率與七級風機率',
     'note.strikex':     '同樣的 1° 規則，依預報時段分開計算 &nbsp;·&nbsp; 34 kt＝預報期間曾落入 34 kt（七級風）暴風半徑內 &nbsp;·&nbsp; 1000 成員',
