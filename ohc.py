@@ -13,7 +13,8 @@ TCHP 是海面到 26°C 等溫線之間、比 26°C 多出來的熱量：
 備援資料：HYCOM ESPC-D-V02 全球分析（美國海軍，tds.hycom.org，OPeNDAP），1/12° 網格、
 40 層深度。只抓西北太平洋、250 m 以淺、每 3 格取 1 格（約 0.24°），一次約 10 MB。
 算好的結果存在 OHC_DIR（目錄名稱 noaa_ 開頭只是為了符合 GitHub Actions 下載快取的路徑樣式，與資料來源無關），
-OHC_MAX_AGE_H 小時內不重算；HYCOM 一天出一次分析。
+OHC_MAX_AGE_H 小時內不重算；HYCOM 一天出一次分析。HYCOM 伺服器偶爾連不上，重試後仍失敗就沿用
+OHC_STALE_H 小時內的舊結果（海溫一兩天內變化不大），比整張圖消失好。
 """
 from __future__ import annotations
 
@@ -30,6 +31,8 @@ STRIDE = 3
 OHC_DIR = "noaa_ohc_2026"
 OHC_FILE = os.path.join(OHC_DIR, "hycom_tchp.npz")
 OHC_MAX_AGE_H = 12
+OHC_STALE_H = 72
+HYCOM_TRIES = 3
 RHO, CP = 1025.0, 3985.0                # 海水密度 kg/m³、比熱 J/(kg·K)
 T26 = 26.0
 
@@ -65,21 +68,42 @@ def _save(when, lat, lon, tchp, source):
     return when, lat, lon, tchp, source
 
 
+def _load_cached(max_age_h: float, source: str | None = None):
+    if not os.path.exists(OHC_FILE) or time.time() - os.path.getmtime(OHC_FILE) >= max_age_h * 3600:
+        return None
+    d = np.load(OHC_FILE)
+    src = str(d['source']) if 'source' in d.files else 'HYCOM'
+    if source is not None and src != source:
+        return None
+    return d['time'], d['lat'], d['lon'], d['tchp'], src
+
+
 def fetch() -> tuple:
     """→ (分析時間 datetime64, lat 1D, lon 1D 0–360, tchp 2D, 來源名稱)；
-    沿用 OHC_MAX_AGE_H 小時內算好、且來源相同的結果。"""
+    沿用 OHC_MAX_AGE_H 小時內算好、且來源相同的結果；兩個來源都抓不到時沿用 OHC_STALE_H 小時內的舊結果。"""
     want = 'CMEMS' if os.environ.get('COPERNICUSMARINE_SERVICE_USERNAME') else 'HYCOM'
-    if os.path.exists(OHC_FILE) and time.time() - os.path.getmtime(OHC_FILE) < OHC_MAX_AGE_H * 3600:
-        d = np.load(OHC_FILE)
-        src = str(d['source']) if 'source' in d.files else 'HYCOM'
-        if src == want:
-            return d['time'], d['lat'], d['lon'], d['tchp'], src
+    cached = _load_cached(OHC_MAX_AGE_H, want)
+    if cached is not None:
+        return cached
     if want == 'CMEMS':
         try:
             return _save(*_fetch_cmems(), 'CMEMS')
         except Exception as e:
             print(f"[OHC] CMEMS 失敗，改用 HYCOM: {e}")
-    return _save(*_fetch_hycom(), 'HYCOM')
+    err = None
+    for i in range(HYCOM_TRIES):
+        try:
+            return _save(*_fetch_hycom(), 'HYCOM')
+        except Exception as e:
+            err = e
+            print(f"[OHC] HYCOM 第 {i + 1} 次失敗: {e}")
+            if i + 1 < HYCOM_TRIES:
+                time.sleep(15 * (i + 1))
+    stale = _load_cached(OHC_STALE_H)
+    if stale is not None:
+        print(f"[OHC] 沿用先前算好的 {stale[4]} 結果")
+        return stale
+    raise err
 
 
 def _fetch_cmems() -> tuple:
