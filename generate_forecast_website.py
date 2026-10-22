@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.6.0"
+SITE_VERSION = "6.6.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -706,18 +706,17 @@ def _app_icon(size: int):
     d = ImageDraw.Draw(img)
     c, r, R, w = S / 2, S * 0.1, S * 0.2, int(S * 0.045)
     d.ellipse([c - r, c - r, c + r, c + r], outline='white', width=w)
-    # 兩條旋臂（天氣圖上的颱風符號）：從圓的右緣往上甩向左、從左緣往下甩向右，北半球逆時針
-    for cx, a0, a1 in ((c + r - R, 210, 360), (c - r + R, 30, 180)):
+    # 兩條旋臂（天氣圖上的北半球颱風符號）：氣流逆時針往內旋，所以旋臂往外是順時針彎——
+    # 從圓的左緣往上再彎向右（東）、從右緣往下再彎向左（西）
+    for cx, a0, a1 in ((c - r + R, 180, 330), (c + r - R, 0, 150)):
         d.arc([cx - R, c - R, cx + R, c + R], a0, a1, fill='white', width=w)
     return img.resize((size, size), Image.LANCZOS)
 
 
 def _write_app_assets(docs_dir: str) -> None:
-    """圖示只在不存在時畫一次；manifest 每次重寫（內容固定，git 不會出現變動）。"""
+    """圖示與 manifest 每次都重寫：畫法固定，輸出的位元組相同，git 不會出現變動；改了畫法也會自動換新。"""
     for fn, size in APP_ICONS:
-        path = os.path.join(docs_dir, fn)
-        if not os.path.exists(path):
-            _app_icon(size).save(path, optimize=True)
+        _app_icon(size).save(os.path.join(docs_dir, fn), optimize=True)
     manifest = {
         'name': SITE_NAME, 'short_name': SITE_SHORT_NAME,
         'description': 'AI and physics-based ensemble forecasts for Western Pacific tropical cyclones',
