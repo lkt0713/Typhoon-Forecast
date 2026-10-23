@@ -1703,13 +1703,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
                         <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
+                        <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
                         <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
-                        <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
                         <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
@@ -2589,16 +2589,18 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .cmp-stage:active .cmp-handle span { transform: scale(1.12); }
 
 /* ── About page ─────────────────────────────────────────────── */
-.about-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items:start; }
+.about-grid { display:grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items:start; }
 .scale-table { display:grid; gap: 8px; }
-/* 寬螢幕排成三欄時，注意事項固定放右下（快捷鍵下方），不要掉到左邊第二列 */
-@media (min-width: 1340px) {
-    .about-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
-    .about-scale { grid-column: 1; grid-row: 1 / span 3; }
-    .about-read  { grid-column: 2; grid-row: 1 / span 3; }
-    .about-keys  { grid-column: 3; grid-row: 1; }
-    .about-app   { grid-column: 3; grid-row: 2; }
-    .about-grid .disclaimer { grid-column: 3; grid-row: 3; }
+/* 寬螢幕兩欄：「圖面說明」很長，獨佔右欄；強度分級、快捷鍵、App、注意事項依序疊在左欄。
+   最後一列 1fr 吸收右欄多出的高度，左欄的字卡才會貼在一起，不會被撐出大片空白。
+   窄螢幕一欄，照 HTML 順序（強度分級 → 圖面說明 → 其他）。 */
+@media (min-width: 900px) {
+    .about-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); grid-template-rows: auto auto auto 1fr; }
+    .about-scale { grid-column: 1; grid-row: 1; }
+    .about-keys  { grid-column: 1; grid-row: 2; }
+    .about-app   { grid-column: 1; grid-row: 3; }
+    .about-grid .disclaimer { grid-column: 1; grid-row: 4; }
+    .about-read  { grid-column: 2; grid-row: 1 / span 4; }
 }
 .scale-row { display:grid; grid-template-columns: 70px 1fr auto; align-items:center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-weight: 650; font-size:.9em; }
 .scale-row .badge-cat { text-align:center; }
