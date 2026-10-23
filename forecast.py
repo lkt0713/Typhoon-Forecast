@@ -2683,6 +2683,7 @@ SAT_HALF_LON, SAT_HALF_LAT = 12.0, 9.0
 SAT_FRAMES = 18                          # 動畫幀數：每 10 分鐘一幀，共 3 小時
 SAT_FRAME_DPI = 130
 SAT_DIR_PREFIX = "satellite_frames_"
+SAT_STYLE_VERSION = 2                    # 改了圖的樣式就加 1，下一輪會把現有的幀全部重畫
 SAT_VMIN, SAT_VMAX = -90, 40             # 色階範圍（°C）
 SAT_STYLES = [('Enhanced IR', 'IR'), ('Grayscale IR', 'Gray')]   # (網頁分頁標籤, 檔名後綴)
 # 彩色強化：−30 °C 以上照黑白，以下依溫度分段上色（顏色順序同 CIRA 的 Rainbow IR）
@@ -2744,10 +2745,9 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
                 ax.scatter([lo], [la], s=16, color='white', edgecolors='black', linewidths=0.8, zorder=4, **kw)
                 ax.text(lo + 0.35, la, f"+{tau}h", fontsize=7.5, color='white', va='center', zorder=4,
                         clip_on=True, path_effects=stroke, **kw)
-    # 空心圈，不蓋住颱風眼
+    # 小圓點（依強度上色），只蓋住中心一兩個像素，颱風眼還看得到
     col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
-    ax.scatter([st['lon']], [st['lat']], s=900, facecolors='none', edgecolors='black', linewidths=4.2, zorder=5, **kw)
-    ax.scatter([st['lon']], [st['lat']], s=900, facecolors='none', edgecolors=col, linewidths=2.4, zorder=5.1, **kw)
+    ax.scatter([st['lon']], [st['lat']], s=28, color=col, edgecolors='black', linewidths=1.0, zorder=5, **kw)
     label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
     ax.text(st['lon'] + 1.4, st['lat'] + 1.1, label, fontsize=10, fontweight='bold', color='white', zorder=6,
             clip_on=True, path_effects=stroke, **kw)
@@ -2769,7 +2769,7 @@ def make_satellite_maps(storms: list) -> dict:
     """每顆颱風畫最近 SAT_FRAMES 個時次的衛星雲圖動畫（彩色強化＋黑白）→ {tid: [(分頁標籤, 幀目錄), ...]}。
 
     幀以觀測時間命名、存在 docs/ 跟著網站一起 commit，下一輪只補畫新的時次、刪掉超過 3 小時的。
-    中心與疊圖（JTWC 位置、路徑、預報）一變就整組重畫，動畫裡每一幀的範圍與疊圖才一致；
+    中心與疊圖（JTWC 位置、路徑、預報）或 SAT_STYLE_VERSION 一變就整組重畫，動畫裡每一幀的範圍與疊圖才一致；
     JTWC 約每 6 小時發一次公報，所以一天約整組重畫 4 次。整顆颱風抓圖失敗時沿用現有的幀，
     單一時次失敗只少那一幀，都不影響其他颱風。"""
     import json
@@ -2784,7 +2784,7 @@ def make_satellite_maps(storms: list) -> dict:
         st['forecast'] = [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
         dirs = [(lbl, suf, os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}_{suf}")) for lbl, suf in SAT_STYLES]
         mark_path = os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}.json")
-        sig = json.dumps(st, sort_keys=True)
+        sig = json.dumps({**st, 'style': SAT_STYLE_VERSION}, sort_keys=True)
         try:
             with open(mark_path, encoding='utf-8') as fh:
                 old_sig = json.load(fh).get('sig')
