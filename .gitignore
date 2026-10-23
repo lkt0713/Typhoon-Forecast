@@ -43,3 +43,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# ohc_compare.py 下載的 CMEMS 海溫資料與輸出圖
+ohc_output/
