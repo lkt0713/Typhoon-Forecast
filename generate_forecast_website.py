@@ -219,6 +219,38 @@ CITY_COLORS = ['#A9D6F5', '#5E9DDB', '#3B6DB3', '#3F9C55', '#9CC64E',
 CITY_DARK_TEXT = {0, 4, 5, 6}   # 淺色底用深字，其餘用白字
 
 
+def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt: str,
+            start: int = 0) -> str:
+    """逐幀動畫播放器（頁尾腳本的 initPlayer 接手）。key 在整頁要唯一；start 是一開始顯示的幀。"""
+    folder = os.path.basename(frames_dir)
+    n = len(frame_files)
+    return f"""<div class="player" data-anim-key="{_esc(key)}" data-frames-dir="{_esc(folder)}"
+                         data-frames='{_esc(json.dumps(frame_files))}' data-start="{start}">
+                        <figure class="zoomable skel frame-stage" data-caption="{_esc(caption)}">
+                            <img class="frame is-front" src="{_esc(folder)}/{_esc(frame_files[start])}" alt="{_esc(alt)}"
+                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 onerror="this.parentNode.classList.add('loaded','broken')">
+                            <img class="frame" alt="" decoding="async">
+                            <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
+                            <span class="buffer"><span></span></span>
+                        </figure>
+                        <div class="player-controls">
+                            <button class="pc-btn pc-main" data-act="toggle" title="Play">
+                                <span class="ic-play">{ICONS['play']}</span><span class="ic-pause">{ICONS['pause']}</span>
+                            </button>
+                            <button class="pc-btn" data-act="prev" data-i18n="pl.prev" data-i18n-attr="title" title="Previous frame">{ICONS['prev']}</button>
+                            <button class="pc-btn" data-act="next" data-i18n="pl.next" data-i18n-attr="title" title="Next frame">{ICONS['next']}</button>
+                            <div class="timeline-wrap">
+                                <input type="range" class="timeline" min="0" max="{n - 1}" value="{start}" aria-label="Frame">
+                            </div>
+                            <span class="frame-counter mono">{start + 1}/{n}</span>
+                            <div class="speed-seg" role="group">
+                                <button class="speed-btn" data-speed="1">1×</button><button class="speed-btn active" data-speed="2">2×</button><button class="speed-btn" data-speed="4">4×</button><button class="speed-btn" data-speed="8">8×</button>
+                            </div>
+                        </div>
+                    </div>"""
+
+
 def _pair(a: str, b: str) -> str:
     """兩個圖卡都有時，電腦版並排成一排（與系集路徑／JTWC 同一套 maps-grid，
     ≤1100px 自動回到一欄，手機版不變）；只有一個就照原樣。"""
@@ -1163,37 +1195,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             frame_files = sorted([f for f in os.listdir(storm_frames_dir) if f.endswith(('.webp', '.png'))])
             if not frame_files:
                 continue
-            key = f"{track_id}-{model_name}"
-            frames_folder_name = os.path.basename(storm_frames_dir)
             hide_attr = '' if i == 0 else ' style="display:none;"'
-            n = len(frame_files)
             anim_panels.append(f"""
                 <div class="model-panel" data-track="{key_prefix}" data-model="{_esc(model_name)}"{hide_attr}>
-                    <div class="player" data-anim-key="{_esc(key)}" data-frames-dir="{_esc(frames_folder_name)}"
-                         data-frames='{_esc(json.dumps(frame_files))}'>
-                        <figure class="zoomable skel frame-stage" data-caption="{_esc(model_name)} · {_esc(track_id)}">
-                            <img class="frame is-front" src="{_esc(frames_folder_name)}/{_esc(frame_files[0])}" alt="{_esc(model_name)} animation frame"
-                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
-                                 onerror="this.parentNode.classList.add('loaded','broken')">
-                            <img class="frame" alt="" decoding="async">
-                            <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
-                            <span class="buffer"><span></span></span>
-                        </figure>
-                        <div class="player-controls">
-                            <button class="pc-btn pc-main" data-act="toggle" title="Play">
-                                <span class="ic-play">{ICONS['play']}</span><span class="ic-pause">{ICONS['pause']}</span>
-                            </button>
-                            <button class="pc-btn" data-act="prev" data-i18n="pl.prev" data-i18n-attr="title" title="Previous frame">{ICONS['prev']}</button>
-                            <button class="pc-btn" data-act="next" data-i18n="pl.next" data-i18n-attr="title" title="Next frame">{ICONS['next']}</button>
-                            <div class="timeline-wrap">
-                                <input type="range" class="timeline" min="0" max="{n - 1}" value="0" aria-label="Frame">
-                            </div>
-                            <span class="frame-counter mono">1/{n}</span>
-                            <div class="speed-seg" role="group">
-                                <button class="speed-btn" data-speed="1">1×</button><button class="speed-btn active" data-speed="2">2×</button><button class="speed-btn" data-speed="4">4×</button><button class="speed-btn" data-speed="8">8×</button>
-                            </div>
-                        </div>
-                    </div>
+                    {_player(f"{track_id}-{model_name}", storm_frames_dir, frame_files,
+                             f"{model_name} · {track_id}", f"{model_name} animation frame")}
                 </div>""")
 
         anim_html = ""
@@ -1327,15 +1333,32 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         sat_html = ""
         _sat = next((m.get('satellite_maps') for m in models
                      if isinstance(m, dict) and m.get('satellite_maps')), None)
-        sat_items = [(lbl, p) for lbl, p in (_sat or []) if p and os.path.exists(p)]
-        if sat_items:
+        sat_panels = []
+        for lbl, d in (_sat or []):
+            files = sorted(f for f in os.listdir(d) if f.endswith('.webp')) if os.path.isdir(d) else []
+            if not files:
+                continue
+            # 一開始顯示最新一幀，播放時從 3 小時前開始輪播
+            sat_panels.append(f"""
+                <div class="model-panel" data-track="{key_prefix}-sat" data-model="{_esc(lbl)}"{'' if not sat_panels else ' style="display:none;"'}>
+                    {_player(f"{track_id}-sat-{lbl}", d, files, f"{track_id} Satellite · {lbl}",
+                             f"{track_id} satellite image", start=len(files) - 1)}
+                </div>""")
+        if sat_panels:
             sec_id = f"sec-{key_prefix}-sat"
             sections.append((sec_id, 'sub.sat', 'Satellite'))
-            sat_html = _tabbed_image_panel(
-                sec_id, f"{key_prefix}-sat", '🛰️', 'panel.sat', 'Current Satellite Image',
-                sat_items, 'note.sat',
-                'Latest Himawari-9 infrared image (band 13, 10.4 µm), centered on the storm and updated every 10 minutes &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Ring = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time (UTC) in the title',
-                f"{track_id} Satellite Image")
+            sat_labels = [lbl for lbl, d in _sat if os.path.isdir(d)
+                          and any(f.endswith('.webp') for f in os.listdir(d))]
+            sat_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🛰️</span>
+                    <span data-i18n="panel.sat">Satellite Loop (last 3 hours)</span>
+                </div>
+                {_model_tabs(f"{key_prefix}-sat", sat_labels) if len(sat_labels) > 1 else f'<div class="model-label">{_esc(sat_labels[0])}</div>'}
+                {"".join(sat_panels)}
+                <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Ring = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
+            </div>"""
 
         ohc_html = ""
         _ohc = next((m.get('ohc_path') for m in models if isinstance(m, dict) and m.get('ohc_path')), None)
@@ -1676,7 +1699,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="panel reveal about-read">
                     <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
                     <div class="read-list">
-                        <div><h4 data-i18n="panel.sat">Current Satellite Image</h4><p class="map-note" data-i18n="note.sat"></p></div>
+                        <div><h4 data-i18n="panel.sat">Satellite Loop (last 3 hours)</h4><p class="map-note" data-i18n="note.sat"></p></div>
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
                         <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
@@ -3296,8 +3319,8 @@ const I18N = {
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
-    'panel.sat':        'Current Satellite Image',
-    'note.sat':         'Latest Himawari-9 infrared image (band 13, 10.4 µm), centered on the storm and updated every 10 minutes &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Ring = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time (UTC) in the title',
+    'panel.sat':        'Satellite Loop (last 3 hours)',
+    'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Ring = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far',
@@ -3508,8 +3531,8 @@ const I18N = {
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
-    'panel.sat':        '目前衛星雲圖',
-    'note.sat':         '向日葵 9 號最新一張紅外線雲圖（第 13 頻道，10.4 µm），以颱風為中心，每 10 分鐘更新 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 圓圈＝JTWC 最新位置（公報每 6 小時一次，颱風可能已移動一些），實線＝目前為止的路徑，虛線＝JTWC 預報 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，標題為觀測時間（UTC）',
+    'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
+    'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 圓圈＝JTWC 最新位置（公報每 6 小時一次，颱風可能已移動一些），實線＝目前為止的路徑，虛線＝JTWC 預報 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，線＝目前為止的路徑',
@@ -4440,7 +4463,8 @@ function initPlayer(el) {
     const P = {
         el, key: el.dataset.animKey,
         urls: frames.map(f => `${dir}/${f}`),
-        i: 0, playing: false, timer: null, speed: 2,
+        i: Math.max(0, Math.min(frames.length - 1, parseInt(el.dataset.start, 10) || 0)),
+        playing: false, timer: null, speed: 2,
         imgs: $$('.frame', el), front: 0,
         cache: [], loaded: 0, preloading: false,
         touched: false, autoPaused: false,
@@ -4585,7 +4609,9 @@ document.addEventListener('input', e => {
 function visiblePlayer() {
     const view = currentRoute && viewFor(currentRoute);
     if (!view) return null;
-    const el = $$('.player', view).find(p => p.offsetParent !== null);
+    // 一頁有好幾個播放器（衛星雲圖、路徑動畫）時，鍵盤控制畫面上看得到的那個
+    const shown = $$('.player', view).filter(p => p.offsetParent !== null);
+    const el = shown.find(p => players[p.dataset.animKey] && players[p.dataset.animKey].visible) || shown[0];
     return el ? players[el.dataset.animKey] : null;
 }
 

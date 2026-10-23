@@ -2675,10 +2675,14 @@ def make_ohc_map(storms: list) -> str | None:
     return OHC_PATH
 
 
-# ── 目前的衛星雲圖（向日葵 9 號 B13 紅外線）＋颱風位置與路徑 ──────────────────────────
-# 每顆颱風兩張、以 JTWC 目前位置為中心：彩色強化（CIRA／JTWC 那種，冷雲頂才上色，眼牆與
-# 深對流一眼可見）與傳統黑白（越冷越白）。資料抓取與定位見 satellite.py。
+# ── 目前的衛星雲圖動畫（向日葵 9 號 B13 紅外線）＋颱風位置與路徑 ──────────────────────
+# 每顆颱風兩組、以 JTWC 目前位置為中心：彩色強化（CIRA／JTWC 那種，冷雲頂才上色，眼牆與
+# 深對流一眼可見）與傳統黑白（越冷越白），各是最近 3 小時、每 10 分鐘一幀的動畫。
+# 資料抓取與定位見 satellite.py。
 SAT_HALF_LON, SAT_HALF_LAT = 12.0, 9.0
+SAT_FRAMES = 18                          # 動畫幀數：每 10 分鐘一幀，共 3 小時
+SAT_FRAME_DPI = 130
+SAT_DIR_PREFIX = "satellite_frames_"
 SAT_VMIN, SAT_VMAX = -90, 40             # 色階範圍（°C）
 SAT_STYLES = [('Enhanced IR', 'IR'), ('Grayscale IR', 'Gray')]   # (網頁分頁標籤, 檔名後綴)
 # 彩色強化：−30 °C 以上照黑白，以下依溫度分段上色（顏色順序同 CIRA 的 Rainbow IR）
@@ -2755,15 +2759,20 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
     _set_map_titles(ax, f"Himawari-9 Infrared  ·  {pd.Timestamp(valid):%Y/%m/%d %H:%M} UTC",
                     f"{st['name']} · {tw:%m/%d %H:%M} Taiwan time · Band 13 (10.4 µm) cloud-top temperature")
     _watermark(ax)
-    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.savefig(save_path, dpi=SAT_FRAME_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12,
+                pil_kwargs={'quality': FRAME_WEBP_QUALITY, 'method': 6})
     plt.close(fig)
     return save_path
 
 
 def make_satellite_maps(storms: list) -> dict:
-    """每顆颱風畫最新一張衛星雲圖（彩色強化＋黑白）→ {tid: [(分頁標籤, 圖檔), ...]}。
+    """每顆颱風畫最近 SAT_FRAMES 個時次的衛星雲圖動畫（彩色強化＋黑白）→ {tid: [(分頁標籤, 幀目錄), ...]}。
 
-    單顆颱風抓圖失敗時沿用上一輪的圖（標題有觀測時間，舊了看得出來），不影響其他颱風。"""
+    幀以觀測時間命名、存在 docs/ 跟著網站一起 commit，下一輪只補畫新的時次、刪掉超過 3 小時的。
+    中心與疊圖（JTWC 位置、路徑、預報）一變就整組重畫，動畫裡每一幀的範圍與疊圖才一致；
+    JTWC 約每 6 小時發一次公報，所以一天約整組重畫 4 次。整顆颱風抓圖失敗時沿用現有的幀，
+    單一時次失敗只少那一幀，都不影響其他颱風。"""
+    import json
     import satellite
     out = {}
     for head in _storm_heads(storms):
@@ -2773,15 +2782,46 @@ def make_satellite_maps(storms: list) -> dict:
         tid = st['tid']
         jt = (head.get('current_info') or {}).get('jtwc') or {}
         st['forecast'] = [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
-        paths = [(lbl, os.path.join(OUTPUT_DIR, f"{tid}_Satellite_{suf}.png")) for lbl, suf in SAT_STYLES]
+        dirs = [(lbl, suf, os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}_{suf}")) for lbl, suf in SAT_STYLES]
+        mark_path = os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}.json")
+        sig = json.dumps(st, sort_keys=True)
         try:
-            tb, extent, valid = satellite.fetch(st['lat'], st['lon'] % 360, SAT_HALF_LON, SAT_HALF_LAT)
-            for (_, path), (_, suf) in zip(paths, SAT_STYLES):
-                plot_satellite_map(tb, extent, valid, st, suf, path)
-            print(f"[SAT] {tid} 已畫 {valid:%Y-%m-%d %H:%M} UTC 向日葵 9 號紅外線雲圖")
+            with open(mark_path, encoding='utf-8') as fh:
+                old_sig = json.load(fh).get('sig')
+        except (OSError, ValueError):
+            old_sig = None
+        try:
+            slots = satellite.recent_slots(st['lat'], st['lon'] % 360, SAT_FRAMES, SAT_HALF_LON, SAT_HALF_LAT)
+            if not slots:
+                raise RuntimeError("最近沒有完整的時次")
+            names = [f"{t:%Y%m%d_%H%M}.webp" for t in slots]
+            for _, _, d in dirs:
+                os.makedirs(d, exist_ok=True)
+            drawn = set()
+            for slot, name in zip(slots, names):
+                if sig == old_sig and all(os.path.exists(os.path.join(d, name)) for _, _, d in dirs):
+                    continue
+                try:
+                    tb, extent, valid = satellite.fetch(st['lat'], st['lon'] % 360, SAT_HALF_LON, SAT_HALF_LAT,
+                                                        slot=slot)
+                    for _, suf, d in dirs:
+                        plot_satellite_map(tb, extent, valid, st, suf, os.path.join(d, name))
+                    drawn.add(name)
+                except Exception as e:
+                    print(f"[SAT] {tid} {slot:%Y-%m-%d %H:%M} 抓圖失敗，少這一幀: {e}")
+            # 超過 3 小時的幀刪掉；疊圖換了的話，這輪沒重畫成的舊幀也刪，免得動畫裡範圍跳來跳去
+            for _, _, d in dirs:
+                for f in os.listdir(d):
+                    if f not in names or (sig != old_sig and f not in drawn):
+                        os.remove(os.path.join(d, f))
+            with open(mark_path, 'w', encoding='utf-8') as fh:
+                json.dump({'sig': sig}, fh)
+            print(f"[SAT] {tid} 衛星雲圖動畫 {len(slots)} 幀（{slots[0]:%H:%M}–{slots[-1]:%H:%M} UTC），"
+                  f"本輪畫了 {len(drawn)} 幀")
         except Exception as e:
-            print(f"[SAT] {tid} 衛星雲圖失敗，沿用上一輪的圖: {e}")
-        out[tid] = [(lbl, p) for lbl, p in paths if os.path.exists(p)]
+            print(f"[SAT] {tid} 衛星雲圖失敗，沿用現有的幀: {e}")
+        out[tid] = [(lbl, d) for lbl, _, d in dirs
+                    if os.path.isdir(d) and any(f.endswith('.webp') for f in os.listdir(d))]
     return out
 
 
@@ -4268,7 +4308,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
                          r"|^((?:WP|CP|EP)\d{6})_Tracks(?:_\d{10})?\.json$"
-                         r"|^((?:WP|CP|EP)\d{6})_Satellite_\w+\.png$"
+                         rf"|^{SAT_DIR_PREFIX}((?:WP|CP|EP)\d{{6}})\.json$"
                          rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
@@ -4285,6 +4325,15 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
             print(f"[CLEANUP] 已移除殘留的每顆颱風共用圖: {name}")
         except OSError as e:
             print(f"[CLEANUP] 警告: 移除 {name} 失敗: {e}")
+    # 衛星雲圖動畫的幀目錄（目錄要用 rmtree，不放進上面的檔案正則）
+    sat_re = re.compile(rf"^{SAT_DIR_PREFIX}((?:WP|CP|EP)\d{{6}})_\w+$")
+    for name in names:
+        m = sat_re.match(name)
+        path = os.path.join(OUTPUT_DIR, name)
+        if not m or m.group(1) in keep_ids or not os.path.isdir(path):
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        print(f"[CLEANUP] 已移除殘留的衛星雲圖動畫: {name}")
 
 
 def _cleanup_legacy_names() -> None:
