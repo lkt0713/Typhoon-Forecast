@@ -2635,27 +2635,36 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
     return save_path
 
 
+def _storm_heads(storms: list) -> list:
+    """每顆颱風的第一個 storm dict（每顆一份的產品都掛在這裡）。"""
+    return [next(s for s in storms if s['track_id'] == tid)
+            for tid in dict.fromkeys(s['track_id'] for s in storms)]
+
+
+def _storm_marker(head: dict) -> dict | None:
+    """疊在區域圖上的颱風：名稱、目前位置與強度、JTWC 已走過的路徑（到目前位置為止）。"""
+    pos = _storm_now(head)
+    if pos is None:
+        return None
+    tid = head['track_id']
+    jt = (head.get('current_info') or {}).get('jtwc') or {}
+    track = []
+    op = os.path.join(VERIF_DIR, 'obs', f"{tid}.csv")
+    if os.path.exists(op):
+        try:
+            o = pd.read_csv(op).sort_values('time')
+            track = [[float(a), float(b)] for a, b in zip(o['lat'], o['lon'])]
+        except Exception:
+            track = []
+    name = str(jt.get('name')).title() if jt.get('name') else tid
+    return {'tid': tid, 'name': name, 'lat': pos[0], 'lon': pos[1], 'kt': jt.get('max_winds_kt'),
+            'track': track + [[pos[0], pos[1]]]}
+
+
 def make_ohc_map(storms: list) -> str | None:
     """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。"""
     import ohc
-    now = []
-    for tid in dict.fromkeys(s['track_id'] for s in storms):
-        head = next(s for s in storms if s['track_id'] == tid)
-        pos = _storm_now(head)
-        if pos is None:
-            continue
-        jt = (head.get('current_info') or {}).get('jtwc') or {}
-        track = []
-        op = os.path.join(VERIF_DIR, 'obs', f"{tid}.csv")
-        if os.path.exists(op):
-            try:
-                o = pd.read_csv(op).sort_values('time')
-                track = [[float(a), float(b)] for a, b in zip(o['lat'], o['lon'])]
-            except Exception:
-                track = []
-        name = str(jt.get('name')).title() if jt.get('name') else tid
-        now.append({'name': name, 'lat': pos[0], 'lon': pos[1], 'kt': jt.get('max_winds_kt'),
-                    'track': track + [[pos[0], pos[1]]]})
+    now = [st for st in (_storm_marker(s) for s in _storm_heads(storms)) if st]
     if not now:
         if os.path.exists(OHC_PATH):
             os.remove(OHC_PATH)
@@ -2664,6 +2673,116 @@ def make_ohc_map(storms: list) -> str | None:
     plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH, source)
     print(f"[OHC] 已畫 {source} {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
     return OHC_PATH
+
+
+# ── 目前的衛星雲圖（向日葵 9 號 B13 紅外線）＋颱風位置與路徑 ──────────────────────────
+# 每顆颱風兩張、以 JTWC 目前位置為中心：彩色強化（CIRA／JTWC 那種，冷雲頂才上色，眼牆與
+# 深對流一眼可見）與傳統黑白（越冷越白）。資料抓取與定位見 satellite.py。
+SAT_HALF_LON, SAT_HALF_LAT = 12.0, 9.0
+SAT_VMIN, SAT_VMAX = -90, 40             # 色階範圍（°C）
+SAT_STYLES = [('Enhanced IR', 'IR'), ('Grayscale IR', 'Gray')]   # (網頁分頁標籤, 檔名後綴)
+# 彩色強化：−30 °C 以上照黑白，以下依溫度分段上色（顏色順序同 CIRA 的 Rainbow IR）
+SAT_ENHANCED = [(-90, '#FFFFFF'), (-83, '#B23AC2'), (-77, '#7A0F2E'), (-71, '#E8261C'),
+                (-63, '#F7931E'), (-55, '#F5E61B'), (-47, '#2DB34A'), (-39, '#1E64C8'),
+                (-31, '#86D3F2'), (-30.5, '#D2D2D2'), (40, '#101010')]
+
+
+def _sat_cmap(style: str):
+    from matplotlib.colors import LinearSegmentedColormap
+    if style == 'Gray':
+        cmap = plt.get_cmap('gray_r').copy()
+    else:
+        cmap = LinearSegmentedColormap.from_list(
+            'sat_enhanced', [((t - SAT_VMIN) / (SAT_VMAX - SAT_VMIN), c) for t, c in SAT_ENHANCED], N=512)
+    cmap.set_bad('black')
+    return cmap
+
+
+def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) -> str:
+    """tb：亮度溫度（K）的經緯度等距網格，北在上；extent 的經度不折回 180。"""
+    lon0, lon1, lat0, lat1 = extent
+    tc = np.ma.masked_invalid(tb - 273.15)
+    coast = '#F2D16B' if style == 'Gray' else 'white'
+    fig = plt.figure(figsize=(10, 7.6), facecolor='white')
+    if HAS_CARTOPY:
+        # 影像與座標軸用同一個投影，imshow 不必重新取樣；中央經線 180 讓跨換日線也連續
+        proj = ccrs.PlateCarree(central_longitude=180)
+        ax = plt.axes(projection=proj)
+        ext_c = (lon0 - 180, lon1 - 180, lat0, lat1)
+        ax.set_extent(ext_c, crs=proj)
+        im = ax.imshow(tc, extent=ext_c, transform=proj, origin='upper', cmap=_sat_cmap(style),
+                       vmin=SAT_VMIN, vmax=SAT_VMAX, interpolation='nearest', zorder=0)
+        ax.coastlines(resolution='50m', linewidth=0.7, color=coast, zorder=2)
+        gl = ax.gridlines(draw_labels=True, linewidth=0.5, color='white', alpha=0.35, linestyle=(0, (2, 3)))
+        gl.right_labels = gl.top_labels = False
+        gl.xlocator = gl.ylocator = mticker.MultipleLocator(5)
+        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_MUTED}
+        kw = dict(transform=ccrs.PlateCarree())
+    else:
+        ax = fig.add_subplot(111)
+        im = ax.imshow(tc, extent=extent, origin='upper', cmap=_sat_cmap(style),
+                       vmin=SAT_VMIN, vmax=SAT_VMAX, interpolation='nearest', aspect='auto')
+        ax.set_xlim(lon0, lon1); ax.set_ylim(lat0, lat1)
+        kw = {}
+    stroke = [mpe.withStroke(linewidth=3, foreground='black')]
+    if len(st['track']) > 1:
+        tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
+        ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3,
+                path_effects=stroke, **kw)
+    if st.get('forecast'):
+        fc = [[st['lat'], st['lon'], 0]] + st['forecast']
+        fl = np.unwrap(np.radians([p[1] for p in fc])) * 180 / np.pi
+        ax.plot(fl, [p[0] for p in fc], color='white', lw=1.4, ls=(0, (4, 3)), zorder=3,
+                path_effects=stroke, **kw)
+        for (la, _, tau), lo in zip(fc[1:], fl[1:]):
+            if tau % 24 == 0:
+                ax.scatter([lo], [la], s=16, color='white', edgecolors='black', linewidths=0.8, zorder=4, **kw)
+                ax.text(lo + 0.35, la, f"+{tau}h", fontsize=7.5, color='white', va='center', zorder=4,
+                        clip_on=True, path_effects=stroke, **kw)
+    # 空心圈，不蓋住颱風眼
+    col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
+    ax.scatter([st['lon']], [st['lat']], s=900, facecolors='none', edgecolors='black', linewidths=4.2, zorder=5, **kw)
+    ax.scatter([st['lon']], [st['lat']], s=900, facecolors='none', edgecolors=col, linewidths=2.4, zorder=5.1, **kw)
+    label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
+    ax.text(st['lon'] + 1.4, st['lat'] + 1.1, label, fontsize=10, fontweight='bold', color='white', zorder=6,
+            clip_on=True, path_effects=stroke, **kw)
+    cb = fig.colorbar(im, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
+                      ticks=range(SAT_VMIN, SAT_VMAX + 1, 10), extend='both')
+    cb.ax.set_title('°C', fontsize=9, color=TEXT_DARK, pad=8)
+    cb.ax.tick_params(labelsize=8.5, colors=TEXT_DARK)
+    tw = pd.Timestamp(valid) + pd.Timedelta(hours=8)
+    _set_map_titles(ax, f"Himawari-9 Infrared  ·  {pd.Timestamp(valid):%Y/%m/%d %H:%M} UTC",
+                    f"{st['name']} · {tw:%m/%d %H:%M} Taiwan time · Band 13 (10.4 µm) cloud-top temperature")
+    _watermark(ax)
+    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_satellite_maps(storms: list) -> dict:
+    """每顆颱風畫最新一張衛星雲圖（彩色強化＋黑白）→ {tid: [(分頁標籤, 圖檔), ...]}。
+
+    單顆颱風抓圖失敗時沿用上一輪的圖（標題有觀測時間，舊了看得出來），不影響其他颱風。"""
+    import satellite
+    out = {}
+    for head in _storm_heads(storms):
+        st = _storm_marker(head)
+        if st is None:
+            continue
+        tid = st['tid']
+        jt = (head.get('current_info') or {}).get('jtwc') or {}
+        st['forecast'] = [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
+        paths = [(lbl, os.path.join(OUTPUT_DIR, f"{tid}_Satellite_{suf}.png")) for lbl, suf in SAT_STYLES]
+        try:
+            tb, extent, valid = satellite.fetch(st['lat'], st['lon'] % 360, SAT_HALF_LON, SAT_HALF_LAT)
+            for (_, path), (_, suf) in zip(paths, SAT_STYLES):
+                plot_satellite_map(tb, extent, valid, st, suf, path)
+            print(f"[SAT] {tid} 已畫 {valid:%Y-%m-%d %H:%M} UTC 向日葵 9 號紅外線雲圖")
+        except Exception as e:
+            print(f"[SAT] {tid} 衛星雲圖失敗，沿用上一輪的圖: {e}")
+        out[tid] = [(lbl, p) for lbl, p in paths if os.path.exists(p)]
+    return out
 
 
 # ── 駛流場（ECMWF HRES 500 hPa 高度與風場）────────────────────────────
@@ -4141,7 +4260,7 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
 def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     """移除已無任何模式追蹤的颱風其「每顆一份」的產物。
 
-    jtwc_{TID}.gif、{TID}_Model_Comparison.png 與 1000 成員侵襲機率圖都不屬於單一
+    jtwc_{TID}.gif、{TID}_Model_Comparison.png、衛星雲圖與 1000 成員侵襲機率圖都不屬於單一
     paired 模式（同一顆真實颱風各模式共用），因此只能在所有模式都跑完、以 track_id 聯集判斷才安全，
     不能放進 _process_model。
     """
@@ -4149,6 +4268,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
                          r"|^((?:WP|CP|EP)\d{6})_Tracks(?:_\d{10})?\.json$"
+                         r"|^((?:WP|CP|EP)\d{6})_Satellite_\w+\.png$"
                          rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
         names = sorted(os.listdir(OUTPUT_DIR))
@@ -4157,8 +4277,8 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     for name in names:
         m = jtwc_re.match(name)
-        # 兩個分支各佔一個群組，命中的那個才有值
-        if not m or (m.group(1) or m.group(2) or m.group(3) or m.group(4)) in keep_ids:
+        # 每個分支各佔一個群組，命中的那個才有值
+        if not m or next(g for g in m.groups() if g) in keep_ids:
             continue
         try:
             os.remove(os.path.join(OUTPUT_DIR, name))
@@ -4639,6 +4759,15 @@ def main():
         print(f"[OHC] 海洋熱含量圖失敗，略過: {e}")
     for tid in dict.fromkeys(s['track_id'] for s in storms):
         next(s for s in storms if s['track_id'] == tid)['ohc_path'] = ohc_path
+
+    # 目前的衛星雲圖：每顆颱風一組。加分項，失敗不影響其他產品
+    try:
+        sat = make_satellite_maps(storms)
+    except Exception as e:
+        sat = {}
+        print(f"[SAT] 衛星雲圖失敗，略過: {e}")
+    for head in _storm_heads(storms):
+        head['satellite_maps'] = sat.get(head['track_id'], [])
 
     # 駛流場：每顆颱風頁共用同一組區域圖。加分項，失敗不影響其他產品
     try:
