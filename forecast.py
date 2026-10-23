@@ -2614,11 +2614,10 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
             ax.plot(tl, [p[0] for p in st['track']], color='black', lw=3.4, alpha=0.75, zorder=3, **kw)
             ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3.1, **kw)
         col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
-        ax.scatter([st['lon']], [st['lat']], s=230, marker='o', color=col, edgecolors='white',
-                   linewidths=2.4, zorder=6, **kw)
-        ax.scatter([st['lon']], [st['lat']], s=28, marker='o', color='white', zorder=6.1, **kw)
+        ax.scatter([st['lon']], [st['lat']], s=40, marker='o', color=col, edgecolors='white',
+                   linewidths=1.2, zorder=6, **kw)
         label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
-        ax.text(st['lon'] + 1.1, st['lat'] + 0.7, label, fontsize=9.5, fontweight='bold', color='white', zorder=7,
+        ax.text(st['lon'] + 0.8, st['lat'] + 0.5, label, fontsize=9.5, fontweight='bold', color='white', zorder=7,
                 path_effects=[mpe.withStroke(linewidth=3, foreground='black')], **kw)
     cb = fig.colorbar(pm, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
                       ticks=OHC_TICKS, extend='both', spacing='proportional')
