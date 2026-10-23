@@ -1689,7 +1689,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -1721,7 +1721,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="panel-header"><span class="panel-icon">⌨️</span><span data-i18n="about.keys">Keyboard shortcuts</span></div>
                     <div class="keys-list">
                         <div><span><kbd>1</kbd>–<kbd>{min(9, len(routes))}</kbd></span><span data-i18n="key.views">Switch pages</span></div>
-                        <div><span><kbd>Space</kbd></span><span data-i18n="key.play">Play / pause the animation</span></div>
+                        <div><span><kbd>Space</kbd></span><span data-i18n="key.play">Play / pause the animation on screen</span></div>
                         <div><span><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="key.seek">Step animation frames</span></div>
                         <div><span><kbd>Esc</kbd></span><span data-i18n="key.esc">Close the enlarged image</span></div>
                     </div>
@@ -1884,7 +1884,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     Ensemble track forecasts from DeepMind WeatherNext
                     (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data
                     (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>
-                    Official forecasts from JTWC, JMA and CWA; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup.
+                    Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup.
                     Data refreshed automatically.
                 </p>
             </div>
@@ -1900,6 +1900,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                    data-i18n="footer.link4">🇯🇵 JMA Typhoon Information</a>
                 <a href="https://opendata.cwa.gov.tw/" class="footer-link" target="_blank" rel="noopener"
                    data-i18n="footer.link5">🇹🇼 CWA Open Data</a>
+                <a href="https://registry.opendata.aws/noaa-himawari/" class="footer-link" target="_blank" rel="noopener"
+                   data-i18n="footer.link8">🛰️ Himawari-9 (NOAA Open Data)</a>
                 <a href="https://marine.copernicus.eu/" class="footer-link" target="_blank" rel="noopener"
                    data-i18n="footer.link6">🌊 Copernicus Marine (CMEMS)</a>
                 <a href="https://www.hycom.org/" class="footer-link" target="_blank" rel="noopener"
@@ -3390,7 +3392,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3400,11 +3402,11 @@ const I18N = {
     'about.notice':     'Notice',
     'about.disclaimer': 'Not for operational use. For official warnings, follow your national meteorological agency.',
     'key.views':        'Switch pages',
-    'key.play':         'Play / pause the animation',
+    'key.play':         'Play / pause the animation on screen',
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official forecasts from JTWC, JMA and CWA; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
@@ -3412,6 +3414,7 @@ const I18N = {
     'footer.link5':     '🇹🇼 CWA Open Data',
     'footer.link6':     '🌊 Copernicus Marine (CMEMS)',
     'footer.link7':     '🌊 HYCOM',
+    'footer.link8':     '🛰️ Himawari-9 (NOAA Open Data)',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
     'footer.credit':    'Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a>',
     'lb.close':         'Close',
@@ -3602,7 +3605,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁由整體到細節依序是：模式比較、動畫、系集路徑圖與互動地圖、各國官方預報比較、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報、颱風底下的海洋熱含量、500 hPa 駛流場，以及模式的路徑、沿／跨路徑與強度誤差成績單。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁由整體到細節依序是：最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、模式比較、動畫、系集路徑圖與互動地圖、各國官方預報比較、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報、颱風底下的海洋熱含量、500 hPa 駛流場，以及模式的路徑、沿／跨路徑與強度誤差成績單。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -3612,11 +3615,11 @@ const I18N = {
     'about.notice':     '注意事項',
     'about.disclaimer': '本站僅供參考，不可作為作業依據；官方警報請以各國氣象單位發布為準。',
     'key.views':        '切換頁面',
-    'key.play':         '播放／暫停動畫',
+    'key.play':         '播放／暫停畫面上的動畫',
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方預報來自 JTWC、日本氣象廳與中央氣象署；海洋熱含量來自哥白尼海洋服務（CMEMS），HYCOM 為備援。資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方預報來自 JTWC、日本氣象廳與中央氣象署；衛星雲圖來自日本氣象廳向日葵 9 號（經 NOAA 在 AWS 上的開放資料）；海洋熱含量來自哥白尼海洋服務（CMEMS），HYCOM 為備援。資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
@@ -3624,6 +3627,7 @@ const I18N = {
     'footer.link5':     '🇹🇼 中央氣象署開放資料',
     'footer.link6':     '🌊 哥白尼海洋服務（CMEMS）',
     'footer.link7':     '🌊 HYCOM 海洋模式',
+    'footer.link8':     '🛰️ 向日葵 9 號（NOAA 開放資料）',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
     'footer.credit':    '設計參考 <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency（usta.agency）</a>',
     'lb.close':         '關閉',
