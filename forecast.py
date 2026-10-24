@@ -2537,6 +2537,7 @@ def make_official_forecasts(storms: list) -> None:
         except Exception as e:
             print(f"[OFFICIAL] {fetch.__name__} 失敗，略過: {e}")
     keep = set()
+    nearest = {}                  # id(f) → (距離 km, track_id)：沒配對到的印出來，才知道是沒發布還是位置差太多
     for tid in dict.fromkeys(s['track_id'] for s in storms):
         head = next(s for s in storms if s['track_id'] == tid)
         now = _storm_now(head)
@@ -2544,7 +2545,12 @@ def make_official_forecasts(storms: list) -> None:
         if now is not None:
             for f in others:
                 a = f['points'][0]
-                if a['h'] == 0 and float(_haversine_km(now[0], now[1] % 360, a['lat'], a['lon'] % 360)) <= OFFICIAL_MATCH_KM:
+                if a['h'] != 0:
+                    continue
+                d = float(_haversine_km(now[0], now[1] % 360, a['lat'], a['lon'] % 360))
+                if id(f) not in nearest or d < nearest[id(f)][0]:
+                    nearest[id(f)] = (d, tid)
+                if d <= OFFICIAL_MATCH_KM:
                     fcs.append(f)
         if len(fcs) < 2:          # 只有 JTWC 一家就不畫（網頁上已有 JTWC 官方圖）
             continue
@@ -2556,6 +2562,13 @@ def make_official_forecasts(storms: list) -> None:
                 print(f"[OFFICIAL] {tid}: {' / '.join(f['agency'] for f in fcs)}")
         except Exception as e:
             print(f"[OFFICIAL] {tid} 畫圖失敗，略過: {e}")
+    for f in others:
+        a = f['points'][0]
+        d, tid = nearest.get(id(f), (None, None))
+        if d is None or d > OFFICIAL_MATCH_KM:
+            far = f"，離最近的 {tid} {d:.0f} km（上限 {OFFICIAL_MATCH_KM:.0f} km）" if d is not None else ""
+            print(f"[OFFICIAL] {f['agency']} {f.get('name')} 沒配對到任何颱風："
+                  f"{a['lat']:.1f}°N {a['lon'] % 360:.1f}°E{far}")
     for name in os.listdir(OUTPUT_DIR):
         m = re.match(r"^((?:WP|CP|EP)\d{6})_Official\.png$", name)
         if m and m.group(1) not in keep:
