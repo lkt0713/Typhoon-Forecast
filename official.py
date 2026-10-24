@@ -3,6 +3,7 @@
 JMA：氣象廳防災資訊網站的 JSON（www.jma.go.jp/bosai/typhoon/data/），不需金鑰。
     targetTc.json 列出目前發布中的熱帶氣旋，每個再讀 specifications.json：
     各時刻的中心位置、最大風速（10 分鐘平均）、氣壓與 70% 機率圓半徑。
+    JMA 發報很頻繁（接近日本時每小時），網站只每 6 小時換一次，見 _six_hourly。
 CWA：氣象資料開放平臺 W-C0034-005（熱帶氣旋路徑），需要授權碼，放在環境變數
     CWA_API_KEY（GitHub Actions secret）；沒有就略過。
 
@@ -11,6 +12,7 @@ h 為預報時數（0 = 實況），缺的欄位給 None。
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import ssl
@@ -22,6 +24,8 @@ from requests.adapters import HTTPAdapter
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TyphoonForecastSite/1.0)"}
 JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data"
 CWA_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005"
+# 目前採用的 JMA 那一報，跨輪保存才能「每 6 小時換一次」（docs/ 每輪會 commit，Actions 上也留得住）
+JMA_STATE = os.path.join("docs", "jma_bulletins.json")
 TIMEOUT = 30
 
 
@@ -65,15 +69,55 @@ def fetch_jma() -> list[dict]:
                     q['h'] += shift
             out.append({'agency': 'JMA', 'id': tcid, 'number': tc.get("typhoonNumber"), 'name': name,
                         'issue': issue, 'points': sorted(pts, key=lambda q: q['h'])})
-    return out
+    return _six_hourly(out)
+
+
+def _floor6(iso):
+    """基準時間 ISO → 所屬的 6 小時時段（00/06/12/18Z）；格式不符回 None。"""
+    try:
+        t = datetime.fromisoformat(str(iso).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return t.replace(hour=t.hour - t.hour % 6, minute=0, second=0, microsecond=0)
+
+
+def _six_hourly(out: list[dict]) -> list[dict]:
+    """JMA 接近日本時每小時、平常每 3 小時就發一報，網站只要每 6 小時換一次。
+
+    每顆颱風（JMA 的 TC 編號）沿用 JMA_STATE 裡上次採用的那報，等基準時間進到新的
+    00/06/12/18Z 時段才換成新的；沒存過的颱風直接用最新一報。只保留目前還在發報的颱風。"""
+    try:
+        with open(JMA_STATE, encoding='utf-8') as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        state = {}
+    res = []
+    for f in out:
+        old = state.get(f['id'])
+        new_t, old_t = _floor6(f['issue']), _floor6(old['issue']) if old else None
+        if old and new_t and old_t and new_t <= old_t:
+            res.append(old)
+        else:
+            res.append(f)
+    try:
+        with open(JMA_STATE, 'w', encoding='utf-8') as fh:
+            json.dump({f['id']: f for f in res}, fh, ensure_ascii=False, indent=1)
+    except OSError as e:
+        print(f"[OFFICIAL] JMA 狀態檔寫入失敗（下一輪改用最新一報）: {e}")
+    return res
 
 
 def _jma_base(issue_utc, hours: list[int]):
-    """颱風接近日本時 JMA 每小時發一次「推定」更新（例如 13Z），但預報點還是 12Z 那一報的，
-    時數卻從 13Z 起算（+11、+23…），跟其他單位的 +12／+24 對不上。
+    """JMA 的 issue 時間不一定是預報基準時間，時數的起算點也有兩種：
 
-    JMA 24 小時以後的預報點從預報基準時間算都是 12 小時的整數倍，所以用它們推回基準時間
-    （13Z 發的 +47 → 差 1 小時 → 12Z）；沒有長期預報點時退回最近的 3 小時整點。
+    - 颱風接近日本時每小時發一次「推定」更新（例如 13Z），預報點還是 12Z 那一報的，時數卻從
+      13Z 起算（+11、+23、+47…）。24 小時以後的預報點從基準時間算都是 12 小時的整數倍，
+      所以用最長的那點推回基準時間（+47 → 差 1 小時 → 12Z），時數也補回去。
+    - 遠洋的颱風照常每 3／6 小時發報，issue 是發布時間（18Z 那報在 19Z 發），時數已經從
+      基準時間起算（+48、+72…都是 12 的倍數）。這時基準時間是 issue 往前取 3 小時整點，時數不動。
+      2026-10 In-Fa 就是這種，原本被當成 19Z 起算，預報點全部晚了 1 小時。
+
+    沒有 24 小時以後的預報點時無從分辨，退回最近的 3 小時整點、時數照第一種補。
     h=0 仍是最新推定位置，當作「現在」。回傳 (基準時間 ISO, 預報時數要補的小時數)。"""
     if not issue_utc:
         return issue_utc, 0
@@ -83,6 +127,8 @@ def _jma_base(issue_utc, hours: list[int]):
         return issue_utc, 0
     t = t.replace(minute=0, second=0, microsecond=0)
     longs = [h for h in hours if h >= 24]
+    if longs and max(longs) % 12 == 0:
+        return (t - timedelta(hours=t.hour % 3)).strftime('%Y-%m-%dT%H:%MZ'), 0
     shift = (-max(longs)) % 12 if longs else t.hour % 3
     return (t - timedelta(hours=shift)).strftime('%Y-%m-%dT%H:%MZ'), shift
 
