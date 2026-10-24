@@ -3,6 +3,7 @@
 JMA：氣象廳防災資訊網站的 JSON（www.jma.go.jp/bosai/typhoon/data/），不需金鑰。
     targetTc.json 列出目前發布中的熱帶氣旋，每個再讀 specifications.json：
     各時刻的中心位置、最大風速（10 分鐘平均）、氣壓與 70% 機率圓半徑。
+    JMA 發報很頻繁（接近日本時每小時），網站只每 6 小時換一次，見 _six_hourly。
 CWA：氣象資料開放平臺 W-C0034-005（熱帶氣旋路徑），需要授權碼，放在環境變數
     CWA_API_KEY（GitHub Actions secret）；沒有就略過。
 
@@ -11,6 +12,7 @@ h 為預報時數（0 = 實況），缺的欄位給 None。
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import ssl
@@ -22,6 +24,8 @@ from requests.adapters import HTTPAdapter
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TyphoonForecastSite/1.0)"}
 JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data"
 CWA_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005"
+# 目前採用的 JMA 那一報，跨輪保存才能「每 6 小時換一次」（docs/ 每輪會 commit，Actions 上也留得住）
+JMA_STATE = os.path.join("docs", "jma_bulletins.json")
 TIMEOUT = 30
 
 
@@ -65,7 +69,42 @@ def fetch_jma() -> list[dict]:
                     q['h'] += shift
             out.append({'agency': 'JMA', 'id': tcid, 'number': tc.get("typhoonNumber"), 'name': name,
                         'issue': issue, 'points': sorted(pts, key=lambda q: q['h'])})
-    return out
+    return _six_hourly(out)
+
+
+def _floor6(iso):
+    """基準時間 ISO → 所屬的 6 小時時段（00/06/12/18Z）；格式不符回 None。"""
+    try:
+        t = datetime.fromisoformat(str(iso).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return t.replace(hour=t.hour - t.hour % 6, minute=0, second=0, microsecond=0)
+
+
+def _six_hourly(out: list[dict]) -> list[dict]:
+    """JMA 接近日本時每小時、平常每 3 小時就發一報，網站只要每 6 小時換一次。
+
+    每顆颱風（JMA 的 TC 編號）沿用 JMA_STATE 裡上次採用的那報，等基準時間進到新的
+    00/06/12/18Z 時段才換成新的；沒存過的颱風直接用最新一報。只保留目前還在發報的颱風。"""
+    try:
+        with open(JMA_STATE, encoding='utf-8') as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        state = {}
+    res = []
+    for f in out:
+        old = state.get(f['id'])
+        new_t, old_t = _floor6(f['issue']), _floor6(old['issue']) if old else None
+        if old and new_t and old_t and new_t <= old_t:
+            res.append(old)
+        else:
+            res.append(f)
+    try:
+        with open(JMA_STATE, 'w', encoding='utf-8') as fh:
+            json.dump({f['id']: f for f in res}, fh, ensure_ascii=False, indent=1)
+    except OSError as e:
+        print(f"[OFFICIAL] JMA 狀態檔寫入失敗（下一輪改用最新一報）: {e}")
+    return res
 
 
 def _jma_base(issue_utc, hours: list[int]):
