@@ -3774,13 +3774,19 @@ function splitText(el) {
     const text = el.textContent.trim();
     el.setAttribute('aria-label', text);
     const tokens = text.match(/[⺀-鿿豈-﫿＀-￯]|[^\s⺀-鿿豈-﫿＀-￯]+|\s+/g) || [];
-    let i = 0, out = '';
+    // 「·」併進前一個字詞（同一個不換行的 .w）：多個颱風名字換行時，點留在上一行尾，不會跑到下一行開頭
+    const toks = [];
     for (const tok of tokens) {
-        if (/^\s+$/.test(tok)) { out += ' '; continue; }
+        if (tok === '·' && toks.length > 1 && /^\s+$/.test(toks[toks.length - 1])) { toks.pop(); toks[toks.length - 1] += '\u00a0·'; }
+        else toks.push(tok);
+    }
+    let i = 0, out = '';
+    toks.forEach(tok => {
+        if (/^\s+$/.test(tok)) { out += ' '; return; }
         out += '<span class="w" aria-hidden="true">';
         for (const ch of tok) out += `<span class="ch" style="--i:${i++}">${ch.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`;
         out += '</span>';
-    }
+    });
     el.innerHTML = out;
 }
 
