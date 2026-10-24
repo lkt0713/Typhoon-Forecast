@@ -5,7 +5,7 @@ JMA：氣象廳防災資訊網站的 JSON（www.jma.go.jp/bosai/typhoon/data/）
     各時刻的中心位置、最大風速（10 分鐘平均）、氣壓與 70% 機率圓半徑。
     JMA 發報很頻繁（接近日本時每小時），網站只每 6 小時換一次，見 _six_hourly。
 CWA：氣象資料開放平臺 W-C0034-005（熱帶氣旋路徑），需要授權碼，放在環境變數
-    CWA_API_KEY（GitHub Actions secret）；沒有就略過。
+    CWA_API_KEY（GitHub Actions secret）；沒有就略過。回傳偶爾少一顆颱風，見 _keep_recent_cwa。
 
 回傳格式一律是 {'agency', 'name', 'issue'(UTC ISO), 'points': [{'h', 'lat', 'lon', 'kt', 'hpa', 'r70_km'}]}，
 h 為預報時數（0 = 實況），缺的欄位給 None。
@@ -26,6 +26,10 @@ JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data"
 CWA_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005"
 # 目前採用的 JMA 那一報，跨輪保存才能「每 6 小時換一次」（docs/ 每輪會 commit，Actions 上也留得住）
 JMA_STATE = os.path.join("docs", "jma_bulletins.json")
+# CWA 的開放資料偶爾整顆颱風不見（2026-10-24 In-Fa：01:16Z 有 00Z 那報，01:25Z、01:38Z 的回傳都沒有），
+# 所以存下每顆最近一報，回傳裡少了某顆但那報還不到 CWA_KEEP_H 小時就沿用
+CWA_STATE = os.path.join("docs", "cwa_bulletins.json")
+CWA_KEEP_H = 12
 TIMEOUT = 30
 
 
@@ -160,7 +164,38 @@ def fetch_cwa() -> list[dict]:
     if not out:
         # 解析不出來時印出結構（只有欄位名稱，沒有授權碼），之後才知道要怎麼對欄位
         print(f"[OFFICIAL] CWA 沒解析出颱風，JSON 結構: {_shape(data)}")
-    return out
+    print("[OFFICIAL] CWA 回傳：" + ("、".join(
+        f"{f['name']} {f['issue'] or '?'} {f['points'][0]['lat']:.1f}°N {f['points'][0]['lon'] % 360:.1f}°E"
+        f"（{len(f['points'])} 點）" for f in out) or "無"))
+    return _keep_recent_cwa(out)
+
+
+def _keep_recent_cwa(out: list[dict]) -> list[dict]:
+    """回傳裡沒有、但存檔裡那報還不到 CWA_KEEP_H 小時的颱風，沿用存檔那報；存檔只留這次用到的。"""
+    try:
+        with open(CWA_STATE, encoding='utf-8') as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        state = {}
+    names = {str(f['name']).upper() for f in out}
+    now = datetime.now(timezone.utc)
+    res = list(out)
+    for key, f in state.items():
+        if key in names:
+            continue
+        try:
+            age = now - datetime.fromisoformat(str(f.get('issue')).replace('Z', '+00:00'))
+        except ValueError:
+            continue
+        if age <= timedelta(hours=CWA_KEEP_H):
+            print(f"[OFFICIAL] CWA 這次沒有 {f['name']}，沿用 {f['issue']} 那報")
+            res.append(f)
+    try:
+        with open(CWA_STATE, 'w', encoding='utf-8') as fh:
+            json.dump({str(f['name']).upper(): f for f in res}, fh, ensure_ascii=False, indent=1)
+    except OSError as e:
+        print(f"[OFFICIAL] CWA 狀態檔寫入失敗: {e}")
+    return res
 
 
 def _shape(x, depth=0):
