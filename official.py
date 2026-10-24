@@ -69,11 +69,16 @@ def fetch_jma() -> list[dict]:
 
 
 def _jma_base(issue_utc, hours: list[int]):
-    """颱風接近日本時 JMA 每小時發一次「推定」更新（例如 13Z），但預報點還是 12Z 那一報的，
-    時數卻從 13Z 起算（+11、+23…），跟其他單位的 +12／+24 對不上。
+    """JMA 的 issue 時間不一定是預報基準時間，時數的起算點也有兩種：
 
-    JMA 24 小時以後的預報點從預報基準時間算都是 12 小時的整數倍，所以用它們推回基準時間
-    （13Z 發的 +47 → 差 1 小時 → 12Z）；沒有長期預報點時退回最近的 3 小時整點。
+    - 颱風接近日本時每小時發一次「推定」更新（例如 13Z），預報點還是 12Z 那一報的，時數卻從
+      13Z 起算（+11、+23、+47…）。24 小時以後的預報點從基準時間算都是 12 小時的整數倍，
+      所以用最長的那點推回基準時間（+47 → 差 1 小時 → 12Z），時數也補回去。
+    - 遠洋的颱風照常每 3／6 小時發報，issue 是發布時間（18Z 那報在 19Z 發），時數已經從
+      基準時間起算（+48、+72…都是 12 的倍數）。這時基準時間是 issue 往前取 3 小時整點，時數不動。
+      2026-10 In-Fa 就是這種，原本被當成 19Z 起算，預報點全部晚了 1 小時。
+
+    沒有 24 小時以後的預報點時無從分辨，退回最近的 3 小時整點、時數照第一種補。
     h=0 仍是最新推定位置，當作「現在」。回傳 (基準時間 ISO, 預報時數要補的小時數)。"""
     if not issue_utc:
         return issue_utc, 0
@@ -83,6 +88,8 @@ def _jma_base(issue_utc, hours: list[int]):
         return issue_utc, 0
     t = t.replace(minute=0, second=0, microsecond=0)
     longs = [h for h in hours if h >= 24]
+    if longs and max(longs) % 12 == 0:
+        return (t - timedelta(hours=t.hour % 3)).strftime('%Y-%m-%dT%H:%MZ'), 0
     shift = (-max(longs)) % 12 if longs else t.hour % 3
     return (t - timedelta(hours=shift)).strftime('%Y-%m-%dT%H:%MZ'), shift
 
