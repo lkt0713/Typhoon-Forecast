@@ -158,7 +158,8 @@ def parse_cwa(data: dict) -> list[dict]:
     records.TropicalCyclones.TropicalCyclone[]：TyphoonName、CwaTyphoonName、
       AnalysisData.Fix[]：DateTime、CoordinateLatitude／Longitude、MaxWindSpeed（m/s）、Pressure
       ForecastData.Fix[]：InitialTime、ForecastHour、座標、MaxWindSpeed、Pressure、Radius70PercentProbability（km）
-    「現在」用時間等於預報起始時間的那筆分析（沒有就用最後一筆）。結構對不上回空清單。"""
+    「現在」用時間等於預報起始時間的那筆分析，沒有就用時間最新的分析；剛生成的颱風可能還沒有分析資料，
+    這時改用預報時數 0 的那一點。都沒有就略過這顆並印出原因。結構對不上回空清單。"""
     out = []
     tcs = _ci(_ci(_ci(data, 'records'), 'TropicalCyclones'), 'TropicalCyclone')
     for c in _as_list(tcs):
@@ -168,7 +169,10 @@ def parse_cwa(data: dict) -> list[dict]:
         init = _utc(_ci(fc[0], 'InitialTime')) if fc else None
         now = None
         if an:
-            now = next((a for a in an if init and _utc(_ci(a, 'DateTime')) == init), an[-1])
+            latest = max(an, key=lambda a: _utc(_ci(a, 'DateTime')) or datetime.min.replace(tzinfo=timezone.utc))
+            now = next((a for a in an if init and _utc(_ci(a, 'DateTime')) == init), latest)
+        else:
+            now = next((f for f in fc if _num(_ci(f, 'ForecastHour')) == 0), None)
         base = init or (_utc(_ci(now, 'DateTime')) if now else None)
         pts = []
         if now:
@@ -187,6 +191,8 @@ def parse_cwa(data: dict) -> list[dict]:
             out.append({'agency': 'CWA', 'name': name,
                         'issue': base.strftime('%Y-%m-%dT%H:%MZ') if base else None,
                         'points': sorted(pts, key=lambda q: q['h'])})
+        else:
+            print(f"[OFFICIAL] CWA {name} 沒有目前位置，略過（分析 {len(an)} 筆、預報 {len(fc)} 筆）")
     return out
 
 
