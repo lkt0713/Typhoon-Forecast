@@ -960,22 +960,47 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     if lead:
         hero_rgb = _hex_rgb(lead['color'], 0.35)
         hero_strength = min(1.0, max(0.15, ((lead['wind'] or 30) - 20) / 120))
-        lead_wind = f"{lead['wind']:.0f} kt" if lead['wind'] is not None else "— kt"
-        hero_inner = f"""
+        _wind = lambda i: f"{i['wind']:.0f} kt" if i['wind'] is not None else "— kt"
+        hero_sub = (f'<p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"\n'
+                    f'                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · '
+                    f'ensemble guidance from {len(active_models)} models, refreshed every 10 minutes.</p>')
+        genesis_btn = ('<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>'
+                       if _genesis_entries else '')
+        if len(infos) == 1:
+            hero_inner = f"""
                 <div class="eyebrow"><span class="live-dot"></span><span data-i18n="hero.eyebrow.live">Now tracking</span></div>
                 <h2 class="hero-title storm-name split" style="--glow:{lead['color']}">{_esc(_title(lead))}</h2>
                 <p class="hero-lead">
                     <span class="cat-pill" style="background:{lead['color']};color:{lead['text']}">{lead['cat']}</span>
                     <span data-i18n="catname.{lead['cat']}">{lead['cat']}</span>
-                    <span class="sep">·</span><span class="mono">{lead_wind}</span>
+                    <span class="sep">·</span><span class="mono">{_wind(lead)}</span>
                     <span class="sep">·</span><span class="mono">{_esc(lead['pos'])}</span>
                 </p>
-                <p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"
-                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · ensemble guidance from {len(active_models)} models, refreshed every 10 minutes.</p>
+                {hero_sub}
                 <div class="hero-cta">
                     <a class="btn-primary" href="#/storm/{_esc(lead['id'])}"><span data-i18n="hero.cta.storm">Open forecast</span> <span aria-hidden="true">→</span></a>
-                    {'<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>' if _genesis_entries else ''}
+                    {genesis_btn}
                 </div>"""
+        else:
+            # 同時有好幾顆：標題放所有颱風的名字，底下每顆一列（強度、風速、位置），整列連到該颱風頁。
+            # 依強度排，最強的在前（與 lead 相同）
+            ranked = sorted(infos.values(), key=lambda i: i['wind'] if i['wind'] is not None else -1, reverse=True)
+            rows = "".join(f"""
+                    <li><a href="#/storm/{_esc(i['id'])}">
+                        <span class="hs-name storm-name">{_esc(_title(i))}</span>
+                        <span class="cat-pill" style="background:{i['color']};color:{i['text']}">{i['cat']}</span>
+                        <span data-i18n="catname.{i['cat']}">{i['cat']}</span>
+                        <span class="sep">·</span><span class="mono">{_wind(i)}</span>
+                        <span class="sep">·</span><span class="mono">{_esc(i['pos'])}</span>
+                        <span class="hs-go" aria-hidden="true">→</span>
+                    </a></li>""" for i in ranked)
+            hero_inner = f"""
+                <div class="eyebrow"><span class="live-dot"></span><span data-i18n="hero.eyebrow.multi" data-i18n-count="{len(infos)}">Now tracking {len(infos)} storms</span></div>
+                <h2 class="hero-title storm-name split" style="--glow:{lead['color']}">{' · '.join(_esc(_title(i)) for i in ranked)}</h2>
+                <ul class="hero-storms">{rows}
+                </ul>
+                {hero_sub}
+                {f'<div class="hero-cta">{genesis_btn}</div>' if genesis_btn else ''}"""
     else:
         hero_rgb = '143,211,255'
         hero_strength = 0.04
@@ -2196,6 +2221,25 @@ html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size
 @keyframes chIn { to { opacity:1; transform:none; filter:none; } }
 .hero-lead { display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size: clamp(1rem,1.7vw,1.25rem); font-weight:650; animation: fadeUp .9s var(--ease-out) .35s both; }
 .hero-lead .sep { opacity:.45; }
+/* 同時追蹤好幾顆時，每顆一列、整列可點 */
+.hero-storms { list-style:none; margin:0; padding:0; display:grid; width: fit-content; max-width:100%;
+               animation: fadeUp .9s var(--ease-out) .35s both; }
+.hero-storms a { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding: 12px 0; color:inherit; text-decoration:none;
+                 font-size: clamp(1rem,1.7vw,1.25rem); font-weight:650; border-bottom: 1px solid rgba(255,255,255,.16); }
+.hero-storms li:first-child a { border-top: 1px solid rgba(255,255,255,.16); }
+.hero-storms .sep { opacity:.45; }
+.hero-storms .hs-name { font-weight: 800; min-width: 7.5ch; }
+.hero-storms .hs-go { margin-left: 14px; opacity:.5; transition: transform .3s var(--ease-out), opacity .3s; }
+.hero-storms a:hover .hs-go, .hero-storms a:focus-visible .hs-go { opacity:1; transform: translateX(4px); }
+/* 寬螢幕上每一欄（名字、強度、風速、位置、箭頭）上下對齊；窄螢幕維持自動換行 */
+@media (min-width: 700px) {
+    @supports (grid-template-columns: subgrid) {
+        .hero-storms { grid-template-columns: repeat(7, max-content) auto; column-gap: 10px; }
+        .hero-storms li { display: contents; }
+        .hero-storms a { display:grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+        .hero-storms .hs-go { margin-left: 14px; justify-self: end; }
+    }
+}
 .cat-pill { padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size:.85em; letter-spacing:.04em; }
 .hero-sub { margin-top: 12px; font-size: clamp(.98rem,1.4vw,1.12rem); color: rgba(234,244,252,.74); max-width: 56ch; line-height: 1.65; animation: fadeUp .9s var(--ease-out) .45s both; }
 .hero-cta { display:flex; flex-wrap:wrap; gap:12px; margin-top: 30px; animation: fadeUp .9s var(--ease-out) .55s both; }
@@ -2903,6 +2947,8 @@ header.mini .brand-text { display: none; }
 html[lang^="zh"] .hero-title { font-size: clamp(2.4rem, 6.5vw, 5.2rem); line-height: 1.12; letter-spacing: .06em; }
 .hero-title.storm-name, .storm-title.storm-name { letter-spacing: .02em !important; }
 .hero-lead { font-weight: 300; font-size: clamp(1.05rem, 1.8vw, 1.5rem); color: rgba(255,255,255,.86); }
+.hero-storms a { font-weight: 300; font-size: clamp(1.05rem, 1.8vw, 1.5rem); color: rgba(255,255,255,.86); }
+.hero-storms .hs-name { font-weight: 500; color: #fff; }
 .hero-sub { font-weight: 300; color: rgba(255,255,255,.62); }
 .cat-pill { font-family: var(--display); font-weight: 500; letter-spacing: .1em; }
 .btn-primary, .btn-ghost { padding: 16px 28px; font-weight: 500; letter-spacing: .14em; font-size: .9em; }
@@ -3238,6 +3284,7 @@ const I18N = {
     'arch.noscore':     'No verified forecasts for this storm yet.',
     'note.arch.map':    'Thick colored line = the real JTWC track, colored by intensity &nbsp;·&nbsp; Orange = the selected run\'s forecast, with a dot every 24 h &nbsp;·&nbsp; Thin lines = all other runs of the same model, light = older, dark = newer &nbsp;·&nbsp; Drag the slider to step through the runs; the number after each model is how many runs were saved',
     'hero.eyebrow.live':  'Now tracking',
+    'hero.eyebrow.multi': 'Now tracking {count} storms',
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
@@ -3451,6 +3498,7 @@ const I18N = {
     'arch.noscore':     '這顆颱風還沒有可校驗的預報。',
     'note.arch.map':    '粗的彩色線＝JTWC 實際路徑，依強度上色 &nbsp;·&nbsp; 橘線＝選取那一期的預報，每 24 小時一個圓點 &nbsp;·&nbsp; 細線＝同一模式的其他期數，淺＝較舊、深＝較新 &nbsp;·&nbsp; 拖動滑桿逐期查看；模式名稱後的數字是存了幾期',
     'hero.eyebrow.live':  '正在追蹤',
+    'hero.eyebrow.multi': '正在追蹤 {count} 個颱風',
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
