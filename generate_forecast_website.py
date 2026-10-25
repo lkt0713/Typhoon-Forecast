@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.7.0"
+SITE_VERSION = "6.8.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -562,6 +562,64 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
     return head + ''.join(panels)
 
 
+# 16 方位：(英文, 中文)；颱風頁摘要的移動方向用
+COMPASS16 = [('north', '北'), ('north-northeast', '北北東'), ('northeast', '東北'), ('east-northeast', '東北東'),
+             ('east', '東'), ('east-southeast', '東南東'), ('southeast', '東南'), ('south-southeast', '南南東'),
+             ('south', '南'), ('south-southwest', '南南西'), ('southwest', '西南'), ('west-southwest', '西南西'),
+             ('west', '西'), ('west-northwest', '西北西'), ('northwest', '西北'), ('north-northwest', '北北西')]
+
+
+def _bi(en: str, zh: str) -> str:
+    """中英各一份，CSS 依 <html lang> 只顯示其中一份（句子結構不同，套不進 data-i18n 的參數）。"""
+    return f'<span class="i-en">{en}</span><span class="i-zh">{zh}</span>'
+
+
+def _storm_summary(info: dict, city_cols: list) -> str:
+    """颱風頁頂端的白話摘要：往哪走、會變強還是變弱、臺灣有沒有威脅。缺資料的那句就不寫。"""
+    import math
+    lines = []
+    lat, lon, wind = info.get('lat'), info.get('lon'), info.get('wind')
+    fc = [p for p in (info.get('jtwc_fc') or []) if p and p[3] and p[3] > 0]
+    if lat is not None and lon is not None and fc:
+        la2, lo2, _, tau = min(fc, key=lambda p: abs(p[3] - 12))
+        p1, p2, dl = math.radians(lat), math.radians(la2), math.radians(lo2 - lon)
+        brg = math.degrees(math.atan2(math.sin(dl) * math.cos(p2),
+                                      math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl))) % 360
+        dist = 6371 * math.acos(min(1, max(-1, math.sin(p1) * math.sin(p2) + math.cos(p1) * math.cos(p2) * math.cos(dl))))
+        spd = dist / tau
+        if spd < 5:
+            lines.append(_bi('Nearly stationary.', '幾乎停滯。'))
+        else:
+            en, zh = COMPASS16[int((brg + 11.25) // 22.5) % 16]
+            lines.append(_bi(f'Moving {en} at about {spd:.0f} km/h.', f'向{zh}移動，時速約 {spd:.0f} 公里。'))
+    near24 = [p for p in fc if 12 <= p[3] <= 36 and p[2] is not None]
+    if wind is not None and near24:
+        _, _, kt24, tau24 = min(near24, key=lambda p: abs(p[3] - 24))
+        cat = ss_category(kt24)
+        catname = f'<span data-i18n="catname.{cat}">{cat}</span>'
+        if kt24 >= wind + 5:
+            lines.append(_bi(f'Strengthening to {kt24:.0f} kt ({catname}) in {tau24:.0f} h.',
+                             f'{tau24:.0f} 小時後增強至 {kt24:.0f} kt（{catname}）。'))
+        elif kt24 <= wind - 5:
+            lines.append(_bi(f'Weakening to {kt24:.0f} kt ({catname}) in {tau24:.0f} h.',
+                             f'{tau24:.0f} 小時後減弱至 {kt24:.0f} kt（{catname}）。'))
+        else:
+            lines.append(_bi(f'Holding near {kt24:.0f} kt over the next {tau24:.0f} h.',
+                             f'未來 {tau24:.0f} 小時維持約 {kt24:.0f} kt。'))
+    land = [(c[0], (c[1].get('tw_landfall') or {}).get('p') or 0) for c in city_cols
+            if not (len(c) > 2 and c[2]) and 'tw_landfall' in c[1]]
+    if land:
+        name, top = max(land, key=lambda t: t[1])
+        if top < 1:
+            lines.append(_bi('Taiwan landfall: under 1% in every model.', '登陸臺灣：各模式機率都低於 1%。'))
+        else:
+            lines.append(_bi(f'Taiwan landfall: up to {top:.0f}% ({_esc(name)}).',
+                             f'登陸臺灣：機率最高 {top:.0f}%（{_esc(name)}）。'))
+    if not lines:
+        return ''
+    return '<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines) + '</div>'
+
+
 def _city_table(cols: list[tuple]) -> str:
     """cols = [(模式名, {city: {'p': %, 'eta': iso}}[, 是否決定報]), ...] → 城市侵襲機率表 HTML。
 
@@ -569,9 +627,14 @@ def _city_table(cols: list[tuple]) -> str:
     """
     keys = list(dict.fromkeys(k for c in cols for k in c[1] if not k.startswith('_')))
     rows = []
+    quiet = []          # 臺灣城市裡每個模式都 <1% 的：不逐列列出一整排 <1%，合成一行
     for key in keys:
         vals = [c[1].get(key) or {} for c in cols]
-        if key not in CITY_ALWAYS and not any((v.get('p') or 0) >= CITY_LEVELS[0] for v in vals):
+        hit = any((v.get('p') or 0) >= CITY_LEVELS[0] for v in vals)
+        if key not in CITY_ALWAYS and not hit:
+            continue
+        if key != 'tw_landfall' and not hit:
+            quiet.append(key)
             continue
         cells = []
         for c, v in zip(cols, vals):
@@ -592,7 +655,7 @@ def _city_table(cols: list[tuple]) -> str:
             cells.append(f'<td style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
                          f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
         rows.append((key, f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>'))
-    if not rows:
+    if not rows and not quiet:
         return ''
     # 登陸臺灣與城市侵襲定義不同（中心上岸 vs. 通過 1° 內），分兩區並各加小標題列
     span = len(cols) + 1
@@ -606,9 +669,14 @@ def _city_table(cols: list[tuple]) -> str:
     if land:
         body += _grp('cities.grp.land', 'Taiwan landfall', 'cities.grp.land.sub',
                      'storm centre moves onto Taiwan\'s main island (outlying islands excluded)') + ''.join(land)
-    if city:
+    if city or quiet:
         body += _grp('cities.grp.city', 'City strike', 'cities.grp.city.sub',
                      'track passes within 1° (~111 km) of the city') + ''.join(city)
+    if quiet:
+        names = '、'.join(f'<span data-i18n="city.{k}">{k}</span>' for k in quiet)
+        names_en = ', '.join(f'<span data-i18n="city.{k}">{k}</span>' for k in quiet)
+        body += (f'<tr class="c-quiet"><td colspan="{span}">'
+                 + _bi(f'{names_en}: under 1% in every model', f'{names}：各模式都低於 1%') + '</td></tr>')
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
     def _th_sub(d):
         parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
@@ -638,20 +706,6 @@ ICONS = {
     'next': f'<svg {_ICON_ATTR}><path d="M9 6l6 6-6 6"/></svg>',
     'compare': f'<svg {_ICON_ATTR}><path d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>',
 }
-
-
-def _marquee(items: list[tuple], reverse: bool = False) -> str:
-    """跑馬燈大字列：items 為 (文字, 是否描邊, 顏色或 None)。內容重複兩次，
-    CSS 平移 -50% 即可無縫循環；太短時先補到至少 6 個字塊，寬螢幕才不會露出空白。"""
-    seq = list(items)
-    while items and len(seq) < 6:
-        seq += items
-    spans = []
-    for text, outline, color in seq:
-        style = f' style="--c:{color}"' if color else ''
-        spans.append(f'<span class="mq{" o" if outline else ""}"{style}>{_esc(text)}</span>')
-    run = "".join(spans)
-    return f'<div class="strip{" reverse" if reverse else ""}">{run}{run}</div>'
 
 
 OFFICIAL_COLORS = {'JTWC': '#DC2626', 'JMA': '#2563EB', 'CWA': '#059669'}
@@ -903,6 +957,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             # 3D 地球用：颱風位置只用 JTWC；路徑優先用 JTWC 官方預報，沒有才退回模式系集平均
             'lat': _coord(jtwc_data.get('latitude')),
             'lon': _coord(jtwc_data.get('longitude')),
+            'jtwc_fc': jtwc_data.get('forecast_track') or [],
             'track': _jtwc_track(jtwc_data, wind) or _snap_track(
                 _globe_track(models), _coord(jtwc_data.get('latitude')),
                 _coord(jtwc_data.get('longitude')), wind),
@@ -1020,50 +1075,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="hero-inner">
                 {hero_inner}
                 <div class="hero-meta">
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
                     <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">{update_time[5:10]}</span> {update_time[11:16]}</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">{len(infos)}</span></div>
                 </div>
             </div>
             <div class="scroll-cue" aria-hidden="true"><span></span></div>
         </div>"""
-
-    # 活躍系統卡片
-    if infos:
-        tiles = []
-        for info in infos.values():
-            kt = f"{info['wind']:.0f}" if info['wind'] is not None else ''
-            tiles.append(f"""
-                <a class="storm-tile reveal tilt" href="#/storm/{_esc(info['id'])}" style="--cat:{info['color']};--cat-text:{info['text']}">
-                    <div class="tile-top">
-                        <span class="badge-cat" style="background:{info['color']};color:{info['text']}">{info['cat']}</span>
-                        <span class="badge-id">{_esc(info['id'])}</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                    </div>
-                    <div class="tile-body">
-                        <div>
-                            <div class="tile-name storm-name">{_esc(_title(info))}</div>
-                            <div class="tile-catname" data-i18n="catname.{info['cat']}">{info['cat']}</div>
-                            <dl class="tile-facts">
-                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">{_esc(info['pos'])}</dd></div>
-                                <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">{_esc(info['time'])}</dd></div>
-                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models">{' · '.join(f'<span>{_esc(m)}</span>' for m in info.get('tile_models', info['models']))}</dd></div>
-                            </dl>
-                        </div>
-                        <div class="gauge" data-kt="{kt}" style="--cat:{info['color']}"></div>
-                    </div>
-                    <span class="tile-cta" data-i18n="tile.open">Open full forecast →</span>
-                </a>""")
-        active_html = f'<div class="storm-grid">{"".join(tiles)}</div>'
-    else:
-        active_html = """
-            <div class="empty-card reveal">
-                <div class="calm-sea" aria-hidden="true"><span></span><span></span><span></span></div>
-                <div>
-                    <div class="empty-title" data-i18n="empty.title">No Active Systems</div>
-                    <p class="empty-desc" data-i18n="empty.desc">Nothing is spinning up right now. This page refreshes automatically every 10 minutes.</p>
-                </div>
-            </div>"""
 
     genesis_teaser = ""
     _n_genesis_models = len(_genesis_entries)      # 含 WN2-C 1000，與首頁的模式數一致
@@ -1090,55 +1106,19 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="model-desc">{_esc(desc)}</div>
                 </div>""" for name, org, desc in KNOWN_MODELS)
 
-    if infos:
-        mq_top = []
-        for info in infos.values():
-            mq_top += [(_title(info), False, info['color']), ('Typhoon Forecast', True, None)]
-    else:
-        mq_top = [('All Quiet', False, None), ('Western Pacific', True, None)]
-    mq_bottom = [(name, i % 2 == 0, None) for i, (name, _, _) in enumerate(KNOWN_MODELS)]
-    marquee_html = f"""
-        <div class="marquee" aria-hidden="true">
-            {_marquee(mq_top)}
-            {_marquee(mq_bottom, reverse=True)}
-        </div>"""
-
-    statement_html = """
-        <div class="statement">
-            <p class="words" data-i18n="statement">We track tropical cyclones at the intersection between
-            <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member,
-            every 10 minutes, side by side with the official forecast.</p>
-        </div>"""
-
+    # 首頁只放主視覺（每顆颱風一列，整列連到颱風頁）與生成潛勢；以前的跑馬燈、標語與颱風卡片
+    # 跟主視覺講的是同一件事，拿掉。沒有颱風時主視覺已經寫了「風平浪靜」，下面不再放空白卡
     overview_view = f"""
     <section class="view" data-view="overview" data-title-key="nav.overview">
         {hero_html}
-        {marquee_html}
-        {statement_html}
         <div class="page">
-            <div class="section-head reveal">
-                <div><div class="kicker" data-i18n="sec.active.kicker">Live</div>
-                <h3 data-i18n="sec.active">Active systems</h3></div>
-                <span class="count-chip mono">{len(infos)}</span>
-            </div>
-            {active_html}
             {genesis_teaser}
-            <div class="section-head reveal">
-                <div><div class="kicker" data-i18n="sec.models.kicker">Sources</div>
-                <h3 data-i18n="sec.models">Forecast models</h3></div>
-                <span class="legend-inline"><span class="model-state on"></span><span data-i18n="models.on">Output in this run</span></span>
-            </div>
-            <div class="model-grid">{model_cards}</div>
         </div>
     </section>"""
 
     # ═════════════════════════════════════════════════════════════════
     #  各颱風頁
     # ═════════════════════════════════════════════════════════════════
-    scale_segs = "".join(
-        f'<span class="ss-seg" data-cat="{c}" style="flex:{hi - lo};--c:{CAT_COLOR_MAP[c]}"><em>{c}</em></span>'
-        for c, lo, hi in CAT_RANGES)
-
     storm_views = []
     for track_id in order:
         models = groups[track_id]
@@ -1160,9 +1140,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         stats = [
             ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_esc(info["time"])}</span>'),
             ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["pos"])}</span>'),
-            ('stat.wind', '💨', 'Max wind',
-             f'<span data-count="{info["wind"]:.0f}">{info["wind"]:.0f}</span><small>kt</small>'
-             if info['wind'] is not None else 'N/A'),
         ]
         if info['pressure'] is not None:
             stats.append(('stat.pres', '🧭', 'Min pressure',
@@ -1172,19 +1149,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="stat-label"><span aria-hidden="true">{icon}</span> <span data-i18n="{key}">{label}</span></div>
                     <div class="stat-value">{val}</div>
                 </div>""" for key, icon, label, val in stats)
-
-        scale_pos = (min(info['wind'], SCALE_MAX_KT) / SCALE_MAX_KT * 100) if info['wind'] is not None else 0
-        scale_html = f"""
-            <div class="panel scale-panel reveal">
-                <div class="scale-head">
-                    <span data-i18n="scale.title">Intensity scale (Saffir–Simpson)</span>
-                    <span class="mono scale-now">{(kt_txt + ' kt') if kt_txt else 'N/A'}</span>
-                </div>
-                <div class="ss-scale" data-cur="{info['cat']}" style="--pos:{scale_pos:.2f}%">
-                    <div class="ss-bar">{scale_segs}</div>
-                    <div class="ss-marker" style="--cat:{info['color']}"><span></span></div>
-                </div>
-            </div>"""
 
         sections = []   # (目標 id, i18n key, 預設文字)
 
@@ -1334,7 +1298,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 p = next((q for q in f['points'] if q['h'] == h), None)
                 if not p:
                     return '<td class="c-nil">—</td>'
-                kt = f"{p['kt']:.0f} kt" if p.get('kt') is not None else '–'
+                kt = f"{p['kt']:.0f} kt" if p.get('kt') else '–'
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
                         f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
@@ -1537,11 +1501,29 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
         # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
-        page_order = ['sat', 'cmp', 'anim', 'maps', 'official', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
+        page_order = ['sat', 'official', 'cmp', 'anim', 'maps', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
         sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
                       if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
         subnav = "".join(
             f'<button data-target="{sid}" data-i18n="{k}">{txt}</button>' for sid, k, txt in sections)
+
+        summary_html = _storm_summary(info, city_cols)
+
+        def _group(gid, key, title, body, fold=False):
+            """把幾個區塊包成一組，組前一個標題；fold=True 的那組預設收合。"""
+            if not body.strip():
+                return ''
+            head = f'<h3 class="sec-group-title" data-i18n="{key}">{title}</h3>'
+            if fold:
+                return (f'<details class="sec-group" id="grp-{key_prefix}-{gid}"><summary>{head}'
+                        f'<span class="fold-hint" data-i18n="grp.more">Show</span></summary>{body}</details>')
+            return f'<section class="sec-group" id="grp-{key_prefix}-{gid}">{head}{body}</section>'
+
+        group_now = _group('now', 'grp.now', 'Now', f"{sat_html}{official_html}")
+        group_fc = _group('fc', 'grp.fc', 'Forecast',
+                          f"{_pair(cmp_html, anim_html)}{maps_html}{tmap_html}{_pair(strike_html, extra_html)}"
+                          f"{cities_html}{_pair(trend_html, plume_html)}")
+        group_bg = _group('bg', 'grp.bg', 'Background &amp; verification', f"{ohc_html}{steer_html}{score_html}", fold=True)
 
         storm_views.append(f"""
     <section class="view" data-view="storm/{key_prefix}" data-title="{_esc(_title(info))}">
@@ -1550,31 +1532,20 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="storm-hero reveal" style="--cat:{info['color']}">
                 <div class="swirl" aria-hidden="true"></div>
                 <div class="storm-hero-main">
-                    <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
-                    <h2 class="storm-title storm-name">{_esc(_title(info))}</h2>
                     <div class="storm-badges">
-                        <span class="badge-cat" style="background:{info['color']};color:{info['text']};">{info['cat']}</span>
+                        <span class="badge-cat" style="background:{info['color']};color:{info['text']};"><span data-i18n="catname.{info['cat']}">{info['cat']}</span></span>
                         <span class="badge-id">{_esc(track_id)}</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                        <span class="badge-name" data-i18n="catname.{info['cat']}">{info['cat']}</span>
                     </div>
+                    <h2 class="storm-title storm-name">{_esc(_title(info))}</h2>
+                    {summary_html}
                 </div>
                 <div class="gauge gauge-lg" data-kt="{kt_txt}" style="--cat:{info['color']}"></div>
             </div>
             <div class="stat-grid">{stats_html}</div>
-            {scale_html}
             <nav class="subnav" aria-label="Sections">{subnav}</nav>
-            {sat_html}
-            {_pair(cmp_html, anim_html)}
-            {maps_html}
-            {official_html}
-            {tmap_html}
-            {_pair(strike_html, extra_html)}
-            {cities_html}
-            {_pair(trend_html, plume_html)}
-            {ohc_html}
-            {steer_html}
-            {score_html}
+            {group_now}
+            {group_fc}
+            {group_bg}
         </div>
     </section>""")
 
@@ -1761,6 +1732,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <p class="map-note" data-i18n="about.prob">Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.</p>
                 </div>
             </div>
+            <div class="section-head reveal">
+                <div><h3 data-i18n="sec.models">Forecast models</h3></div>
+                <span class="legend-inline"><span class="model-state on"></span><span data-i18n="models.on">Output in this run</span></span>
+            </div>
+            <div class="model-grid">{model_cards}</div>
         </div>
     </section>"""
 
@@ -1899,9 +1875,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     </main>
 
     <footer>
-        <div class="marquee footer-marquee" aria-hidden="true">
-            {_marquee([("Pillar's", False, None), ("Tropical Cyclone", True, None), ("Forecast", False, None), ("Western Pacific", True, None)])}
-        </div>
         <div class="footer-inner">
             <div class="footer-brand">
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
@@ -2775,21 +2748,21 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
    寫在最後面整層覆蓋上方的 v3 樣式；淺色主題是同一套語言的「白紙黑字」版。
    ═════════════════════════════════════════════════════════════════ */
 :root, [data-theme="light"] {
-    --bg:        #f3f1ec;
-    --surface:   #f8f7f3;
-    --surface-2: #ece9e2;
-    --surface-3: #e2ded5;
-    --accent:    #0a0a0a;
-    --accent-2:  #0a0a0a;
-    --accent-lo: rgba(0,0,0,.06);
-    --accent-rgb: 10,10,10;
-    --text:      #0a0a0a;
-    --text-2:    #3a3a3a;
-    --text-3:    #7a756c;
-    --border:    rgba(0,0,0,.16);
+    --bg:        #e6edf3;
+    --surface:   #f4f7fa;
+    --surface-2: #eaf0f5;
+    --surface-3: #dbe3ea;
+    --accent:    #16324f;
+    --accent-2:  #16324f;
+    --accent-lo: rgba(22,50,79,.07);
+    --accent-rgb: 22,50,79;
+    --text:      #16324f;
+    --text-2:    #3e556b;
+    --text-3:    #6b7785;
+    --border:    rgba(22,50,79,.18);
     --shadow: none; --shadow-md: none; --shadow-lg: none;
-    --btn-bg:    #0a0a0a;
-    --glass:     rgba(243,241,236,.62);
+    --btn-bg:    #16324f;
+    --glass:     rgba(230,237,243,.72);
     --radius:    0px;
     --hero-1: #000; --hero-2: #000; --hero-3: #000;
     --display: 'Oswald', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
@@ -3185,6 +3158,64 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; }
     .split .ch { opacity:1; transform:none; filter:none; }
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   v6.8「天氣圖室」：預報圖才是內容，頁面是擺圖的桌面
+   ═════════════════════════════════════════════════════════════════ */
+/* 每張圖放在一張滿版的白色圖紙上（圖本身就是白底），不再是大小不一的白框浮在黑底；
+   深色主題整張圖紙調暗一點，不刺眼 */
+.zoomable { background: #fff; border: 1px solid var(--border); }
+.zoomable.loaded:not(.frame-stage):not(.broken) { width: auto; }
+.zoomable > img:not(.frame) { padding: 10px 0; }
+.frame-stage { background: #fff; }
+[data-theme="dark"] .zoomable, [data-theme="dark"] .frame-stage { filter: brightness(.9) contrast(1.02); }
+[data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
+.lightbox img { filter: none; }
+
+/* 颱風頁頂端的白話摘要 */
+.i-zh { display: none; }
+html[lang^="zh"] .i-zh { display: inline; }
+html[lang^="zh"] .i-en { display: none; }
+.storm-summary { margin-top: 18px; max-width: 54ch; display: grid; gap: 6px; }
+.storm-summary p { font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.55; color: #eaf0f5; font-weight: 400; }
+.storm-badges { margin-bottom: 14px; }
+.storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
+
+/* 三組區塊：組標題是結構，不是裝飾；「背景與校驗」預設收合 */
+.sec-group { margin-top: 56px; }
+.sec-group-title { font-family: var(--display); font-weight: 500; font-size: clamp(1.5rem, 3vw, 2.2rem);
+                   letter-spacing: .04em; padding-bottom: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
+html[lang^="zh"] .sec-group-title { letter-spacing: .1em; }
+details.sec-group > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
+                              justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+details.sec-group > summary::-webkit-details-marker { display: none; }
+details.sec-group > summary .sec-group-title { border: 0; margin: 0; }
+details.sec-group > summary .fold-hint { color: var(--text-2); font-size: .9em; padding-bottom: 14px; }
+details.sec-group > summary .fold-hint::after { content: "＋"; margin-left: 10px; }
+details.sec-group[open] > summary .fold-hint::after { content: "－"; }
+details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+
+/* 城市表：第一欄固定，左右還有內容時邊緣出現陰影 */
+.city-table-wrap {
+    background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left / 40px 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right / 40px 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgba(var(--accent-rgb),.28), transparent) left / 14px 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgba(var(--accent-rgb),.28), transparent) right / 14px 100% no-repeat scroll;
+}
+.city-table th:first-child, .city-table td.c-name { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.city-table tr.c-quiet td { text-align: left; color: var(--text-2); font-weight: 500; padding-top: 10px; }
+
+/* 上方小標（Live、Outlook…）沒有提供資訊，拿掉 */
+.kicker { display: none; }
+
+/* 版本號只是給維護者看的，不要當成頁首最醒目的按鈕 */
+.version-badge, [data-theme="dark"] .version-badge { background: transparent; color: var(--text-3); border-color: transparent; font-size: .78em; }
+@media (max-width: 720px) {
+    .version-badge { display: none; }
+    .stat-value { font-size: 1.35em; }
+    .stat-grid > .stat:first-child { grid-column: 1 / -1; }   /* 觀測時間最長，自己一列，不會折成三行 */
+}
 """
 
 _JS = r"""
@@ -3370,6 +3401,11 @@ const I18N = {
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
+    'grp.now':          'Now',
+    'grp.fc':           'Forecast',
+    'grp.bg':           'Background &amp; verification',
+    'grp.more':         'Ocean heat, steering flow and model scores',
+    'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
     'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
     'sub.ohc':          'Ocean heat',
@@ -3584,6 +3620,11 @@ const I18N = {
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
+    'grp.now':          '現況',
+    'grp.fc':           '預報',
+    'grp.bg':           '背景與校驗',
+    'grp.more':         '海洋熱含量、駛流場與模式成績',
+    'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
     'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
     'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 圓點＝JTWC 最新位置（公報每 6 小時一次，颱風可能已移動一些），實線＝目前為止的路徑，虛線＝JTWC 預報 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
     'sub.ohc':          '海洋熱含量',
@@ -3967,6 +4008,25 @@ function switchModelTab(trackId, model) {
     requestAnimationFrame(updateIndicators);
 }
 
+// 模式分頁連動：系集與決定報、名稱寫法不同的分頁（AIFS-ENS／AIFS-single／AIFS）算同一個模式。
+// 不是模式名稱的分頁（衛星雲圖、時段、時數、成績單範圍）對不上任何模式，不受影響。
+function modelGroup(name) {
+    const n = String(name || '').toUpperCase().replace(/-ENS$|-SINGLE$| HRES$/, '');
+    return ({AIGEFS: 'AIGFS', GEFS: 'GFS'})[n] || n;
+}
+function linkModelTabs(tab) {
+    const view = tab.closest('.view');
+    if (!view) return;
+    const g = modelGroup(tab.dataset.model);
+    const tracks = new Set($$('.model-tab-btn', view).map(b => b.dataset.track));
+    tracks.delete(tab.dataset.track);
+    tracks.forEach(tr => {
+        const btns = $$('.model-tab-btn', view).filter(b => b.dataset.track === tr);
+        const hit = btns.find(b => b.dataset.model === tab.dataset.model) || btns.find(b => modelGroup(b.dataset.model) === g);
+        if (hit && !hit.classList.contains('active')) switchModelTab(tr, hit.dataset.model);
+    });
+}
+
 // ── 捲動進場、數字跳動、儀表 ──────────────────────────────────────
 function staggerReveals() {
     const groups = new Map();
@@ -4200,7 +4260,7 @@ async function initTrackMap(box) {
         showD.onchange = () => draw(false);
         draw(true);
     } catch (e) {
-        el.textContent = 'Map failed to load';
+        el.textContent = t('tmap.fail');
         console.log('[trackmap]', e);
     }
 }
@@ -4397,7 +4457,9 @@ function refreshSubnavs() {
     $$('.subnav').forEach(nav => {
         $$('button[data-target]', nav).forEach(b => {
             const sec = document.getElementById(b.dataset.target);
-            b.hidden = !sec || sec.style.display === 'none' || !sec.offsetParent && nav.offsetParent !== null;
+            // 收合起來的那組（details）裡的區塊沒有 offsetParent，但按了會展開，照樣列出
+            const folded = sec && sec.closest('details:not([open])');
+            b.hidden = !sec || sec.style.display === 'none' || !sec.offsetParent && !folded && nav.offsetParent !== null;
         });
     });
 }
@@ -4411,7 +4473,7 @@ function scrollSpy() {
     let active = null;
     $$('button[data-target]', nav).forEach(b => {
         const sec = document.getElementById(b.dataset.target);
-        if (sec && !b.hidden && sec.getBoundingClientRect().top <= line) active = b;
+        if (sec && !b.hidden && sec.offsetParent && sec.getBoundingClientRect().top <= line) active = b;
     });
     if (!active) active = $$('button[data-target]', nav).find(b => !b.hidden) || null;
     $$('button', nav).forEach(b => b.classList.toggle('active', b === active));
@@ -4420,8 +4482,15 @@ document.addEventListener('click', e => {
     const b = e.target.closest('.subnav button[data-target]');
     if (!b) return;
     const sec = document.getElementById(b.dataset.target);
-    if (sec) sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+    if (!sec) return;
+    const fold = sec.closest('details');
+    if (fold && !fold.open) fold.open = true;
+    sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
 });
+// 展開／收合「背景與校驗」後，區塊位置變了，段落導覽重新標示
+document.addEventListener('toggle', e => {
+    if (e.target.classList && e.target.classList.contains('sec-group')) { refreshSubnavs(); scrollSpy(); }
+}, true);
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') refreshSubnavs(); }, true);
 
 // ── 捲動：頁首進度條、段落導覽 ──────────────────────────────────────
@@ -4642,7 +4711,7 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 
 document.addEventListener('click', e => {
     const tab = e.target.closest('.model-tab-btn');
-    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); return; }
+    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); linkModelTabs(tab); return; }
     const pl = e.target.closest('.player');
     if (!pl) return;
     const P = players[pl.dataset.animKey];
