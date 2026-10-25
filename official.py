@@ -63,8 +63,9 @@ def fetch_jma() -> list[dict]:
             if not pos or p.get("advancedHours") is None:
                 continue
             wind = ((p.get("maximumWind") or {}).get("sustained") or {}).get("kt")
+            # JMA 對轉為溫帶氣旋或消散的時刻把最大風速寫成 0，當成沒有資料，網頁顯示「—」而不是「0 kt」
             pts.append({'h': int(p["advancedHours"]), 'lat': float(pos[0]), 'lon': float(pos[1]),
-                        'kt': _num(wind), 'hpa': _num(p.get("pressure")),
+                        'kt': _num(wind) or None, 'hpa': _num(p.get("pressure")),
                         'r70_km': _num((p.get("probabilityCircleRadius") or {}).get("km"))})
         if pts:
             issue, shift = _jma_base((title.get("issue") or {}).get("UTC"), [q['h'] for q in pts])
