@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
-    <meta name="description" content="IN-FA 60 kt（另有 1 個系統） · 更新 10/25 17:59 UTC+8 · AI 與物理模式系集路徑、侵襲機率、登陸臺灣機率">
+    <meta name="description" content="IN-FA 60 kt（另有 1 個系統） · 更新 10/25 18:16 UTC+8 · AI 與物理模式系集路徑、侵襲機率、登陸臺灣機率">
     <meta name="theme-color" content="#071320">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -15,14 +15,14 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Pillar&#x27;s Tropical Cyclone Forecast">
     <meta property="og:title" content="Pillar&#x27;s Tropical Cyclone Forecast | WP292026 / WP302026">
-    <meta property="og:description" content="IN-FA 60 kt（另有 1 個系統） · 更新 10/25 17:59 UTC+8 · AI 與物理模式系集路徑、侵襲機率、登陸臺灣機率">
+    <meta property="og:description" content="IN-FA 60 kt（另有 1 個系統） · 更新 10/25 18:16 UTC+8 · AI 與物理模式系集路徑、侵襲機率、登陸臺灣機率">
     <meta property="og:url" content="https://lkt0713.github.io/Typhoon-Forecast/">
     <meta property="og:locale" content="zh_TW">
-    <meta property="og:image" content="https://lkt0713.github.io/Typhoon-Forecast/share.png?v=202610251759">
+    <meta property="og:image" content="https://lkt0713.github.io/Typhoon-Forecast/share.png?v=202610251816">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://lkt0713.github.io/Typhoon-Forecast/share.png?v=202610251759">
+    <meta name="twitter:image" content="https://lkt0713.github.io/Typhoon-Forecast/share.png?v=202610251816">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200..800&family=Oswald:wght@300..700&family=Noto+Sans+TC:wght@300..900&display=swap">
@@ -845,21 +845,21 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
    寫在最後面整層覆蓋上方的 v3 樣式；淺色主題是同一套語言的「白紙黑字」版。
    ═════════════════════════════════════════════════════════════════ */
 :root, [data-theme="light"] {
-    --bg:        #f3f1ec;
-    --surface:   #f8f7f3;
-    --surface-2: #ece9e2;
-    --surface-3: #e2ded5;
-    --accent:    #0a0a0a;
-    --accent-2:  #0a0a0a;
-    --accent-lo: rgba(0,0,0,.06);
-    --accent-rgb: 10,10,10;
-    --text:      #0a0a0a;
-    --text-2:    #3a3a3a;
-    --text-3:    #7a756c;
-    --border:    rgba(0,0,0,.16);
+    --bg:        #e6edf3;
+    --surface:   #f4f7fa;
+    --surface-2: #eaf0f5;
+    --surface-3: #dbe3ea;
+    --accent:    #16324f;
+    --accent-2:  #16324f;
+    --accent-lo: rgba(22,50,79,.07);
+    --accent-rgb: 22,50,79;
+    --text:      #16324f;
+    --text-2:    #3e556b;
+    --text-3:    #6b7785;
+    --border:    rgba(22,50,79,.18);
     --shadow: none; --shadow-md: none; --shadow-lg: none;
-    --btn-bg:    #0a0a0a;
-    --glass:     rgba(243,241,236,.62);
+    --btn-bg:    #16324f;
+    --glass:     rgba(230,237,243,.72);
     --radius:    0px;
     --hero-1: #000; --hero-2: #000; --hero-3: #000;
     --display: 'Oswald', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
@@ -1255,6 +1255,64 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; }
     .split .ch { opacity:1; transform:none; filter:none; }
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   v6.8「天氣圖室」：預報圖才是內容，頁面是擺圖的桌面
+   ═════════════════════════════════════════════════════════════════ */
+/* 每張圖放在一張滿版的白色圖紙上（圖本身就是白底），不再是大小不一的白框浮在黑底；
+   深色主題整張圖紙調暗一點，不刺眼 */
+.zoomable { background: #fff; border: 1px solid var(--border); }
+.zoomable.loaded:not(.frame-stage):not(.broken) { width: auto; }
+.zoomable > img:not(.frame) { padding: 10px 0; }
+.frame-stage { background: #fff; }
+[data-theme="dark"] .zoomable, [data-theme="dark"] .frame-stage { filter: brightness(.9) contrast(1.02); }
+[data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
+.lightbox img { filter: none; }
+
+/* 颱風頁頂端的白話摘要 */
+.i-zh { display: none; }
+html[lang^="zh"] .i-zh { display: inline; }
+html[lang^="zh"] .i-en { display: none; }
+.storm-summary { margin-top: 18px; max-width: 54ch; display: grid; gap: 6px; }
+.storm-summary p { font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.55; color: #eaf0f5; font-weight: 400; }
+.storm-badges { margin-bottom: 14px; }
+.storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
+
+/* 三組區塊：組標題是結構，不是裝飾；「背景與校驗」預設收合 */
+.sec-group { margin-top: 56px; }
+.sec-group-title { font-family: var(--display); font-weight: 500; font-size: clamp(1.5rem, 3vw, 2.2rem);
+                   letter-spacing: .04em; padding-bottom: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
+html[lang^="zh"] .sec-group-title { letter-spacing: .1em; }
+details.sec-group > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
+                              justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+details.sec-group > summary::-webkit-details-marker { display: none; }
+details.sec-group > summary .sec-group-title { border: 0; margin: 0; }
+details.sec-group > summary .fold-hint { color: var(--text-2); font-size: .9em; padding-bottom: 14px; }
+details.sec-group > summary .fold-hint::after { content: "＋"; margin-left: 10px; }
+details.sec-group[open] > summary .fold-hint::after { content: "－"; }
+details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+
+/* 城市表：第一欄固定，左右還有內容時邊緣出現陰影 */
+.city-table-wrap {
+    background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left / 40px 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right / 40px 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgba(var(--accent-rgb),.28), transparent) left / 14px 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgba(var(--accent-rgb),.28), transparent) right / 14px 100% no-repeat scroll;
+}
+.city-table th:first-child, .city-table td.c-name { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.city-table tr.c-quiet td { text-align: left; color: var(--text-2); font-weight: 500; padding-top: 10px; }
+
+/* 上方小標（Live、Outlook…）沒有提供資訊，拿掉 */
+.kicker { display: none; }
+
+/* 版本號只是給維護者看的，不要當成頁首最醒目的按鈕 */
+.version-badge, [data-theme="dark"] .version-badge { background: transparent; color: var(--text-3); border-color: transparent; font-size: .78em; }
+@media (max-width: 720px) {
+    .version-badge { display: none; }
+    .stat-value { font-size: 1.35em; }
+    .stat-grid > .stat:first-child { grid-column: 1 / -1; }   /* 觀測時間最長，自己一列，不會折成三行 */
+}
 </style>
 </head>
 <body>
@@ -1270,14 +1328,14 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         </a>
         <nav class="top-nav" aria-label="Pages"><span class="nav-indicator"></span><a class="nav-link" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.overview">Overview</span></a><a class="nav-link nav-storm" href="#/storm/WP292026" data-route="storm/WP292026"><span class="nav-dot" style="--c:#2E86C8"></span><span class="storm-name">CHAMPI</span></a><a class="nav-link nav-storm" href="#/storm/WP302026" data-route="storm/WP302026"><span class="nav-dot" style="--c:#2E86C8"></span><span class="storm-name">IN-FA</span></a><div class="nav-drop"><button class="nav-link nav-drop-btn" type="button" aria-haspopup="true" aria-expanded="false" data-route-prefix="storm/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.4"/><path d="M19.5 7.5C17.6 4.3 13.4 3 10 4.2M4.5 16.5C6.4 19.7 10.6 21 14 19.8M7.2 4.9C4.2 6.9 3.1 10.5 4 13.6M16.8 19.1c3-2 4.1-5.6 3.2-8.7"/></svg><span data-i18n="nav.storms">Storms</span><em class="nd-count">2</em><svg class="nd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="nav-menu" role="menu"><a class="nav-menu-item" role="menuitem" href="#/storm/WP302026" data-route="storm/WP302026"><span class="nav-dot" style="--c:#2E86C8"></span><span class="storm-name">IN-FA</span><span class="nm-cat" style="background:#2E86C8;color:#FFFFFF">TS</span><span class="nm-kt mono">60 kt</span></a><a class="nav-menu-item" role="menuitem" href="#/storm/WP292026" data-route="storm/WP292026"><span class="nav-dot" style="--c:#2E86C8"></span><span class="storm-name">CHAMPI</span><span class="nm-cat" style="background:#2E86C8;color:#FFFFFF">TS</span><span class="nm-kt mono">45 kt</span></a></div></div><a class="nav-link" href="#/genesis" data-route="genesis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18"/></svg><span data-i18n="nav.genesis">Genesis</span></a><a class="nav-link" href="#/archive" data-route="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg><span data-i18n="nav.archive">Archive</span></a><a class="nav-link" href="#/about" data-route="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></svg><span data-i18n="nav.about">About</span></a></nav>
         <div class="header-actions">
-            <div class="update-badge" id="update-badge" data-full="2026-10-25 17:59:18">
+            <div class="update-badge" id="update-badge" data-full="2026-10-25 18:16:10">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-10-25</span> 17:59<span class="ub-long">:18</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: 2026-10-25</span> 18:16<span class="ub-long">:10</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v6.7.0</span>
+            <span class="version-badge" title="Site version / 網站版本">v6.8.0</span>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -1315,71 +1373,12 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                    data-i18n-models="9">2 active system(s) · ensemble guidance from 9 models, refreshed every 10 minutes.</p>
                 <div class="hero-cta"><a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a></div>
                 <div class="hero-meta">
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.now">Current time</span><span class="chip-v mono" id="hero-clock">--:--:--</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">10-25</span> 17:59</span></div>
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.active">Active systems</span><span class="chip-v mono">2</span></div>
+                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">10-25</span> 18:16</span></div>
                 </div>
             </div>
             <div class="scroll-cue" aria-hidden="true"><span></span></div>
         </div>
-        
-        <div class="marquee" aria-hidden="true">
-            <div class="strip"><span class="mq" style="--c:#2E86C8">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">IN-FA</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">IN-FA</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">IN-FA</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">CHAMPI</span><span class="mq o">Typhoon Forecast</span><span class="mq" style="--c:#2E86C8">IN-FA</span><span class="mq o">Typhoon Forecast</span></div>
-            <div class="strip reverse"><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">WN2-C 1000</span><span class="mq o">GENC</span><span class="mq">AIFS</span><span class="mq o">ECMWF</span><span class="mq">AIGFS</span><span class="mq o">GFS</span><span class="mq o">WN3-C</span><span class="mq">WN2-C r2</span><span class="mq o">WN2-C r1</span><span class="mq">WN2-C 1000</span><span class="mq o">GENC</span><span class="mq">AIFS</span><span class="mq o">ECMWF</span><span class="mq">AIGFS</span><span class="mq o">GFS</span></div>
-        </div>
-        
-        <div class="statement">
-            <p class="words" data-i18n="statement">We track tropical cyclones at the intersection between
-            <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member,
-            every 10 minutes, side by side with the official forecast.</p>
-        </div>
         <div class="page">
-            <div class="section-head reveal">
-                <div><div class="kicker" data-i18n="sec.active.kicker">Live</div>
-                <h3 data-i18n="sec.active">Active systems</h3></div>
-                <span class="count-chip mono">2</span>
-            </div>
-            <div class="storm-grid">
-                <a class="storm-tile reveal tilt" href="#/storm/WP292026" style="--cat:#2E86C8;--cat-text:#FFFFFF">
-                    <div class="tile-top">
-                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF">TS</span>
-                        <span class="badge-id">WP292026</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                    </div>
-                    <div class="tile-body">
-                        <div>
-                            <div class="tile-name storm-name">CHAMPI</div>
-                            <div class="tile-catname" data-i18n="catname.TS">TS</div>
-                            <dl class="tile-facts">
-                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">30.1°N, 125.5°E</dd></div>
-                                <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">25 / 06:00 UTC</dd></div>
-                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models"><span>WN3-C</span> · <span>WN2-C r2</span> · <span>WN2-C r1</span> · <span>WN2-C 1000</span> · <span>GENC</span> · <span>AIFS</span> · <span>ECMWF</span> · <span>AIGFS</span> · <span>GFS</span></dd></div>
-                            </dl>
-                        </div>
-                        <div class="gauge" data-kt="45" style="--cat:#2E86C8"></div>
-                    </div>
-                    <span class="tile-cta" data-i18n="tile.open">Open full forecast →</span>
-                </a>
-                <a class="storm-tile reveal tilt" href="#/storm/WP302026" style="--cat:#2E86C8;--cat-text:#FFFFFF">
-                    <div class="tile-top">
-                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF">TS</span>
-                        <span class="badge-id">WP302026</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                    </div>
-                    <div class="tile-body">
-                        <div>
-                            <div class="tile-name storm-name">IN-FA</div>
-                            <div class="tile-catname" data-i18n="catname.TS">TS</div>
-                            <dl class="tile-facts">
-                                <div><dt data-i18n="stat.pos">Position</dt><dd class="mono">12.0°N, 165.0°E</dd></div>
-                                <div><dt data-i18n="stat.time">Obs time</dt><dd class="mono">25 / 06:00 UTC</dd></div>
-                                <div><dt data-i18n="stat.models">Models</dt><dd class="tile-models"><span>WN3-C</span> · <span>WN2-C r2</span> · <span>WN2-C r1</span> · <span>WN2-C 1000</span> · <span>GENC</span> · <span>AIFS</span> · <span>ECMWF</span> · <span>AIGFS</span> · <span>GFS</span></dd></div>
-                            </dl>
-                        </div>
-                        <div class="gauge" data-kt="60" style="--cat:#2E86C8"></div>
-                    </div>
-                    <span class="tile-cta" data-i18n="tile.open">Open full forecast →</span>
-                </a></div>
             
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
@@ -1393,57 +1392,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <span class="tile-cta" data-i18n="genesis.open">Explore outlook →</span>
                 </div>
             </a>
-            <div class="section-head reveal">
-                <div><div class="kicker" data-i18n="sec.models.kicker">Sources</div>
-                <h3 data-i18n="sec.models">Forecast models</h3></div>
-                <span class="legend-inline"><span class="model-state on"></span><span data-i18n="models.on">Output in this run</span></span>
-            </div>
-            <div class="model-grid">
-                <div class="model-card reveal on">
-                    <div class="model-name">WN3-C<span class="model-state" title=""></span></div>
-                    <div class="model-org">Google DeepMind</div>
-                    <div class="model-desc">WeatherNext · Ensemble</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">WN2-C r2<span class="model-state" title=""></span></div>
-                    <div class="model-org">Google DeepMind</div>
-                    <div class="model-desc">WeatherNext · Ensemble</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">WN2-C r1<span class="model-state" title=""></span></div>
-                    <div class="model-org">Google DeepMind</div>
-                    <div class="model-desc">WeatherNext · Ensemble</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">WN2-C 1000<span class="model-state" title=""></span></div>
-                    <div class="model-org">Google DeepMind</div>
-                    <div class="model-desc">WeatherNext · 1000 members</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">GENC<span class="model-state" title=""></span></div>
-                    <div class="model-org">Google DeepMind</div>
-                    <div class="model-desc">WeatherNext · Ensemble</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">AIFS<span class="model-state" title=""></span></div>
-                    <div class="model-org">ECMWF</div>
-                    <div class="model-desc">AIFS-ENS + AIFS-single</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">ECMWF<span class="model-state" title=""></span></div>
-                    <div class="model-org">ECMWF</div>
-                    <div class="model-desc">IFS ENS + HRES</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">AIGFS<span class="model-state" title=""></span></div>
-                    <div class="model-org">NOAA</div>
-                    <div class="model-desc">AIGEFS + AIGFS</div>
-                </div>
-                <div class="model-card reveal on">
-                    <div class="model-name">GFS<span class="model-state" title=""></span></div>
-                    <div class="model-org">NOAA</div>
-                    <div class="model-desc">GEFS + GFS</div>
-                </div></div>
         </div>
     </section>
 
@@ -1453,14 +1401,12 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
             <div class="storm-hero reveal" style="--cat:#2E86C8">
                 <div class="swirl" aria-hidden="true"></div>
                 <div class="storm-hero-main">
-                    <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
-                    <h2 class="storm-title storm-name">CHAMPI</h2>
                     <div class="storm-badges">
-                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF;">TS</span>
+                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF;"><span data-i18n="catname.TS">TS</span></span>
                         <span class="badge-id">WP292026</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                        <span class="badge-name" data-i18n="catname.TS">TS</span>
                     </div>
+                    <h2 class="storm-title storm-name">CHAMPI</h2>
+                    <div class="storm-summary"><p><span class="i-en">Moving northeast at about 22 km/h.</span><span class="i-zh">向東北移動，時速約 22 公里。</span></p><p><span class="i-en">Weakening to 30 kt (<span data-i18n="catname.TD">TD</span>) in 24 h.</span><span class="i-zh">24 小時後減弱至 30 kt（<span data-i18n="catname.TD">TD</span>）。</span></p><p><span class="i-en">Taiwan landfall: under 1% in every model.</span><span class="i-zh">登陸臺灣：各模式機率都低於 1%。</span></p></div>
                 </div>
                 <div class="gauge gauge-lg" data-kt="45" style="--cat:#2E86C8"></div>
             </div>
@@ -1474,26 +1420,11 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <div class="stat-value"><span class="mono">30.1°N, 125.5°E</span></div>
                 </div>
                 <div class="stat reveal">
-                    <div class="stat-label"><span aria-hidden="true">💨</span> <span data-i18n="stat.wind">Max wind</span></div>
-                    <div class="stat-value"><span data-count="45">45</span><small>kt</small></div>
-                </div>
-                <div class="stat reveal">
                     <div class="stat-label"><span aria-hidden="true">🧭</span> <span data-i18n="stat.pres">Min pressure</span></div>
                     <div class="stat-value"><span data-count="995">995</span><small>hPa</small></div>
                 </div></div>
-            
-            <div class="panel scale-panel reveal">
-                <div class="scale-head">
-                    <span data-i18n="scale.title">Intensity scale (Saffir–Simpson)</span>
-                    <span class="mono scale-now">45 kt</span>
-                </div>
-                <div class="ss-scale" data-cur="TS" style="--pos:26.47%">
-                    <div class="ss-bar"><span class="ss-seg" data-cat="TD" style="flex:35;--c:#8A97A6"><em>TD</em></span><span class="ss-seg" data-cat="TS" style="flex:29;--c:#2E86C8"><em>TS</em></span><span class="ss-seg" data-cat="Cat1" style="flex:19;--c:#1FA97E"><em>Cat1</em></span><span class="ss-seg" data-cat="Cat2" style="flex:13;--c:#E0AC2B"><em>Cat2</em></span><span class="ss-seg" data-cat="Cat3" style="flex:17;--c:#EE7A22"><em>Cat3</em></span><span class="ss-seg" data-cat="Cat4" style="flex:24;--c:#DC3A4E"><em>Cat4</em></span><span class="ss-seg" data-cat="Cat5" style="flex:33;--c:#A548C8"><em>Cat5</em></span></div>
-                    <div class="ss-marker" style="--cat:#2E86C8"><span></span></div>
-                </div>
-            </div>
-            <nav class="subnav" aria-label="Sections"><button data-target="sec-WP292026-sat" data-i18n="sub.sat">Satellite</button><button data-target="sec-WP292026-cmp" data-i18n="sub.cmp">Comparison</button><button data-target="sec-WP292026-anim" data-i18n="sub.anim">Animation</button><button data-target="sec-WP292026-maps" data-i18n="sub.maps">Ensemble & JTWC</button><button data-target="sec-WP292026-official" data-i18n="sub.official">Official</button><button data-target="sec-WP292026-tmap" data-i18n="sub.tmap">Map</button><button data-target="sec-WP292026-strike" data-i18n="sub.strike">Strike Prob.</button><button data-target="sec-WP292026-strikex" data-i18n="sub.strikex">By Period</button><button data-target="sec-WP292026-cities" data-i18n="sub.cities">Cities</button><button data-target="sec-WP292026-trend" data-i18n="sub.trend">Trend</button><button data-target="sec-WP292026-plume" data-i18n="sub.plume">Intensity</button><button data-target="sec-WP292026-ohc" data-i18n="sub.ohc">Ocean heat</button><button data-target="sec-WP292026-steer" data-i18n="sub.steer">Steering</button><button data-target="sec-WP292026-score" data-i18n="sub.score">Verification</button></nav>
-            
+            <nav class="subnav" aria-label="Sections"><button data-target="sec-WP292026-sat" data-i18n="sub.sat">Satellite</button><button data-target="sec-WP292026-official" data-i18n="sub.official">Official</button><button data-target="sec-WP292026-cmp" data-i18n="sub.cmp">Comparison</button><button data-target="sec-WP292026-anim" data-i18n="sub.anim">Animation</button><button data-target="sec-WP292026-maps" data-i18n="sub.maps">Ensemble & JTWC</button><button data-target="sec-WP292026-tmap" data-i18n="sub.tmap">Map</button><button data-target="sec-WP292026-strike" data-i18n="sub.strike">Strike Prob.</button><button data-target="sec-WP292026-strikex" data-i18n="sub.strikex">By Period</button><button data-target="sec-WP292026-cities" data-i18n="sub.cities">Cities</button><button data-target="sec-WP292026-trend" data-i18n="sub.trend">Trend</button><button data-target="sec-WP292026-plume" data-i18n="sub.plume">Intensity</button><button data-target="sec-WP292026-ohc" data-i18n="sub.ohc">Ocean heat</button><button data-target="sec-WP292026-steer" data-i18n="sub.steer">Steering</button><button data-target="sec-WP292026-score" data-i18n="sub.score">Verification</button></nav>
+            <section class="sec-group" id="grp-WP292026-now"><h3 class="sec-group-title" data-i18n="grp.now">Now</h3>
             <div class="panel reveal" id="sec-WP292026-sat">
                 <div class="panel-header">
                     <span class="panel-icon">🛰️</span>
@@ -1503,9 +1434,9 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 
                 <div class="model-panel" data-track="WP292026-sat" data-model="Enhanced IR">
                     <div class="player" data-anim-key="WP292026-sat-Enhanced IR" data-frames-dir="satellite_frames_WP292026_IR"
-                         data-frames='[&quot;20261025_0650.webp&quot;, &quot;20261025_0700.webp&quot;, &quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;]' data-start="17">
+                         data-frames='[&quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;, &quot;20261025_0950.webp&quot;, &quot;20261025_1000.webp&quot;]' data-start="17">
                         <figure class="zoomable skel frame-stage" data-caption="WP292026 Satellite · Enhanced IR">
-                            <img class="frame is-front" src="satellite_frames_WP292026_IR/20261025_0940.webp" alt="WP292026 satellite image"
+                            <img class="frame is-front" src="satellite_frames_WP292026_IR/20261025_1000.webp" alt="WP292026 satellite image"
                                  decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
@@ -1530,9 +1461,9 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <div class="model-panel" data-track="WP292026-sat" data-model="Grayscale IR" style="display:none;">
                     <div class="player" data-anim-key="WP292026-sat-Grayscale IR" data-frames-dir="satellite_frames_WP292026_Gray"
-                         data-frames='[&quot;20261025_0650.webp&quot;, &quot;20261025_0700.webp&quot;, &quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;]' data-start="17">
+                         data-frames='[&quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;, &quot;20261025_0950.webp&quot;, &quot;20261025_1000.webp&quot;]' data-start="17">
                         <figure class="zoomable skel frame-stage" data-caption="WP292026 Satellite · Grayscale IR">
-                            <img class="frame is-front" src="satellite_frames_WP292026_Gray/20261025_0940.webp" alt="WP292026 satellite image"
+                            <img class="frame is-front" src="satellite_frames_WP292026_Gray/20261025_1000.webp" alt="WP292026 satellite image"
                                  decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
@@ -1557,7 +1488,18 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
             </div>
-            <div class="maps-grid">
+            <div class="panel reveal" id="sec-WP292026-official">
+                <div class="panel-header">
+                    <span class="panel-icon">🏛️</span>
+                    <span data-i18n="panel.official">Official Forecasts Compared</span>
+                </div>
+                <figure class="zoomable skel" data-caption="WP292026 Official Forecasts"><img src="WP292026_Official.png" alt="WP292026 Official Forecasts" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                <div class="city-table-wrap"><table class="city-table off-table">
+                    <thead><tr><th data-i18n="off.hour">Hour</th><th style="color:#DC2626">JTWC<span class="eta">10/25 06:00</span></th><th style="color:#2563EB">JMA<span class="eta">10/25 06:00</span></th><th style="color:#059669">CWA<span class="eta">10/25 06:00</span></th></tr></thead><tbody><tr><td class="c-name"><span data-i18n="off.now">Now</span></td><td class="c-off">30.1°N 125.5°E<span class="eta">45 kt</span></td><td class="c-off">30.0°N 125.4°E<span class="eta">40 kt</span></td><td class="c-off">30.1°N 125.4°E<span class="eta">35 kt</span></td></tr><tr><td class="c-name">+12 h</td><td class="c-off">31.4°N 127.8°E<span class="eta">35 kt</span></td><td class="c-off">31.2°N 127.6°E<span class="eta">35 kt</span></td><td class="c-off">31.2°N 127.7°E<span class="eta">35 kt</span></td></tr><tr><td class="c-name">+24 h</td><td class="c-off">32.1°N 131.1°E<span class="eta">30 kt</span></td><td class="c-off">31.7°N 130.1°E<span class="eta">–</span></td><td class="c-off">31.8°N 130.9°E<span class="eta">–</span></td></tr></tbody>
+                </table></div>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
+            </div></section>
+            <section class="sec-group" id="grp-WP292026-fc"><h3 class="sec-group-title" data-i18n="grp.fc">Forecast</h3><div class="maps-grid">
             <div class="panel reveal" id="sec-WP292026-cmp">
                 <div class="panel-header">
                     <span class="panel-icon">📊</span>
@@ -1795,7 +1737,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     </div>
                 </div>
             </div></div>
-            
             <div class="maps-grid" id="sec-WP292026-maps">
                 <div class="panel reveal">
                     <div class="panel-header">
@@ -1879,19 +1820,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
                 </div>
             </div>
-            
-            <div class="panel reveal" id="sec-WP292026-official">
-                <div class="panel-header">
-                    <span class="panel-icon">🏛️</span>
-                    <span data-i18n="panel.official">Official Forecasts Compared</span>
-                </div>
-                <figure class="zoomable skel" data-caption="WP292026 Official Forecasts"><img src="WP292026_Official.png" alt="WP292026 Official Forecasts" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
-                <div class="city-table-wrap"><table class="city-table off-table">
-                    <thead><tr><th data-i18n="off.hour">Hour</th><th style="color:#DC2626">JTWC<span class="eta">10/25 06:00</span></th><th style="color:#2563EB">JMA<span class="eta">10/25 06:00</span></th><th style="color:#059669">CWA<span class="eta">10/25 06:00</span></th></tr></thead><tbody><tr><td class="c-name"><span data-i18n="off.now">Now</span></td><td class="c-off">30.1°N 125.5°E<span class="eta">45 kt</span></td><td class="c-off">30.0°N 125.4°E<span class="eta">40 kt</span></td><td class="c-off">30.1°N 125.4°E<span class="eta">35 kt</span></td></tr><tr><td class="c-name">+12 h</td><td class="c-off">31.4°N 127.8°E<span class="eta">35 kt</span></td><td class="c-off">31.2°N 127.6°E<span class="eta">35 kt</span></td><td class="c-off">31.2°N 127.7°E<span class="eta">35 kt</span></td></tr><tr><td class="c-name">+24 h</td><td class="c-off">32.1°N 131.1°E<span class="eta">30 kt</span></td><td class="c-off">31.7°N 130.1°E<span class="eta">0 kt</span></td><td class="c-off">31.8°N 130.9°E<span class="eta">–</span></td></tr></tbody>
-                </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
-            </div>
-            
             <div class="panel reveal" id="sec-WP292026-tmap">
                 <div class="panel-header">
                     <span class="panel-icon">🧭</span>
@@ -1914,8 +1842,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
                     Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                 </p>
-            </div>
-            <div class="maps-grid">
+            </div><div class="maps-grid">
             <div class="panel reveal" id="sec-WP292026-strike">
                 <div class="panel-header">
                     <span class="panel-icon">🎯</span>
@@ -1973,20 +1900,18 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.strikex">Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members</p>
             </div></div>
-            
             <div class="panel reveal" id="sec-WP292026-cities">
                 <div class="panel-header">
                     <span class="panel-icon">📍</span>
                     <span data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</span>
                 </div>
-                <div class="city-table-wrap"><table class="city-table"><thead><tr><th data-i18n="cities.city">Model</th><th>WN3-C<span class="eta">10/25 00Z · ≤48 h</span></th><th>WN2-C r2<span class="eta">10/25 00Z · ≤54 h</span></th><th>WN2-C r1<span class="eta">10/25 00Z · ≤54 h</span></th><th>WN2-C 1000<span class="eta">10/25 00Z · ≤54 h</span></th><th>GENC<span class="eta">10/25 00Z · ≤48 h</span></th><th>AIFS-ENS<span class="eta">10/25 00Z · ≤48 h</span></th><th>AIFS-single<span class="eta">10/25 00Z · ≤30 h</span></th><th>ECMWF-ENS<span class="eta">10/25 00Z · ≤42 h</span></th><th>ECMWF HRES<span class="eta">10/25 00Z · ≤36 h</span></th><th>AIGEFS<span class="eta">10/25 00Z · ≤66 h</span></th><th>AIGFS<span class="eta">10/25 00Z · ≤54 h</span></th><th>GEFS<span class="eta">10/25 00Z · ≤78 h</span></th><th>GFS<span class="eta">10/25 00Z · ≤66 h</span></th></tr></thead><tbody><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.land">Taiwan landfall</span><small data-i18n="cities.grp.land.sub">storm centre moves onto Taiwan's main island (outlying islands excluded)</small></td></tr><tr><td class="c-name" data-i18n="city.tw_landfall">tw_landfall</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.city">City strike</span><small data-i18n="cities.grp.city.sub">track passes within 1° (~111 km) of the city</small></td></tr><tr><td class="c-name" data-i18n="city.taipei">taipei</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.taichung">taichung</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.kaohsiung">kaohsiung</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.hualien">hualien</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.hengchun">hengchun</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.tokyo">tokyo</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#3F9C55;color:#fff;" title="2026-10-26T23:36Z">32%<span class="eta">10/26 23Z</span></td><td class="c-nil">—</td><td style="background:#3B6DB3;color:#fff;" title="2026-10-27T05:17Z">29%<span class="eta">10/27 05Z</span></td><td class="c-nil">—</td></tr></tbody></table></div>
+                <div class="city-table-wrap"><table class="city-table"><thead><tr><th data-i18n="cities.city">Model</th><th>WN3-C<span class="eta">10/25 00Z · ≤48 h</span></th><th>WN2-C r2<span class="eta">10/25 00Z · ≤54 h</span></th><th>WN2-C r1<span class="eta">10/25 00Z · ≤54 h</span></th><th>WN2-C 1000<span class="eta">10/25 00Z · ≤54 h</span></th><th>GENC<span class="eta">10/25 00Z · ≤48 h</span></th><th>AIFS-ENS<span class="eta">10/25 00Z · ≤48 h</span></th><th>AIFS-single<span class="eta">10/25 00Z · ≤30 h</span></th><th>ECMWF-ENS<span class="eta">10/25 00Z · ≤42 h</span></th><th>ECMWF HRES<span class="eta">10/25 00Z · ≤36 h</span></th><th>AIGEFS<span class="eta">10/25 00Z · ≤66 h</span></th><th>AIGFS<span class="eta">10/25 06Z · ≤60 h</span></th><th>GEFS<span class="eta">10/25 00Z · ≤78 h</span></th><th>GFS<span class="eta">10/25 00Z · ≤66 h</span></th></tr></thead><tbody><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.land">Taiwan landfall</span><small data-i18n="cities.grp.land.sub">storm centre moves onto Taiwan's main island (outlying islands excluded)</small></td></tr><tr><td class="c-name" data-i18n="city.tw_landfall">tw_landfall</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.city">City strike</span><small data-i18n="cities.grp.city.sub">track passes within 1° (~111 km) of the city</small></td></tr><tr><td class="c-name" data-i18n="city.tokyo">tokyo</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#3F9C55;color:#fff;" title="2026-10-26T23:36Z">32%<span class="eta">10/26 23Z</span></td><td class="c-nil">—</td><td style="background:#3B6DB3;color:#fff;" title="2026-10-27T05:17Z">29%<span class="eta">10/27 05Z</span></td><td class="c-nil">—</td></tr><tr class="c-quiet"><td colspan="14"><span class="i-en"><span data-i18n="city.taipei">taipei</span>, <span data-i18n="city.taichung">taichung</span>, <span data-i18n="city.kaohsiung">kaohsiung</span>, <span data-i18n="city.hualien">hualien</span>, <span data-i18n="city.hengchun">hengchun</span>: under 1% in every model</span><span class="i-zh"><span data-i18n="city.taipei">taipei</span>、<span data-i18n="city.taichung">taichung</span>、<span data-i18n="city.kaohsiung">kaohsiung</span>、<span data-i18n="city.hualien">hualien</span>、<span data-i18n="city.hengchun">hengchun</span>：各模式都低於 1%</span></td></tr></tbody></table></div>
                 <p class="map-note" data-i18n="note.cities">
                     Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp;
                     Time below = median first arrival among those members (UTC) &nbsp;·&nbsp;
                     Taiwan cities always shown; others only when any model reaches 1%
                 </p>
-            </div>
-            <div class="maps-grid">
+            </div><div class="maps-grid">
             <div class="panel reveal" id="sec-WP292026-trend">
                 <div class="panel-header">
                     <span class="panel-icon">🧭</span>
@@ -2067,8 +1992,8 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <figure class="zoomable skel" data-caption="WP292026 Intensity Forecast · GFS"><img src="GFS_WP292026_Intensity_Plume.png" alt="WP292026 Intensity Forecast · GFS" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
                 </div>
                 <p class="map-note" data-i18n="note.plume">Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF / AIGFS / GFS)</p>
-            </div></div>
-            
+            </div></div></section>
+            <details class="sec-group" id="grp-WP292026-bg"><summary><h3 class="sec-group-title" data-i18n="grp.bg">Background &amp; verification</h3><span class="fold-hint" data-i18n="grp.more">Show</span></summary>
             <div class="panel reveal" id="sec-WP292026-ohc">
                 <div class="panel-header">
                     <span class="panel-icon">🌊</span>
@@ -2077,7 +2002,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 <figure class="zoomable skel" data-caption="WP292026 Ocean Heat Content"><img src="WP_OHC.png" alt="WP292026 Ocean Heat Content" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
                 <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far</p>
             </div>
-            
             <div class="panel reveal" id="sec-WP292026-steer">
                 <div class="panel-header">
                     <span class="panel-icon">🌬️</span>
@@ -2105,7 +2029,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.steer">ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, west while the high extends west, turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm's position at that time</p>
             </div>
-            
             <div class="panel reveal" id="sec-WP292026-score">
                 <div class="panel-header">
                     <span class="panel-icon">🏁</span>
@@ -2118,7 +2041,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best
                     &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
-            </div>
+            </div></details>
         </div>
     </section>
     <section class="view" data-view="storm/WP302026" data-title="IN-FA">
@@ -2127,14 +2050,12 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
             <div class="storm-hero reveal" style="--cat:#2E86C8">
                 <div class="swirl" aria-hidden="true"></div>
                 <div class="storm-hero-main">
-                    <div class="storm-subtitle" data-i18n="storm.subtitle">Western Pacific Tropical Cyclone</div>
-                    <h2 class="storm-title storm-name">IN-FA</h2>
                     <div class="storm-badges">
-                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF;">TS</span>
+                        <span class="badge-cat" style="background:#2E86C8;color:#FFFFFF;"><span data-i18n="catname.TS">TS</span></span>
                         <span class="badge-id">WP302026</span>
-                        <span class="badge-live"><span class="live-dot"></span><span data-i18n="badge.live">LIVE</span></span>
-                        <span class="badge-name" data-i18n="catname.TS">TS</span>
                     </div>
+                    <h2 class="storm-title storm-name">IN-FA</h2>
+                    <div class="storm-summary"><p><span class="i-en">Moving northwest at about 13 km/h.</span><span class="i-zh">向西北移動，時速約 13 公里。</span></p><p><span class="i-en">Strengthening to 90 kt (<span data-i18n="catname.Cat2">Cat2</span>) in 24 h.</span><span class="i-zh">24 小時後增強至 90 kt（<span data-i18n="catname.Cat2">Cat2</span>）。</span></p><p><span class="i-en">Taiwan landfall: under 1% in every model.</span><span class="i-zh">登陸臺灣：各模式機率都低於 1%。</span></p></div>
                 </div>
                 <div class="gauge gauge-lg" data-kt="60" style="--cat:#2E86C8"></div>
             </div>
@@ -2148,26 +2069,11 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <div class="stat-value"><span class="mono">12.0°N, 165.0°E</span></div>
                 </div>
                 <div class="stat reveal">
-                    <div class="stat-label"><span aria-hidden="true">💨</span> <span data-i18n="stat.wind">Max wind</span></div>
-                    <div class="stat-value"><span data-count="60">60</span><small>kt</small></div>
-                </div>
-                <div class="stat reveal">
                     <div class="stat-label"><span aria-hidden="true">🧭</span> <span data-i18n="stat.pres">Min pressure</span></div>
                     <div class="stat-value"><span data-count="987">987</span><small>hPa</small></div>
                 </div></div>
-            
-            <div class="panel scale-panel reveal">
-                <div class="scale-head">
-                    <span data-i18n="scale.title">Intensity scale (Saffir–Simpson)</span>
-                    <span class="mono scale-now">60 kt</span>
-                </div>
-                <div class="ss-scale" data-cur="TS" style="--pos:35.29%">
-                    <div class="ss-bar"><span class="ss-seg" data-cat="TD" style="flex:35;--c:#8A97A6"><em>TD</em></span><span class="ss-seg" data-cat="TS" style="flex:29;--c:#2E86C8"><em>TS</em></span><span class="ss-seg" data-cat="Cat1" style="flex:19;--c:#1FA97E"><em>Cat1</em></span><span class="ss-seg" data-cat="Cat2" style="flex:13;--c:#E0AC2B"><em>Cat2</em></span><span class="ss-seg" data-cat="Cat3" style="flex:17;--c:#EE7A22"><em>Cat3</em></span><span class="ss-seg" data-cat="Cat4" style="flex:24;--c:#DC3A4E"><em>Cat4</em></span><span class="ss-seg" data-cat="Cat5" style="flex:33;--c:#A548C8"><em>Cat5</em></span></div>
-                    <div class="ss-marker" style="--cat:#2E86C8"><span></span></div>
-                </div>
-            </div>
-            <nav class="subnav" aria-label="Sections"><button data-target="sec-WP302026-sat" data-i18n="sub.sat">Satellite</button><button data-target="sec-WP302026-cmp" data-i18n="sub.cmp">Comparison</button><button data-target="sec-WP302026-anim" data-i18n="sub.anim">Animation</button><button data-target="sec-WP302026-maps" data-i18n="sub.maps">Ensemble & JTWC</button><button data-target="sec-WP302026-official" data-i18n="sub.official">Official</button><button data-target="sec-WP302026-tmap" data-i18n="sub.tmap">Map</button><button data-target="sec-WP302026-strike" data-i18n="sub.strike">Strike Prob.</button><button data-target="sec-WP302026-strikex" data-i18n="sub.strikex">By Period</button><button data-target="sec-WP302026-cities" data-i18n="sub.cities">Cities</button><button data-target="sec-WP302026-trend" data-i18n="sub.trend">Trend</button><button data-target="sec-WP302026-plume" data-i18n="sub.plume">Intensity</button><button data-target="sec-WP302026-ohc" data-i18n="sub.ohc">Ocean heat</button><button data-target="sec-WP302026-steer" data-i18n="sub.steer">Steering</button><button data-target="sec-WP302026-score" data-i18n="sub.score">Verification</button></nav>
-            
+            <nav class="subnav" aria-label="Sections"><button data-target="sec-WP302026-sat" data-i18n="sub.sat">Satellite</button><button data-target="sec-WP302026-official" data-i18n="sub.official">Official</button><button data-target="sec-WP302026-cmp" data-i18n="sub.cmp">Comparison</button><button data-target="sec-WP302026-anim" data-i18n="sub.anim">Animation</button><button data-target="sec-WP302026-maps" data-i18n="sub.maps">Ensemble & JTWC</button><button data-target="sec-WP302026-tmap" data-i18n="sub.tmap">Map</button><button data-target="sec-WP302026-strike" data-i18n="sub.strike">Strike Prob.</button><button data-target="sec-WP302026-strikex" data-i18n="sub.strikex">By Period</button><button data-target="sec-WP302026-cities" data-i18n="sub.cities">Cities</button><button data-target="sec-WP302026-trend" data-i18n="sub.trend">Trend</button><button data-target="sec-WP302026-plume" data-i18n="sub.plume">Intensity</button><button data-target="sec-WP302026-ohc" data-i18n="sub.ohc">Ocean heat</button><button data-target="sec-WP302026-steer" data-i18n="sub.steer">Steering</button><button data-target="sec-WP302026-score" data-i18n="sub.score">Verification</button></nav>
+            <section class="sec-group" id="grp-WP302026-now"><h3 class="sec-group-title" data-i18n="grp.now">Now</h3>
             <div class="panel reveal" id="sec-WP302026-sat">
                 <div class="panel-header">
                     <span class="panel-icon">🛰️</span>
@@ -2177,9 +2083,9 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 
                 <div class="model-panel" data-track="WP302026-sat" data-model="Enhanced IR">
                     <div class="player" data-anim-key="WP302026-sat-Enhanced IR" data-frames-dir="satellite_frames_WP302026_IR"
-                         data-frames='[&quot;20261025_0650.webp&quot;, &quot;20261025_0700.webp&quot;, &quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;]' data-start="17">
+                         data-frames='[&quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;, &quot;20261025_0950.webp&quot;, &quot;20261025_1000.webp&quot;]' data-start="17">
                         <figure class="zoomable skel frame-stage" data-caption="WP302026 Satellite · Enhanced IR">
-                            <img class="frame is-front" src="satellite_frames_WP302026_IR/20261025_0940.webp" alt="WP302026 satellite image"
+                            <img class="frame is-front" src="satellite_frames_WP302026_IR/20261025_1000.webp" alt="WP302026 satellite image"
                                  decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
@@ -2204,9 +2110,9 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <div class="model-panel" data-track="WP302026-sat" data-model="Grayscale IR" style="display:none;">
                     <div class="player" data-anim-key="WP302026-sat-Grayscale IR" data-frames-dir="satellite_frames_WP302026_Gray"
-                         data-frames='[&quot;20261025_0650.webp&quot;, &quot;20261025_0700.webp&quot;, &quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;]' data-start="17">
+                         data-frames='[&quot;20261025_0710.webp&quot;, &quot;20261025_0720.webp&quot;, &quot;20261025_0730.webp&quot;, &quot;20261025_0740.webp&quot;, &quot;20261025_0750.webp&quot;, &quot;20261025_0800.webp&quot;, &quot;20261025_0810.webp&quot;, &quot;20261025_0820.webp&quot;, &quot;20261025_0830.webp&quot;, &quot;20261025_0840.webp&quot;, &quot;20261025_0850.webp&quot;, &quot;20261025_0900.webp&quot;, &quot;20261025_0910.webp&quot;, &quot;20261025_0920.webp&quot;, &quot;20261025_0930.webp&quot;, &quot;20261025_0940.webp&quot;, &quot;20261025_0950.webp&quot;, &quot;20261025_1000.webp&quot;]' data-start="17">
                         <figure class="zoomable skel frame-stage" data-caption="WP302026 Satellite · Grayscale IR">
-                            <img class="frame is-front" src="satellite_frames_WP302026_Gray/20261025_0940.webp" alt="WP302026 satellite image"
+                            <img class="frame is-front" src="satellite_frames_WP302026_Gray/20261025_1000.webp" alt="WP302026 satellite image"
                                  decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
@@ -2231,7 +2137,18 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
             </div>
-            <div class="maps-grid">
+            <div class="panel reveal" id="sec-WP302026-official">
+                <div class="panel-header">
+                    <span class="panel-icon">🏛️</span>
+                    <span data-i18n="panel.official">Official Forecasts Compared</span>
+                </div>
+                <figure class="zoomable skel" data-caption="WP302026 Official Forecasts"><img src="WP302026_Official.png" alt="WP302026 Official Forecasts" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
+                <div class="city-table-wrap"><table class="city-table off-table">
+                    <thead><tr><th data-i18n="off.hour">Hour</th><th style="color:#DC2626">JTWC<span class="eta">10/25 06:00</span></th><th style="color:#2563EB">JMA<span class="eta">10/25 06:00</span></th><th style="color:#059669">CWA<span class="eta">10/25 06:00</span></th></tr></thead><tbody><tr><td class="c-name"><span data-i18n="off.now">Now</span></td><td class="c-off">12.0°N 165.0°E<span class="eta">60 kt</span></td><td class="c-off">12.2°N 165.2°E<span class="eta">60 kt</span></td><td class="c-off">12.1°N 164.8°E<span class="eta">58 kt</span></td></tr><tr><td class="c-name">+12 h</td><td class="c-off">13.1°N 164.1°E<span class="eta">75 kt</span></td><td class="c-nil">—</td><td class="c-off">13.2°N 163.6°E<span class="eta">68 kt</span></td></tr><tr><td class="c-name">+24 h</td><td class="c-off">13.7°N 163.5°E<span class="eta">90 kt</span></td><td class="c-off">14.0°N 163.8°E<span class="eta">75 kt</span></td><td class="c-off">13.9°N 162.8°E<span class="eta">84 kt</span></td></tr><tr><td class="c-name">+48 h</td><td class="c-off">14.2°N 162.4°E<span class="eta">95 kt</span></td><td class="c-off">14.3°N 163.7°E<span class="eta">80 kt</span></td><td class="c-off">14.5°N 161.6°E<span class="eta">103 kt</span></td></tr><tr><td class="c-name">+72 h</td><td class="c-off">14.7°N 159.0°E<span class="eta">110 kt</span></td><td class="c-off">14.7°N 161.0°E<span class="eta">85 kt</span></td><td class="c-off">15.1°N 158.3°E<span class="eta">107 kt</span></td></tr><tr><td class="c-name">+96 h</td><td class="c-off">15.5°N 153.4°E<span class="eta">115 kt</span></td><td class="c-off">15.6°N 155.0°E<span class="eta">90 kt</span></td><td class="c-off">15.9°N 152.5°E<span class="eta">107 kt</span></td></tr><tr><td class="c-name">+120 h</td><td class="c-off">17.4°N 146.5°E<span class="eta">115 kt</span></td><td class="c-off">17.6°N 147.4°E<span class="eta">90 kt</span></td><td class="c-off">18.0°N 145.0°E<span class="eta">107 kt</span></td></tr></tbody>
+                </table></div>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
+            </div></section>
+            <section class="sec-group" id="grp-WP302026-fc"><h3 class="sec-group-title" data-i18n="grp.fc">Forecast</h3><div class="maps-grid">
             <div class="panel reveal" id="sec-WP302026-cmp">
                 <div class="panel-header">
                     <span class="panel-icon">📊</span>
@@ -2469,7 +2386,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     </div>
                 </div>
             </div></div>
-            
             <div class="maps-grid" id="sec-WP302026-maps">
                 <div class="panel reveal">
                     <div class="panel-header">
@@ -2553,19 +2469,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
                 </div>
             </div>
-            
-            <div class="panel reveal" id="sec-WP302026-official">
-                <div class="panel-header">
-                    <span class="panel-icon">🏛️</span>
-                    <span data-i18n="panel.official">Official Forecasts Compared</span>
-                </div>
-                <figure class="zoomable skel" data-caption="WP302026 Official Forecasts"><img src="WP302026_Official.png" alt="WP302026 Official Forecasts" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
-                <div class="city-table-wrap"><table class="city-table off-table">
-                    <thead><tr><th data-i18n="off.hour">Hour</th><th style="color:#DC2626">JTWC<span class="eta">10/25 06:00</span></th><th style="color:#2563EB">JMA<span class="eta">10/25 06:00</span></th><th style="color:#059669">CWA<span class="eta">10/25 06:00</span></th></tr></thead><tbody><tr><td class="c-name"><span data-i18n="off.now">Now</span></td><td class="c-off">12.0°N 165.0°E<span class="eta">60 kt</span></td><td class="c-off">12.2°N 165.2°E<span class="eta">60 kt</span></td><td class="c-off">12.1°N 164.8°E<span class="eta">58 kt</span></td></tr><tr><td class="c-name">+12 h</td><td class="c-off">13.1°N 164.1°E<span class="eta">75 kt</span></td><td class="c-nil">—</td><td class="c-off">13.2°N 163.6°E<span class="eta">68 kt</span></td></tr><tr><td class="c-name">+24 h</td><td class="c-off">13.7°N 163.5°E<span class="eta">90 kt</span></td><td class="c-off">14.0°N 163.8°E<span class="eta">75 kt</span></td><td class="c-off">13.9°N 162.8°E<span class="eta">84 kt</span></td></tr><tr><td class="c-name">+48 h</td><td class="c-off">14.2°N 162.4°E<span class="eta">95 kt</span></td><td class="c-off">14.3°N 163.7°E<span class="eta">80 kt</span></td><td class="c-off">14.5°N 161.6°E<span class="eta">103 kt</span></td></tr><tr><td class="c-name">+72 h</td><td class="c-off">14.7°N 159.0°E<span class="eta">110 kt</span></td><td class="c-off">14.7°N 161.0°E<span class="eta">85 kt</span></td><td class="c-off">15.1°N 158.3°E<span class="eta">107 kt</span></td></tr><tr><td class="c-name">+96 h</td><td class="c-off">15.5°N 153.4°E<span class="eta">115 kt</span></td><td class="c-off">15.6°N 155.0°E<span class="eta">90 kt</span></td><td class="c-off">15.9°N 152.5°E<span class="eta">107 kt</span></td></tr><tr><td class="c-name">+120 h</td><td class="c-off">17.4°N 146.5°E<span class="eta">115 kt</span></td><td class="c-off">17.6°N 147.4°E<span class="eta">90 kt</span></td><td class="c-off">18.0°N 145.0°E<span class="eta">107 kt</span></td></tr></tbody>
-                </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
-            </div>
-            
             <div class="panel reveal" id="sec-WP302026-tmap">
                 <div class="panel-header">
                     <span class="panel-icon">🧭</span>
@@ -2588,8 +2491,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
                     Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                 </p>
-            </div>
-            <div class="maps-grid">
+            </div><div class="maps-grid">
             <div class="panel reveal" id="sec-WP302026-strike">
                 <div class="panel-header">
                     <span class="panel-icon">🎯</span>
@@ -2647,20 +2549,18 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.strikex">Same 1° rule split into forecast periods &nbsp;·&nbsp; 34 kt = inside the forecast 34-kt wind radii at any time &nbsp;·&nbsp; 1000 members</p>
             </div></div>
-            
             <div class="panel reveal" id="sec-WP302026-cities">
                 <div class="panel-header">
                     <span class="panel-icon">📍</span>
                     <span data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</span>
                 </div>
-                <div class="city-table-wrap"><table class="city-table"><thead><tr><th data-i18n="cities.city">Model</th><th>WN3-C<span class="eta">10/25 00Z · ≤354 h</span></th><th>WN2-C r2<span class="eta">10/25 00Z · ≤360 h</span></th><th>WN2-C r1<span class="eta">10/25 00Z · ≤330 h</span></th><th>WN2-C 1000<span class="eta">10/25 00Z · ≤360 h</span></th><th>GENC<span class="eta">10/25 00Z · ≤360 h</span></th><th>AIFS-ENS<span class="eta">10/25 00Z · ≤360 h</span></th><th>AIFS-single<span class="eta">10/25 00Z · ≤270 h</span></th><th>ECMWF-ENS<span class="eta">10/25 00Z · ≤360 h</span></th><th>ECMWF HRES<span class="eta">10/25 00Z · ≤264 h</span></th><th>AIGEFS<span class="eta">10/25 00Z · ≤240 h</span></th><th>AIGFS<span class="eta">10/25 00Z · ≤240 h</span></th><th>GEFS<span class="eta">10/25 00Z · ≤192 h</span></th><th>GFS<span class="eta">10/25 00Z · ≤240 h</span></th></tr></thead><tbody><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.land">Taiwan landfall</span><small data-i18n="cities.grp.land.sub">storm centre moves onto Taiwan's main island (outlying islands excluded)</small></td></tr><tr><td class="c-name" data-i18n="city.tw_landfall">tw_landfall</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.city">City strike</span><small data-i18n="cities.grp.city.sub">track passes within 1° (~111 km) of the city</small></td></tr><tr><td class="c-name" data-i18n="city.taipei">taipei</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.taichung">taichung</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.kaohsiung">kaohsiung</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.hualien">hualien</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.hengchun">hengchun</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.naha">naha</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T15:36Z">2%<span class="eta">11/05 15Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-07T18:00Z">2%<span class="eta">11/07 18Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.seoul">seoul</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-04T18:50Z">2%<span class="eta">11/04 18Z</span></td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T00:52Z">2%<span class="eta">11/05 00Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.tokyo">tokyo</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-04T00:35Z">3%<span class="eta">11/04 00Z</span></td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T17:41Z">2%<span class="eta">11/05 17Z</span></td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-06T12:33Z">2%<span class="eta">11/06 12Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-07T04:03Z">4%<span class="eta">11/07 04Z</span></td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-08T06:36Z">2%<span class="eta">11/08 06Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.guam">guam</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-10-30T11:42Z">4%<span class="eta">10/30 11Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr></tbody></table></div>
+                <div class="city-table-wrap"><table class="city-table"><thead><tr><th data-i18n="cities.city">Model</th><th>WN3-C<span class="eta">10/25 00Z · ≤354 h</span></th><th>WN2-C r2<span class="eta">10/25 00Z · ≤360 h</span></th><th>WN2-C r1<span class="eta">10/25 00Z · ≤330 h</span></th><th>WN2-C 1000<span class="eta">10/25 00Z · ≤360 h</span></th><th>GENC<span class="eta">10/25 00Z · ≤360 h</span></th><th>AIFS-ENS<span class="eta">10/25 00Z · ≤360 h</span></th><th>AIFS-single<span class="eta">10/25 00Z · ≤270 h</span></th><th>ECMWF-ENS<span class="eta">10/25 00Z · ≤360 h</span></th><th>ECMWF HRES<span class="eta">10/25 00Z · ≤264 h</span></th><th>AIGEFS<span class="eta">10/25 00Z · ≤240 h</span></th><th>AIGFS<span class="eta">10/25 06Z · ≤240 h</span></th><th>GEFS<span class="eta">10/25 00Z · ≤192 h</span></th><th>GFS<span class="eta">10/25 00Z · ≤240 h</span></th></tr></thead><tbody><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.land">Taiwan landfall</span><small data-i18n="cities.grp.land.sub">storm centre moves onto Taiwan's main island (outlying islands excluded)</small></td></tr><tr><td class="c-name" data-i18n="city.tw_landfall">tw_landfall</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr class="grp"><td colspan="14"><span data-i18n="cities.grp.city">City strike</span><small data-i18n="cities.grp.city.sub">track passes within 1° (~111 km) of the city</small></td></tr><tr><td class="c-name" data-i18n="city.naha">naha</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T15:36Z">2%<span class="eta">11/05 15Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-07T18:00Z">2%<span class="eta">11/07 18Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.seoul">seoul</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-04T18:50Z">2%<span class="eta">11/04 18Z</span></td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T00:52Z">2%<span class="eta">11/05 00Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.tokyo">tokyo</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-04T00:35Z">3%<span class="eta">11/04 00Z</span></td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-05T17:41Z">2%<span class="eta">11/05 17Z</span></td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-06T12:33Z">2%<span class="eta">11/06 12Z</span></td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-07T04:03Z">4%<span class="eta">11/07 04Z</span></td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-11-08T06:36Z">2%<span class="eta">11/08 06Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr><td class="c-name" data-i18n="city.guam">guam</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td style="background:#A9D6F5;color:#16324F;" title="2026-10-30T11:42Z">4%<span class="eta">10/30 11Z</span></td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td><td class="c-nil">&lt;1%</td><td class="c-nil">—</td></tr><tr class="c-quiet"><td colspan="14"><span class="i-en"><span data-i18n="city.taipei">taipei</span>, <span data-i18n="city.taichung">taichung</span>, <span data-i18n="city.kaohsiung">kaohsiung</span>, <span data-i18n="city.hualien">hualien</span>, <span data-i18n="city.hengchun">hengchun</span>: under 1% in every model</span><span class="i-zh"><span data-i18n="city.taipei">taipei</span>、<span data-i18n="city.taichung">taichung</span>、<span data-i18n="city.kaohsiung">kaohsiung</span>、<span data-i18n="city.hualien">hualien</span>、<span data-i18n="city.hengchun">hengchun</span>：各模式都低於 1%</span></td></tr></tbody></table></div>
                 <p class="map-note" data-i18n="note.cities">
                     Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp;
                     Time below = median first arrival among those members (UTC) &nbsp;·&nbsp;
                     Taiwan cities always shown; others only when any model reaches 1%
                 </p>
-            </div>
-            <div class="maps-grid">
+            </div><div class="maps-grid">
             <div class="panel reveal" id="sec-WP302026-trend">
                 <div class="panel-header">
                     <span class="panel-icon">🧭</span>
@@ -2741,8 +2641,8 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <figure class="zoomable skel" data-caption="WP302026 Intensity Forecast · GFS"><img src="GFS_WP302026_Intensity_Plume.png" alt="WP302026 Intensity Forecast · GFS" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
                 </div>
                 <p class="map-note" data-i18n="note.plume">Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% &nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF / AIGFS / GFS)</p>
-            </div></div>
-            
+            </div></div></section>
+            <details class="sec-group" id="grp-WP302026-bg"><summary><h3 class="sec-group-title" data-i18n="grp.bg">Background &amp; verification</h3><span class="fold-hint" data-i18n="grp.more">Show</span></summary>
             <div class="panel reveal" id="sec-WP302026-ohc">
                 <div class="panel-header">
                     <span class="panel-icon">🌊</span>
@@ -2751,7 +2651,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 <figure class="zoomable skel" data-caption="WP302026 Ocean Heat Content"><img src="WP_OHC.png" alt="WP302026 Ocean Heat Content" loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')" onerror="this.parentNode.classList.add('loaded','broken');"><span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span></figure>
                 <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far</p>
             </div>
-            
             <div class="panel reveal" id="sec-WP302026-steer">
                 <div class="panel-header">
                     <span class="panel-icon">🌬️</span>
@@ -2779,7 +2678,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 </div>
                 <p class="map-note" data-i18n="note.steer">ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, west while the high extends west, turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm's position at that time</p>
             </div>
-            
             <div class="panel reveal" id="sec-WP302026-score">
                 <div class="panel-header">
                     <span class="panel-icon">🏁</span>
@@ -2792,7 +2690,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst; ★ = best, +x% = behind the best
                     &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
-            </div>
+            </div></details>
         </div>
     </section>
 
@@ -2880,7 +2778,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                 <h2 class="page-title" data-i18n="arch.title">Storm Archive</h2>
                 <p class="page-lead" data-i18n="arch.lead">Every storm this site has followed: the real JTWC track, how each model's forecasts changed run by run, and how far off they turned out to be.</p>
             </div>
-            <div class="arch-grid reveal"><button type="button" class="arch-card" data-arch="WP292026" style="--cat:#A548C8"><span class="arch-top"><span class="arch-name storm-name">Champi</span><span class="arch-live" data-i18n="arch.active">Active</span></span><span class="arch-meta mono">WP292026 · 10/15–10/25</span><span class="arch-meta"><span class="badge-cat" style="background:#A548C8;color:#FFFFFF">Cat5</span> <span class="mono">160 kt</span> · <span data-i18n="arch.inits" data-i18n-n="502">502 forecasts</span></span></button><button type="button" class="arch-card" data-arch="WP302026" style="--cat:#2E86C8"><span class="arch-top"><span class="arch-name storm-name">In-Fa</span><span class="arch-live" data-i18n="arch.active">Active</span></span><span class="arch-meta mono">WP302026 · 10/23–10/25</span><span class="arch-meta"><span class="badge-cat" style="background:#2E86C8;color:#FFFFFF">TS</span> <span class="mono">60 kt</span> · <span data-i18n="arch.inits" data-i18n-n="84">84 forecasts</span></span></button></div>
+            <div class="arch-grid reveal"><button type="button" class="arch-card" data-arch="WP292026" style="--cat:#A548C8"><span class="arch-top"><span class="arch-name storm-name">Champi</span><span class="arch-live" data-i18n="arch.active">Active</span></span><span class="arch-meta mono">WP292026 · 10/15–10/25</span><span class="arch-meta"><span class="badge-cat" style="background:#A548C8;color:#FFFFFF">Cat5</span> <span class="mono">160 kt</span> · <span data-i18n="arch.inits" data-i18n-n="503">503 forecasts</span></span></button><button type="button" class="arch-card" data-arch="WP302026" style="--cat:#2E86C8"><span class="arch-top"><span class="arch-name storm-name">In-Fa</span><span class="arch-live" data-i18n="arch.active">Active</span></span><span class="arch-meta mono">WP302026 · 10/23–10/25</span><span class="arch-meta"><span class="badge-cat" style="background:#2E86C8;color:#FFFFFF">TS</span> <span class="mono">60 kt</span> · <span data-i18n="arch.inits" data-i18n-n="85">85 forecasts</span></span></button></div>
             <div class="panel arch-detail" hidden>
                 <div class="panel-header"><span class="panel-icon">🗂️</span><span class="arch-title"></span></div>
                 <div class="tm-controls arch-controls">
@@ -2983,14 +2881,61 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
                     <p class="map-note" data-i18n="about.prob">Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.</p>
                 </div>
             </div>
+            <div class="section-head reveal">
+                <div><h3 data-i18n="sec.models">Forecast models</h3></div>
+                <span class="legend-inline"><span class="model-state on"></span><span data-i18n="models.on">Output in this run</span></span>
+            </div>
+            <div class="model-grid">
+                <div class="model-card reveal on">
+                    <div class="model-name">WN3-C<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WN2-C r2<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WN2-C r1<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">WN2-C 1000<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · 1000 members</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">GENC<span class="model-state" title=""></span></div>
+                    <div class="model-org">Google DeepMind</div>
+                    <div class="model-desc">WeatherNext · Ensemble</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">AIFS<span class="model-state" title=""></span></div>
+                    <div class="model-org">ECMWF</div>
+                    <div class="model-desc">AIFS-ENS + AIFS-single</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">ECMWF<span class="model-state" title=""></span></div>
+                    <div class="model-org">ECMWF</div>
+                    <div class="model-desc">IFS ENS + HRES</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">AIGFS<span class="model-state" title=""></span></div>
+                    <div class="model-org">NOAA</div>
+                    <div class="model-desc">AIGEFS + AIGFS</div>
+                </div>
+                <div class="model-card reveal on">
+                    <div class="model-name">GFS<span class="model-state" title=""></span></div>
+                    <div class="model-org">NOAA</div>
+                    <div class="model-desc">GEFS + GFS</div>
+                </div></div>
         </div>
     </section>
     </main>
 
     <footer>
-        <div class="marquee footer-marquee" aria-hidden="true">
-            <div class="strip"><span class="mq">Pillar&#x27;s</span><span class="mq o">Tropical Cyclone</span><span class="mq">Forecast</span><span class="mq o">Western Pacific</span><span class="mq">Pillar&#x27;s</span><span class="mq o">Tropical Cyclone</span><span class="mq">Forecast</span><span class="mq o">Western Pacific</span><span class="mq">Pillar&#x27;s</span><span class="mq o">Tropical Cyclone</span><span class="mq">Forecast</span><span class="mq o">Western Pacific</span><span class="mq">Pillar&#x27;s</span><span class="mq o">Tropical Cyclone</span><span class="mq">Forecast</span><span class="mq o">Western Pacific</span></div>
-        </div>
         <div class="footer-inner">
             <div class="footer-brand">
                 <h3 data-i18n="footer.title">Pillar's Tropical Cyclone Forecast System</h3>
@@ -3035,7 +2980,7 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
         <img id="lightbox-img" alt="Full-size view">
     </div>
 
-    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP292026", "storm/WP302026", "genesis", "archive", "about"], "archiveOrder": ["WN3-C", "WN2-C r2", "WN2-C r1", "WN2-C 1000", "GENC", "AIFS-ENS", "AIFS-single", "ECMWF-ENS", "ECMWF HRES", "AIGEFS", "AIGFS", "GEFS", "GFS"], "updatedIso": "2026-10-25T17:59:18+08:00", "hero": {"rgb": "119,176,219", "strength": 0.333}, "trackIds": "WP292026 / WP302026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "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", "focus": "WP302026", "storms": [{"id": "WP292026", "name": "CHAMPI", "lat": 30.1, "lon": 125.5, "kt": 45.0, "color": "#2E86C8", "track": [[30.1, 125.5, 45, 0], [31.4, 127.8, 35, 12], [32.1, 131.1, 30, 24], [32.9, 134.9, 30, 36]]}, {"id": "WP302026", "name": "IN-FA", "lat": 12.0, "lon": 165.0, "kt": 60.0, "color": "#2E86C8", "track": [[12.0, 165.0, 60, 0], [13.1, 164.1, 75, 12], [13.7, 163.5, 90, 24], [14.0, 163.1, 95, 36], [14.2, 162.4, 95, 48], [14.4, 160.9, 100, 60], [14.7, 159.0, 110, 72], [15.5, 153.4, 115, 96], [17.4, 146.5, 115, 120]]}]}}</script>
+    <script id="site-data" type="application/json">{"routes": ["overview", "storm/WP292026", "storm/WP302026", "genesis", "archive", "about"], "archiveOrder": ["WN3-C", "WN2-C r2", "WN2-C r1", "WN2-C 1000", "GENC", "AIFS-ENS", "AIFS-single", "ECMWF-ENS", "ECMWF HRES", "AIGEFS", "AIGFS", "GEFS", "GFS"], "updatedIso": "2026-10-25T18:16:10+08:00", "hero": {"rgb": "119,176,219", "strength": 0.333}, "trackIds": "WP292026 / WP302026", "scaleMax": 170, "bands": [["TD", 0, 35, "#8A97A6"], ["TS", 35, 64, "#2E86C8"], ["Cat1", 64, 83, "#1FA97E"], ["Cat2", 83, 96, "#E0AC2B"], ["Cat3", 96, 113, "#EE7A22"], ["Cat4", 113, 137, "#DC3A4E"], ["Cat5", 137, 170, "#A548C8"]], "globe": {"land": "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", "focus": "WP302026", "storms": [{"id": "WP292026", "name": "CHAMPI", "lat": 30.1, "lon": 125.5, "kt": 45.0, "color": "#2E86C8", "track": [[30.1, 125.5, 45, 0], [31.4, 127.8, 35, 12], [32.1, 131.1, 30, 24], [32.9, 134.9, 30, 36]]}, {"id": "WP302026", "name": "IN-FA", "lat": 12.0, "lon": 165.0, "kt": 60.0, "color": "#2E86C8", "track": [[12.0, 165.0, 60, 0], [13.1, 164.1, 75, 12], [13.7, 163.5, 90, 24], [14.0, 163.1, 95, 36], [14.2, 162.4, 95, 48], [14.4, 160.9, 100, 60], [14.7, 159.0, 110, 72], [15.5, 153.4, 115, 96], [17.4, 146.5, 115, 120]]}]}}</script>
     <script>
 (function () {
 'use strict';
@@ -3219,6 +3164,11 @@ const I18N = {
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
+    'grp.now':          'Now',
+    'grp.fc':           'Forecast',
+    'grp.bg':           'Background &amp; verification',
+    'grp.more':         'Ocean heat, steering flow and model scores',
+    'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
     'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
     'sub.ohc':          'Ocean heat',
@@ -3433,6 +3383,11 @@ const I18N = {
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
+    'grp.now':          '現況',
+    'grp.fc':           '預報',
+    'grp.bg':           '背景與校驗',
+    'grp.more':         '海洋熱含量、駛流場與模式成績',
+    'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
     'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
     'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 圓點＝JTWC 最新位置（公報每 6 小時一次，颱風可能已移動一些），實線＝目前為止的路徑，虛線＝JTWC 預報 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
     'sub.ohc':          '海洋熱含量',
@@ -3816,6 +3771,25 @@ function switchModelTab(trackId, model) {
     requestAnimationFrame(updateIndicators);
 }
 
+// 模式分頁連動：系集與決定報、名稱寫法不同的分頁（AIFS-ENS／AIFS-single／AIFS）算同一個模式。
+// 不是模式名稱的分頁（衛星雲圖、時段、時數、成績單範圍）對不上任何模式，不受影響。
+function modelGroup(name) {
+    const n = String(name || '').toUpperCase().replace(/-ENS$|-SINGLE$| HRES$/, '');
+    return ({AIGEFS: 'AIGFS', GEFS: 'GFS'})[n] || n;
+}
+function linkModelTabs(tab) {
+    const view = tab.closest('.view');
+    if (!view) return;
+    const g = modelGroup(tab.dataset.model);
+    const tracks = new Set($$('.model-tab-btn', view).map(b => b.dataset.track));
+    tracks.delete(tab.dataset.track);
+    tracks.forEach(tr => {
+        const btns = $$('.model-tab-btn', view).filter(b => b.dataset.track === tr);
+        const hit = btns.find(b => b.dataset.model === tab.dataset.model) || btns.find(b => modelGroup(b.dataset.model) === g);
+        if (hit && !hit.classList.contains('active')) switchModelTab(tr, hit.dataset.model);
+    });
+}
+
 // ── 捲動進場、數字跳動、儀表 ──────────────────────────────────────
 function staggerReveals() {
     const groups = new Map();
@@ -4049,7 +4023,7 @@ async function initTrackMap(box) {
         showD.onchange = () => draw(false);
         draw(true);
     } catch (e) {
-        el.textContent = 'Map failed to load';
+        el.textContent = t('tmap.fail');
         console.log('[trackmap]', e);
     }
 }
@@ -4246,7 +4220,9 @@ function refreshSubnavs() {
     $$('.subnav').forEach(nav => {
         $$('button[data-target]', nav).forEach(b => {
             const sec = document.getElementById(b.dataset.target);
-            b.hidden = !sec || sec.style.display === 'none' || !sec.offsetParent && nav.offsetParent !== null;
+            // 收合起來的那組（details）裡的區塊沒有 offsetParent，但按了會展開，照樣列出
+            const folded = sec && sec.closest('details:not([open])');
+            b.hidden = !sec || sec.style.display === 'none' || !sec.offsetParent && !folded && nav.offsetParent !== null;
         });
     });
 }
@@ -4260,7 +4236,7 @@ function scrollSpy() {
     let active = null;
     $$('button[data-target]', nav).forEach(b => {
         const sec = document.getElementById(b.dataset.target);
-        if (sec && !b.hidden && sec.getBoundingClientRect().top <= line) active = b;
+        if (sec && !b.hidden && sec.offsetParent && sec.getBoundingClientRect().top <= line) active = b;
     });
     if (!active) active = $$('button[data-target]', nav).find(b => !b.hidden) || null;
     $$('button', nav).forEach(b => b.classList.toggle('active', b === active));
@@ -4269,8 +4245,15 @@ document.addEventListener('click', e => {
     const b = e.target.closest('.subnav button[data-target]');
     if (!b) return;
     const sec = document.getElementById(b.dataset.target);
-    if (sec) sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+    if (!sec) return;
+    const fold = sec.closest('details');
+    if (fold && !fold.open) fold.open = true;
+    sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
 });
+// 展開／收合「背景與校驗」後，區塊位置變了，段落導覽重新標示
+document.addEventListener('toggle', e => {
+    if (e.target.classList && e.target.classList.contains('sec-group')) { refreshSubnavs(); scrollSpy(); }
+}, true);
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') refreshSubnavs(); }, true);
 
 // ── 捲動：頁首進度條、段落導覽 ──────────────────────────────────────
@@ -4491,7 +4474,7 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 
 document.addEventListener('click', e => {
     const tab = e.target.closest('.model-tab-btn');
-    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); return; }
+    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); linkModelTabs(tab); return; }
     const pl = e.target.closest('.player');
     if (!pl) return;
     const P = players[pl.dataset.animKey];
