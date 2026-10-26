@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "7.0.0"
+SITE_VERSION = "7.1.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -251,12 +251,14 @@ def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt
                     </div>"""
 
 
-def _pair(a: str, b: str) -> str:
-    """兩個圖卡都有時，電腦版並排成一排（與系集路徑／JTWC 同一套 maps-grid，
-    ≤1100px 自動回到一欄，手機版不變）；只有一個就照原樣。"""
-    if a.strip() and b.strip():
-        return f'<div class="maps-grid">{a}{b}</div>'
-    return a + b
+# 面板標題旁的小標籤：目前顯示哪個模式（由颱風頁上方的模式選單控制，腳本填字）
+MT_SHOWN = '<span class="mt-shown" aria-live="polite"></span>'
+
+
+def _model_group(name: str) -> str:
+    """同一個模式的不同寫法算一組（與頁尾腳本的 modelGroup 相同）：AIFS-ENS／AIFS-single／AIFS → AIFS。"""
+    n = re.sub(r'-ENS$|-SINGLE$| HRES$', '', str(name).upper())
+    return {'AIGEFS': 'AIGFS', 'GEFS': 'GFS'}.get(n, n)
 
 
 def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, title: str,
@@ -276,7 +278,7 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">{icon}</span>
-                    <span data-i18n="{title_key}">{title}</span>
+                    <span data-i18n="{title_key}">{title}</span>{MT_SHOWN if len(items) > 1 else ''}
                 </div>
                 {tabs}
                 {panels}
@@ -1202,7 +1204,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">🎬</span>
-                    <span data-i18n="panel.anim.generic">Track Evolution Animation</span>
+                    <span data-i18n="panel.anim.generic">Track Evolution Animation</span>{MT_SHOWN if multi_model else ''}
                     <span class="panel-aside kbd-hint" data-i18n="kbd.hint"><kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek</span>
                 </div>
                 {_model_tabs(track_id, model_names) if multi_model else f'<div class="model-label">{_esc(first_anim_model)}</div>'}
@@ -1241,24 +1243,22 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         sec_id = f"sec-{key_prefix}-maps"
         sections.append((sec_id, 'sub.maps', 'Ensemble & JTWC'))
         maps_html = f"""
-            <div class="maps-grid" id="{sec_id}">
-                <div class="panel reveal">
+            <div class="panel reveal" id="{sec_id}">
                     <div class="panel-header">
                         <span class="panel-icon">🗺</span>
-                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>
+                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>{MT_SHOWN if multi_model else ''}
                     </div>
                     {_model_tabs(track_id, model_names) if multi_model else ''}
                     {"".join(map_panels)}
-                </div>
-
-                <div class="panel reveal">
+            </div>"""
+        jtwc_html = f"""
+            <div class="panel reveal" id="sec-{key_prefix}-jtwc">
                     <div class="panel-header">
                         <span class="panel-icon">🛰</span>
                         <span data-i18n="panel.jtwc">JTWC Official Forecast</span>
                     </div>
                     {_figure(f"jtwc_{track_id}.gif", "JTWC Forecast", "this.closest('.panel').style.display='none';")}
-                    <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
-                </div>
+                    <p class="jtwc-src" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
             </div>"""
 
         # ── 侵襲機率、強度預報（每模式一張，另加 1000 成員）
@@ -1500,30 +1500,52 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </p>
             </div>"""
 
-        # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
-        page_order = ['sat', 'official', 'cmp', 'anim', 'maps', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
-        sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
-                      if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
-        subnav = "".join(
-            f'<button data-target="{sid}" data-i18n="{k}">{txt}</button>' for sid, k, txt in sections)
-
         summary_html = _storm_summary(info, city_cols)
 
-        def _group(gid, key, title, body, fold=False):
-            """把幾個區塊包成一組，組前一個標題；fold=True 的那組預設收合。"""
-            if not body.strip():
-                return ''
-            head = f'<h3 class="sec-group-title" data-i18n="{key}">{title}</h3>'
-            if fold:
-                return (f'<details class="sec-group" id="grp-{key_prefix}-{gid}"><summary>{head}'
-                        f'<span class="fold-hint" data-i18n="grp.more">Show</span></summary>{body}</details>')
-            return f'<section class="sec-group" id="grp-{key_prefix}-{gid}">{head}{body}</section>'
+        # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
+        panes = [
+            ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}"),
+            ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
+            ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
+            ('int', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
+            ('score', 'tab.score', 'Scores', score_html),
+        ]
+        panes = [pn for pn in panes if pn[3].strip()]
 
-        group_now = _group('now', 'grp.now', 'Now', f"{sat_html}{official_html}")
-        group_fc = _group('fc', 'grp.fc', 'Forecast',
-                          f"{_pair(cmp_html, anim_html)}{maps_html}{tmap_html}{_pair(strike_html, extra_html)}"
-                          f"{cities_html}{_pair(trend_html, plume_html)}")
-        group_bg = _group('bg', 'grp.bg', 'Background &amp; verification', f"{ohc_html}{steer_html}{score_html}", fold=True)
+        # 圖說收進「怎麼看這張圖」，需要時再展開
+        def _fold_notes(html):
+            return re.sub(r'(<p class="map-note"[^>]*data-i18n="note\.[^"]+"[^>]*>.*?</p>)',
+                          r'<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>\1</details>',
+                          html, flags=re.S)
+
+        tab_btns = "".join(
+            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" '
+            f'data-track="{key_prefix}-tabs" data-model="{pid}" data-i18n="{k}">{txt}</button>'
+            for i, (pid, k, txt, _) in enumerate(panes))
+        hide = ' style="display:none;"'
+        pane_html = "".join(
+            f'<div class="model-panel tab-pane" data-track="{key_prefix}-tabs" data-model="{pid}" role="tabpanel"'
+            f'{"" if i == 0 else hide}>{_fold_notes(body)}</div>'
+            for i, (pid, _, _, body) in enumerate(panes))
+
+        # 整頁一個模式選單：選項＝各圖分頁裡出現過的模式（同一模式的系集／決定性算一個）
+        pick_labels = list(model_names)
+        for items in (strike_items, plume_items, trend_items):
+            pick_labels += [lbl for lbl, _ in items]
+        seen, picks = set(), []
+        for lbl in pick_labels:
+            g = _model_group(lbl)
+            if g not in seen:
+                seen.add(g)
+                picks.append(lbl)
+        picks = _place_1000(picks)
+        model_pick = ''
+        if len(picks) > 1:
+            opts = "".join(f'<option value="{_esc(x)}">{_esc(x)}</option>' for x in picks)
+            model_pick = (f'<label class="model-pick"><span data-i18n="mp.label">Model</span>'
+                          f'<select class="model-select" aria-label="Model">{opts}</select></label>')
+        storm_bar = (f'<div class="storm-bar"><div class="seg model-tabs storm-tabs" role="tablist">'
+                     f'<span class="seg-ind"></span>{tab_btns}</div>{model_pick}</div>')
 
         storm_views.append(f"""
     <section class="view" data-view="storm/{key_prefix}" data-title="{_esc(_title(info))}">
@@ -1542,10 +1564,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="gauge gauge-lg" data-kt="{kt_txt}" style="--cat:{info['color']}"></div>
             </div>
             <div class="stat-grid">{stats_html}</div>
-            <nav class="subnav" aria-label="Sections">{subnav}</nav>
-            {group_now}
-            {group_fc}
-            {group_bg}
+            <div class="storm-bar-anchor"></div>
+            {storm_bar}
+            {pane_html}
         </div>
     </section>""")
 
@@ -1685,7 +1706,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -3200,6 +3221,68 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
     .footer-inner { padding: 22px 20px; border-radius: 24px; }
     .teaser-img { min-height: 190px; }
 }
+
+/* ── 颱風頁（v7.1）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
+.storm-bar {
+    position: sticky; top: calc(var(--header-h) + 22px); z-index: 50;
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
+    width: max-content; max-width: 100%; margin: 6px auto 4px; padding: 5px;
+    border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: var(--glass-spec), var(--shadow-md);
+}
+.storm-tabs { margin: 0; background: transparent; padding: 0; flex-wrap: nowrap; }
+.storm-tab { padding: 9px 20px; font-size: .92em; }
+.model-pick { display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border-left: 1px solid var(--border);
+              font-size: .84em; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.model-select {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    font: inherit; font-size: 1.04em; font-weight: 650; color: var(--text);
+    padding: 7px 32px 7px 14px; border-radius: 999px; border: 1px solid var(--glass-line);
+    background: var(--glass-hi) no-repeat right 12px center / 11px
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%237f8c99' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    box-shadow: var(--glass-spec);
+}
+.model-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-theme="dark"] .model-select option { background: #1b2533; color: #f1f5fa; }
+.storm-bar.no-pick .model-pick { display: none; }
+.tab-pane { display: flex; flex-direction: column; gap: 24px; }
+.tab-pane.swap-in { animation: swapIn .45s var(--ease-out); }
+
+/* 各圖的模式分頁交給上方選單；同一模式有系集／決定性兩種時才留兩顆小分頁 */
+.seg.mt-linked { display: none; }
+.seg.mt-linked.mt-variants { display: inline-flex; }
+.model-tab-btn[hidden] { display: none; }
+.mt-shown { margin-left: 4px; padding: 3px 10px; border-radius: 999px; font-size: .72em; font-weight: 650;
+            letter-spacing: .01em; background: var(--accent-lo); color: var(--accent); }
+.mt-shown:empty { display: none; }
+.mt-shown.miss { background: var(--surface-3); color: var(--text-2); }
+
+/* 圖說收合：「ⓘ 怎麼看這張圖」 */
+.note-fold { margin-top: 10px; }
+.note-fold > summary {
+    list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px 5px 9px; border-radius: 999px; font-size: .8em; font-weight: 600; color: var(--text-3);
+    transition: background .2s, color .2s;
+}
+.note-fold > summary::-webkit-details-marker { display: none; }
+.note-fold > summary::before { content: "ⓘ"; font-size: 1.1em; }
+.note-fold > summary:hover, .note-fold[open] > summary { background: var(--surface-2); color: var(--text-2); }
+.note-fold > .map-note { margin-top: 6px; }
+.jtwc-src { margin-top: 10px; font-size: .78em; color: var(--text-3); }
+
+@media (max-width: 900px) {
+    .storm-bar { top: 8px; }
+}
+@media (max-width: 600px) {
+    /* 手機：分頁佔滿一列，模式選單縮在第二列右邊 */
+    .storm-bar { width: 100%; border-radius: 24px; padding: 4px; justify-content: flex-end; }
+    .storm-tabs { width: 100%; justify-content: space-between; }
+    .storm-tab { flex: 1 1 0; padding: 8px 4px; font-size: .86em; }
+    .model-pick { border-left: 0; padding: 0 2px 2px; font-size: .78em; }
+    .model-select { padding: 5px 28px 5px 12px; }
+    .tab-pane { gap: 18px; }
+}
 """
 
 _JS = r"""
@@ -3385,6 +3468,14 @@ const I18N = {
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
+    'tab.now':          'Summary',
+    'tab.track':        'Track',
+    'tab.strike':       'Strike',
+    'tab.int':          'Intensity',
+    'tab.score':        'Scores',
+    'mp.label':         'Model',
+    'mp.fallback':      'No {m} here · showing {y}',
+    'note.how':         'How to read this',
     'grp.now':          'Now',
     'grp.fc':           'Forecast',
     'grp.bg':           'Background &amp; verification',
@@ -3461,7 +3552,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3603,6 +3694,14 @@ const I18N = {
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
+    'tab.now':          '概況',
+    'tab.track':        '路徑',
+    'tab.strike':       '侵襲',
+    'tab.int':          '強度',
+    'tab.score':        '成績',
+    'mp.label':         '模式',
+    'mp.fallback':      '這張圖沒有 {m}，顯示 {y}',
+    'note.how':         '怎麼看這張圖',
     'grp.now':          '現況',
     'grp.fc':           '預報',
     'grp.bg':           '背景與校驗',
@@ -3679,7 +3778,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁由整體到細節依序是：最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、模式比較、動畫、系集路徑圖與互動地圖、各國官方預報比較、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報、颱風底下的海洋熱含量、500 hPa 駛流場，以及模式的路徑、沿／跨路徑與強度誤差成績單。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報與颱風底下的海洋熱含量）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -4007,6 +4106,75 @@ function linkModelTabs(tab) {
         const hit = btns.find(b => b.dataset.model === tab.dataset.model) || btns.find(b => modelGroup(b.dataset.model) === g);
         if (hit && !hit.classList.contains('active')) switchModelTab(tr, hit.dataset.model);
     });
+}
+
+// ── 颱風頁：上方分頁（概況／路徑／侵襲／強度／成績）與整頁一個模式選單 ──────────
+// 分頁沿用 model-tab-btn／model-panel 的切換機制；換頁時若已捲過分頁列，捲回分頁列頂端。
+// 模式選單取代各圖自己的模式分頁：選了之後每張圖都切到同一個模式，各圖的分頁列隱藏；
+// 同一模式有系集與決定性兩種（如 AIFS-ENS／AIFS-single）時，該圖只留這兩顆小分頁。
+function pickModel(view, name, save = true) {
+    const g = modelGroup(name);
+    $$('.seg.mt-linked', view).forEach(seg => {
+        const btns = $$('.model-tab-btn', seg);
+        const hits = btns.filter(b => modelGroup(b.dataset.model) === g);
+        btns.forEach(b => { b.hidden = hits.length > 0 && !hits.includes(b); });
+        seg.classList.toggle('mt-variants', hits.length > 1);
+        let pick = hits.find(b => b.classList.contains('active')) || hits[0];
+        if (!pick) pick = btns.find(b => b.classList.contains('active')) || btns[0];
+        if (pick && !pick.classList.contains('active')) switchModelTab(pick.dataset.track, pick.dataset.model);
+        const panel = seg.closest('.panel');
+        const chip = panel && $('.mt-shown', panel);
+        if (!chip || !pick) return;
+        chip.classList.toggle('miss', !hits.length);
+        if (hits.length) { chip.removeAttribute('data-i18n'); chip.textContent = pick.dataset.model; }
+        else {
+            chip.setAttribute('data-i18n', 'mp.fallback');
+            chip.dataset.i18nM = name; chip.dataset.i18nY = pick.dataset.model;
+            chip.textContent = t('mp.fallback', { m: name, y: pick.dataset.model });
+        }
+    });
+    const sel = $('.model-select', view);
+    if (sel && sel.value !== name) sel.value = name;
+    if (save) try { sessionStorage.setItem('model', name); } catch (e) {}
+    requestAnimationFrame(updateIndicators);
+}
+function initStormTabs() {
+    $$('.view[data-view^="storm/"]').forEach(view => {
+        const sel = $('.model-select', view);
+        if (sel) {
+            const groups = new Set([...sel.options].map(o => modelGroup(o.value)));
+            $$('.seg.model-tabs:not(.storm-tabs)', view).forEach(seg => {
+                if ($$('.model-tab-btn', seg).some(b => groups.has(modelGroup(b.dataset.model)))) seg.classList.add('mt-linked');
+            });
+            let saved = null;
+            try { saved = sessionStorage.getItem('model'); } catch (e) {}
+            const opt = saved && [...sel.options].find(o => modelGroup(o.value) === modelGroup(saved));
+            pickModel(view, opt ? opt.value : sel.value, false);
+            sel.addEventListener('change', () => pickModel(view, sel.value));
+        }
+        // 自動重新整理後停在原本的分頁
+        let tab = null;
+        try { tab = sessionStorage.getItem('tab:' + view.dataset.view); } catch (e) {}
+        const b = tab && $(`.storm-tab[data-model="${tab}"]`, view);
+        if (b) switchModelTab(b.dataset.track, tab);
+        syncModelPick(view);
+    });
+}
+// 目前分頁沒有跟著模式切換的圖（概況、成績）時，模式選單先收起來
+function syncModelPick(view) {
+    const bar = $('.storm-bar', view), pane = $$('.tab-pane', view).find(p => p.style.display !== 'none');
+    if (bar) bar.classList.toggle('no-pick', !!pane && !$('.seg.mt-linked', pane));
+}
+function onStormTab(btn) {
+    const view = btn.closest('.view');
+    syncModelPick(view);
+    try { sessionStorage.setItem('tab:' + view.dataset.view, btn.dataset.model); } catch (e) {}
+    const anchor = $('.storm-bar-anchor', view), bar = $('.storm-bar', view);
+    if (anchor && bar) {
+        const stuck = parseFloat(getComputedStyle(bar).top) || 0;
+        const y = anchor.getBoundingClientRect().top + scrollY - stuck;
+        if (scrollY > y) window.scrollTo({ top: y, behavior: 'instant' });
+    }
 }
 
 // ── 捲動進場、數字跳動、儀表 ──────────────────────────────────────
@@ -4665,7 +4833,11 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 
 document.addEventListener('click', e => {
     const tab = e.target.closest('.model-tab-btn');
-    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); linkModelTabs(tab); return; }
+    if (tab) {
+        switchModelTab(tab.dataset.track, tab.dataset.model);
+        if (tab.classList.contains('storm-tab')) onStormTab(tab); else linkModelTabs(tab);
+        return;
+    }
     const pl = e.target.closest('.player');
     if (!pl) return;
     const P = players[pl.dataset.animKey];
@@ -5416,6 +5588,7 @@ $('#lang-btn').addEventListener('click', switchLang);
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });
 $$('.player').forEach(initPlayer);
+initStormTabs();
 initCompare();
 staggerReveals();
 applyLang(currentLang, false);
