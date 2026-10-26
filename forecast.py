@@ -2409,18 +2409,16 @@ def compute_scorecard() -> dict:
     def _homog(rs):
         # 每顆颱風、每個時數各自要求「該颱風出現過的模式全到」：只在某些颱風才有的模式
         # （例如 GENC）不會把其他颱風的樣本整個擋掉。
-        # 中途才加入的模式（2026-10-16 加入的 AIGFS／GFS，NOMADS 只補得到兩天）在它
-        # 第一期之前不算缺席，否則較早的期數會整期被踢出同質樣本
+        # 以前「模式第一期之前不算缺席」的例外（給 2026-10-16 才加入的 AIGFS／GFS）已經拿掉：
+        # 它們後來補齊到存檔第一期 10/14 18Z，那條例外反而讓真的缺期的模式（Champi 的
+        # AIGEFS／GEFS 沒有 10/14 18Z）被當成「還沒加入」，同質樣本各模式的 n 就不一樣了
         present: dict = {}
         cases: dict = {}
-        first: dict = {}
         for r in rs:
             t, mdl, ini, ld = r[:4]
             present.setdefault((t, ld), set()).add(mdl)
             cases.setdefault((t, ini, ld), set()).add(mdl)
-            first[(t, mdl)] = min(first.get((t, mdl), ini), ini)
-        ok = {k for k, ms in cases.items()
-              if ms >= {m for m in present[(k[0], k[2])] if first[(k[0], m)] <= k[1]}}
+        ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
         return [r for r in rs if (r[0], r[2], r[3]) in ok]
 
     card = {}
