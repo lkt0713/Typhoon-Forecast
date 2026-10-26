@@ -2960,6 +2960,7 @@ header {
 .header-brand:hover .brand-mark { transform: rotate(-360deg); }
 .brand-mark { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
 .brand-text h1 { font-weight: 700; font-size: 1.02em; letter-spacing: -.01em; }
+.brand-text small { display: none; }   /* 模式清單副標在寬螢幕會折成三行，玻璃頁首只留站名 */
 html[lang^="zh"] .brand-text h1 { letter-spacing: .04em; }
 .nav-link { border-radius: 999px; font-weight: 600; font-size: .86em; color: var(--text-2); padding: 8px 14px; }
 .nav-link:hover { color: var(--text); }
@@ -3031,6 +3032,8 @@ header.mini .brand-text { display: none; }
 .hero { min-height: calc(100svh - var(--header-h) - 20px); background: transparent; }
 .hero::after { display: none; }
 .hero-inner { max-width: 1380px; padding: 64px 28px 72px; }
+/* 寬螢幕：文字不再擠在中間 1380px 的欄裡（左邊空一大片、地球卻貼著右邊），改成依畫面寬度留邊 */
+@media (min-width: 1100px) { .hero-inner { max-width: none; padding-left: clamp(28px, 4vw, 112px); padding-right: clamp(28px, 4vw, 112px); } }
 .eyebrow {
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
     -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
