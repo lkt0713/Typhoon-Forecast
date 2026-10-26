@@ -538,7 +538,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
                  [(smp, c) for smp, c in (('homog', h), ('all', a)) if c['track']])
         for sample, c in cands:
             if any(c == prev for _, _, prev in items):
-                if scope == 'storm' and 'score.onestorm' not in notes:
+                if scope == 'allst' and 'score.onestorm' not in notes:   # 只有這顆有資料：「所有颱風」與「這個颱風」相同
                     notes.append('score.onestorm')
                 continue
             if sample == 'same' and 'score.same' not in notes:
@@ -1387,9 +1387,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             order = [x for m in models if isinstance(m, dict)
                      for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x]
             det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
-            # 預設「所有颱風・同質樣本」：樣本最多、比較也最公平
+            # 「這個颱風」排前面（預設），「所有颱風」在後；各自再分同質／全部樣本
             body = _score_block(f"{key_prefix}-score",
-                                [('allst', _card_m.get('scorecard_all')), ('storm', _card_m.get('scorecard'))],
+                                [('storm', _card_m.get('scorecard')), ('allst', _card_m.get('scorecard_all'))],
                                 order, det_names)
             if not body:
                 body = ('<p class="map-note" data-i18n="score.pending">Collecting data — the first '
