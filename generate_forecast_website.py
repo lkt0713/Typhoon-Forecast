@@ -3142,6 +3142,16 @@ details.sec-group > summary .fold-hint {
 .seg-ind { border-radius: 999px; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04); }
 [data-theme="dark"] .seg-ind { background: rgba(255,255,255,.2); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 3px 8px rgba(0,0,0,.3); }
 .model-tab-btn { border-radius: 999px; font-weight: 600; padding: 7px 16px; }
+/* 分頁鈕太多時不換行（換行會把膠囊撐成一大塊），改成單列左右滑，邊緣淡出提示還有 */
+.seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.seg::-webkit-scrollbar { display: none; }
+.seg .model-tab-btn { flex-shrink: 0; white-space: nowrap; }
+.seg.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+                      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.seg.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+                      mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.seg.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+                             mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 .model-tab-btn.active { color: var(--text); }
 .seg:not(.ready) .model-tab-btn.active { background: #fff; }
 [data-theme="dark"] .seg:not(.ready) .model-tab-btn.active { background: rgba(255,255,255,.2); }
@@ -4080,9 +4090,23 @@ function updateIndicators() {
         if (!seg.offsetParent) return;
         placeIndicator($('.seg-ind', seg), $('.model-tab-btn.active', seg));
         seg.classList.add('ready');
+        segFade(seg);
     });
 }
 window.addEventListener('resize', () => requestAnimationFrame(() => { NavDrop.fit(); updateIndicators(); }));
+// 分頁列可左右滑時，哪一邊還有東西就淡出哪一邊
+function segFade(seg) {
+    const max = seg.scrollWidth - seg.clientWidth;
+    seg.classList.toggle('fade-l', max > 1 && seg.scrollLeft > 1);
+    seg.classList.toggle('fade-r', max > 1 && seg.scrollLeft < max - 1);
+}
+document.addEventListener('scroll', e => { if (e.target.classList && e.target.classList.contains('seg')) segFade(e.target); }, true);
+function revealTab(btn) {
+    const seg = btn.closest('.seg');
+    if (!seg || seg.scrollWidth <= seg.clientWidth + 1) return;
+    const left = btn.offsetLeft - (seg.clientWidth - btn.offsetWidth) / 2;
+    seg.scrollTo({ left: Math.max(0, left), behavior: reduced() ? 'auto' : 'smooth' });
+}
 
 // ── Model tab switching (WN3-C / WN2-C r2 / WN2-C r1 / GENC for the same storm) ──
 function switchModelTab(trackId, model) {
@@ -4099,7 +4123,7 @@ function switchModelTab(trackId, model) {
         if (!isActive) pausePlayersIn(el);
     });
     $$('.model-tab-btn').filter(b => b.dataset.track === trackId)
-        .forEach(b => b.classList.toggle('active', b.dataset.model === model));
+        .forEach(b => { b.classList.toggle('active', b.dataset.model === model); if (b.dataset.model === model && b.offsetParent) revealTab(b); });
     requestAnimationFrame(updateIndicators);
 }
 
