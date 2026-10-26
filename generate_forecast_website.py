@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.9.0"
+SITE_VERSION = "7.0.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1507,7 +1507,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
             ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
-            ('int', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
+            ('intensity', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
             ('score', 'tab.score', 'Scores', score_html),
         ]
         panes = [pn for pn in panes if pn[3].strip()]
@@ -2836,7 +2836,7 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
 }
 
 /* ═════════════════════════════════════════════════════════════════
-   v6.9「毛玻璃」：參考 iOS 26 Liquid Glass —— 半透明玻璃面板浮在
+   v7「毛玻璃」：參考 iOS 26 Liquid Glass —— 半透明玻璃面板浮在
    柔和的海洋色背景上；面板用 backdrop-filter 模糊＋提高彩度，
    上緣一道高光、大圓角、膠囊形按鈕，字體回到一般大小寫的無襯線字。
    ═════════════════════════════════════════════════════════════════ */
@@ -2960,6 +2960,7 @@ header {
 .header-brand:hover .brand-mark { transform: rotate(-360deg); }
 .brand-mark { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
 .brand-text h1 { font-weight: 700; font-size: 1.02em; letter-spacing: -.01em; }
+.brand-text small { display: none; }   /* 模式清單副標在寬螢幕會折成三行，玻璃頁首只留站名 */
 html[lang^="zh"] .brand-text h1 { letter-spacing: .04em; }
 .nav-link { border-radius: 999px; font-weight: 600; font-size: .86em; color: var(--text-2); padding: 8px 14px; }
 .nav-link:hover { color: var(--text); }
@@ -3031,6 +3032,8 @@ header.mini .brand-text { display: none; }
 .hero { min-height: calc(100svh - var(--header-h) - 20px); background: transparent; }
 .hero::after { display: none; }
 .hero-inner { max-width: 1380px; padding: 64px 28px 72px; }
+/* 寬螢幕：文字不再擠在中間 1380px 的欄裡（左邊空一大片、地球卻貼著右邊），改成依畫面寬度留邊 */
+@media (min-width: 1100px) { .hero-inner { max-width: none; padding-left: clamp(28px, 4vw, 112px); padding-right: clamp(28px, 4vw, 112px); } }
 .eyebrow {
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
     -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
@@ -3049,7 +3052,7 @@ html[lang^="zh"] .hero-title { line-height: 1.15; }
 .hero-storms li:first-child a { border-top: 0; }
 .hero-storms li:last-child a { border-bottom: 0; }
 .hero-storms .hs-name { font-weight: 700; color: #fff; }
-.cat-pill { border-radius: 999px; font-weight: 700; padding: 4px 12px; }
+.cat-pill { border-radius: 999px; font-weight: 700; padding: 4px 12px; text-align: center; }   /* 首頁颱風列對齊成欄時，膠囊會被撐成同寬，字要置中 */
 .hero-sub { color: rgba(255,255,255,.72); }
 .btn-primary, .btn-ghost { border-radius: 999px; padding: 13px 24px; font-weight: 650; }
 .btn-primary { background: rgba(255,255,255,.92); color: #0b2440; box-shadow: inset 0 1px 0 #fff, 0 10px 30px rgba(0,0,0,.25); }
@@ -3246,7 +3249,7 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
     .teaser-img { min-height: 190px; }
 }
 
-/* ── 颱風頁（v6.9）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
+/* ── 颱風頁（v7）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
 .storm-bar {
     position: sticky; top: calc(var(--header-h) + 22px); z-index: 50;
     display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
@@ -4137,7 +4140,8 @@ function linkModelTabs(tab) {
     const view = tab.closest('.view');
     if (!view) return;
     const g = modelGroup(tab.dataset.model);
-    const tracks = new Set($$('.model-tab-btn', view).map(b => b.dataset.track));
+    // 頁面分頁（概況／路徑…）不參與連動：成績單的「強度誤差」鈕和「強度」分頁同名，會被誤切過去
+    const tracks = new Set($$('.model-tab-btn:not(.storm-tab)', view).map(b => b.dataset.track));
     tracks.delete(tab.dataset.track);
     tracks.forEach(tr => {
         const btns = $$('.model-tab-btn', view).filter(b => b.dataset.track === tr);
@@ -5439,6 +5443,22 @@ const Globe = (function () {
             const s = route.startsWith('storm/') ? byId[route.slice(6)] : (route === 'overview' && G.focus ? byId[G.focus] : null);
             return s ? [s.lat, s.lon] : WPAC;
         }
+        // 總覽 hero 文字（標題、颱風清單、說明、按鈕…）實際的右緣（px）；量的是內容，不是撐滿整欄的區塊。
+        // 只在視窗大小或語言改變時重量
+        let textRKey = '', textRVal = 0;
+        function heroTextRight(W, H) {
+            const key = `${W}x${H}:${currentLang}`;
+            if (key === textRKey) return textRVal;
+            const inner = $('.view[data-view="overview"] .hero-inner');
+            let r = 0;
+            if (inner && inner.offsetParent) {
+                const rg = document.createRange();
+                for (const c of inner.children) { rg.selectNodeContents(c); r = Math.max(r, rg.getBoundingClientRect().right); }
+            }
+            textRKey = inner && inner.offsetParent ? key : '';
+            return (textRVal = r);
+        }
+
         function targets(W, H) {
             const asp = W / H, portrait = asp < .8;
             const hv = portrait ? 1 / (.78 * asp) : asp < 1.2 ? 1.9 : 1.6;   // 可視半高（世界單位）＝決定地球多大
@@ -5460,9 +5480,21 @@ const Globe = (function () {
                     const top = Math.max(hr.top + scrollY, 0), bot = Math.min(hr.bottom + scrollY, H - nb);
                     if (bot > top) y0 = 1 - (top + bot) / H + .08;     // 置中後再略往上一點
                 }
-                const K = portrait
-                    ? [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
-                    : [[.42, .02, 0], [-.5, -.12, -1.5], [.55, .25, -3]];
+                let K;
+                if (portrait) K = [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]];   // 手機直式：地球起始位置往下移一點
+                else {
+                    // 橫式：起始位置在右側約 71% 處、略低於畫面中央（hero 在浮動頁首下方）。
+                    // 中等寬度的橫式螢幕（1024×768 之類）會壓到左邊的文字：往右移並縮小，右側最多切掉約 15%
+                    //（再多，颱風標籤就會被畫面右緣切掉）
+                    const ppu = H / 2 / hv, R = 1.1 * ppu, gap = 28;   // 每單位多少 px；R＝含光暈的半徑
+                    const textR = heroTextRight(W, H);
+                    let sc = 1, cx = W * .71;
+                    if (cx - R < textR + gap) {
+                        sc = Math.max(.6, Math.min(1, (W - textR - gap) / (1.7 * R)));
+                        cx = textR + gap + R * sc;
+                    }
+                    K = [[(cx - W / 2) / (ppu * sc) / hw, -.12 / sc, camZ * (1 - 1 / sc)], [-.5, -.12, -1.5], [.55, .25, -3]];
+                }
                 const e1 = ease(hp), e2 = ease(pp);
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
                 T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
