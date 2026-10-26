@@ -1507,7 +1507,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
             ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
-            ('int', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
+            ('intensity', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
             ('score', 'tab.score', 'Scores', score_html),
         ]
         panes = [pn for pn in panes if pn[3].strip()]
@@ -4140,7 +4140,8 @@ function linkModelTabs(tab) {
     const view = tab.closest('.view');
     if (!view) return;
     const g = modelGroup(tab.dataset.model);
-    const tracks = new Set($$('.model-tab-btn', view).map(b => b.dataset.track));
+    // 頁面分頁（概況／路徑…）不參與連動：成績單的「強度誤差」鈕和「強度」分頁同名，會被誤切過去
+    const tracks = new Set($$('.model-tab-btn:not(.storm-tab)', view).map(b => b.dataset.track));
     tracks.delete(tab.dataset.track);
     tracks.forEach(tr => {
         const btns = $$('.model-tab-btn', view).filter(b => b.dataset.track === tr);
@@ -5442,6 +5443,22 @@ const Globe = (function () {
             const s = route.startsWith('storm/') ? byId[route.slice(6)] : (route === 'overview' && G.focus ? byId[G.focus] : null);
             return s ? [s.lat, s.lon] : WPAC;
         }
+        // 總覽 hero 文字（標題、颱風清單、說明、按鈕…）實際的右緣（px）；量的是內容，不是撐滿整欄的區塊。
+        // 只在視窗大小或語言改變時重量
+        let textRKey = '', textRVal = 0;
+        function heroTextRight(W, H) {
+            const key = `${W}x${H}:${currentLang}`;
+            if (key === textRKey) return textRVal;
+            const inner = $('.view[data-view="overview"] .hero-inner');
+            let r = 0;
+            if (inner && inner.offsetParent) {
+                const rg = document.createRange();
+                for (const c of inner.children) { rg.selectNodeContents(c); r = Math.max(r, rg.getBoundingClientRect().right); }
+            }
+            textRKey = inner && inner.offsetParent ? key : '';
+            return (textRVal = r);
+        }
+
         function targets(W, H) {
             const asp = W / H, portrait = asp < .8;
             const hv = portrait ? 1 / (.78 * asp) : asp < 1.2 ? 1.9 : 1.6;   // 可視半高（世界單位）＝決定地球多大
@@ -5463,9 +5480,21 @@ const Globe = (function () {
                     const top = Math.max(hr.top + scrollY, 0), bot = Math.min(hr.bottom + scrollY, H - nb);
                     if (bot > top) y0 = 1 - (top + bot) / H + .08;     // 置中後再略往上一點
                 }
-                const K = portrait
-                    ? [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]]   // 手機直式：地球起始位置往下移一點
-                    : [[.42, -.12, 0], [-.5, -.12, -1.5], [.55, .25, -3]];   // 橫式：起始位置略低於畫面中央，hero 在浮動頁首下方，置中在 hero 裡才不會頂到上緣
+                let K;
+                if (portrait) K = [[0, y0, 0], [.42, .12, -2], [-.4, -.2, -3]];   // 手機直式：地球起始位置往下移一點
+                else {
+                    // 橫式：起始位置在右側約 71% 處、略低於畫面中央（hero 在浮動頁首下方）。
+                    // 中等寬度的橫式螢幕（1024×768 之類）會壓到左邊的文字：往右移並縮小，右側最多切掉約 15%
+                    //（再多，颱風標籤就會被畫面右緣切掉）
+                    const ppu = H / 2 / hv, R = 1.1 * ppu, gap = 28;   // 每單位多少 px；R＝含光暈的半徑
+                    const textR = heroTextRight(W, H);
+                    let sc = 1, cx = W * .71;
+                    if (cx - R < textR + gap) {
+                        sc = Math.max(.6, Math.min(1, (W - textR - gap) / (1.7 * R)));
+                        cx = textR + gap + R * sc;
+                    }
+                    K = [[(cx - W / 2) / (ppu * sc) / hw, -.12 / sc, camZ * (1 - 1 / sc)], [-.5, -.12, -1.5], [.55, .25, -3]];
+                }
                 const e1 = ease(hp), e2 = ease(pp);
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
                 T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
