@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.8.0"
+SITE_VERSION = "6.9.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -251,12 +251,14 @@ def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt
                     </div>"""
 
 
-def _pair(a: str, b: str) -> str:
-    """兩個圖卡都有時，電腦版並排成一排（與系集路徑／JTWC 同一套 maps-grid，
-    ≤1100px 自動回到一欄，手機版不變）；只有一個就照原樣。"""
-    if a.strip() and b.strip():
-        return f'<div class="maps-grid">{a}{b}</div>'
-    return a + b
+# 面板標題旁的小標籤：目前顯示哪個模式（由颱風頁上方的模式選單控制，腳本填字）
+MT_SHOWN = '<span class="mt-shown" aria-live="polite"></span>'
+
+
+def _model_group(name: str) -> str:
+    """同一個模式的不同寫法算一組（與頁尾腳本的 modelGroup 相同）：AIFS-ENS／AIFS-single／AIFS → AIFS。"""
+    n = re.sub(r'-ENS$|-SINGLE$| HRES$', '', str(name).upper())
+    return {'AIGEFS': 'AIGFS', 'GEFS': 'GFS'}.get(n, n)
 
 
 def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, title: str,
@@ -276,7 +278,7 @@ def _tabbed_image_panel(sec_id: str, track_key: str, icon: str, title_key: str, 
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">{icon}</span>
-                    <span data-i18n="{title_key}">{title}</span>
+                    <span data-i18n="{title_key}">{title}</span>{MT_SHOWN if len(items) > 1 else ''}
                 </div>
                 {tabs}
                 {panels}
@@ -787,7 +789,7 @@ def _app_icon(size: int):
     y = np.linspace(0, 1, S)[:, None]
     x = np.linspace(0, 1, S)[None, :]
     t = np.clip((x + y) / 2, 0, 1)[..., None]
-    a, b = np.array([27, 92, 148]), np.array([15, 155, 142])   # --accent → --accent-2
+    a, b = np.array([58, 160, 255]), np.array([10, 95, 196])    # 與頁首 logo 同一組漸層（#3aa0ff → #0a5fc4）
     img = Image.fromarray((a + (b - a) * t).astype('uint8'), 'RGB')
     d = ImageDraw.Draw(img)
     c, r, R, w = S / 2, S * 0.1, S * 0.2, int(S * 0.045)
@@ -1202,7 +1204,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="panel reveal" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">🎬</span>
-                    <span data-i18n="panel.anim.generic">Track Evolution Animation</span>
+                    <span data-i18n="panel.anim.generic">Track Evolution Animation</span>{MT_SHOWN if multi_model else ''}
                     <span class="panel-aside kbd-hint" data-i18n="kbd.hint"><kbd>Space</kbd> play/pause &nbsp;<kbd>←</kbd><kbd>→</kbd> seek</span>
                 </div>
                 {_model_tabs(track_id, model_names) if multi_model else f'<div class="model-label">{_esc(first_anim_model)}</div>'}
@@ -1241,24 +1243,22 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         sec_id = f"sec-{key_prefix}-maps"
         sections.append((sec_id, 'sub.maps', 'Ensemble & JTWC'))
         maps_html = f"""
-            <div class="maps-grid" id="{sec_id}">
-                <div class="panel reveal">
+            <div class="panel reveal" id="{sec_id}">
                     <div class="panel-header">
                         <span class="panel-icon">🗺</span>
-                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>
+                        <span data-i18n="panel.ensemble">Ensemble Track Forecast</span>{MT_SHOWN if multi_model else ''}
                     </div>
                     {_model_tabs(track_id, model_names) if multi_model else ''}
                     {"".join(map_panels)}
-                </div>
-
-                <div class="panel reveal">
+            </div>"""
+        jtwc_html = f"""
+            <div class="panel reveal" id="sec-{key_prefix}-jtwc">
                     <div class="panel-header">
                         <span class="panel-icon">🛰</span>
                         <span data-i18n="panel.jtwc">JTWC Official Forecast</span>
                     </div>
                     {_figure(f"jtwc_{track_id}.gif", "JTWC Forecast", "this.closest('.panel').style.display='none';")}
-                    <p class="map-note" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
-                </div>
+                    <p class="jtwc-src" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
             </div>"""
 
         # ── 侵襲機率、強度預報（每模式一張，另加 1000 成員）
@@ -1500,30 +1500,52 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </p>
             </div>"""
 
-        # 導覽按鈕照頁面上的排列順序（區塊產生的先後不等於擺放的先後）
-        page_order = ['sat', 'official', 'cmp', 'anim', 'maps', 'tmap', 'strike', 'strikex', 'cities', 'trend', 'plume', 'ohc', 'steer', 'score']
-        sections.sort(key=lambda t: page_order.index(t[0].rsplit('-', 1)[-1])
-                      if t[0].rsplit('-', 1)[-1] in page_order else len(page_order))
-        subnav = "".join(
-            f'<button data-target="{sid}" data-i18n="{k}">{txt}</button>' for sid, k, txt in sections)
-
         summary_html = _storm_summary(info, city_cols)
 
-        def _group(gid, key, title, body, fold=False):
-            """把幾個區塊包成一組，組前一個標題；fold=True 的那組預設收合。"""
-            if not body.strip():
-                return ''
-            head = f'<h3 class="sec-group-title" data-i18n="{key}">{title}</h3>'
-            if fold:
-                return (f'<details class="sec-group" id="grp-{key_prefix}-{gid}"><summary>{head}'
-                        f'<span class="fold-hint" data-i18n="grp.more">Show</span></summary>{body}</details>')
-            return f'<section class="sec-group" id="grp-{key_prefix}-{gid}">{head}{body}</section>'
+        # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
+        panes = [
+            ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}"),
+            ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
+            ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
+            ('int', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
+            ('score', 'tab.score', 'Scores', score_html),
+        ]
+        panes = [pn for pn in panes if pn[3].strip()]
 
-        group_now = _group('now', 'grp.now', 'Now', f"{sat_html}{official_html}")
-        group_fc = _group('fc', 'grp.fc', 'Forecast',
-                          f"{_pair(cmp_html, anim_html)}{maps_html}{tmap_html}{_pair(strike_html, extra_html)}"
-                          f"{cities_html}{_pair(trend_html, plume_html)}")
-        group_bg = _group('bg', 'grp.bg', 'Background &amp; verification', f"{ohc_html}{steer_html}{score_html}", fold=True)
+        # 圖說收進「怎麼看這張圖」，需要時再展開
+        def _fold_notes(html):
+            return re.sub(r'(<p class="map-note"[^>]*data-i18n="note\.[^"]+"[^>]*>.*?</p>)',
+                          r'<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>\1</details>',
+                          html, flags=re.S)
+
+        tab_btns = "".join(
+            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" '
+            f'data-track="{key_prefix}-tabs" data-model="{pid}" data-i18n="{k}">{txt}</button>'
+            for i, (pid, k, txt, _) in enumerate(panes))
+        hide = ' style="display:none;"'
+        pane_html = "".join(
+            f'<div class="model-panel tab-pane" data-track="{key_prefix}-tabs" data-model="{pid}" role="tabpanel"'
+            f'{"" if i == 0 else hide}>{_fold_notes(body)}</div>'
+            for i, (pid, _, _, body) in enumerate(panes))
+
+        # 整頁一個模式選單：選項＝各圖分頁裡出現過的模式（同一模式的系集／決定性算一個）
+        pick_labels = list(model_names)
+        for items in (strike_items, plume_items, trend_items):
+            pick_labels += [lbl for lbl, _ in items]
+        seen, picks = set(), []
+        for lbl in pick_labels:
+            g = _model_group(lbl)
+            if g not in seen:
+                seen.add(g)
+                picks.append(lbl)
+        picks = _place_1000(picks)
+        model_pick = ''
+        if len(picks) > 1:
+            opts = "".join(f'<option value="{_esc(x)}">{_esc(x)}</option>' for x in picks)
+            model_pick = (f'<label class="model-pick"><span data-i18n="mp.label">Model</span>'
+                          f'<select class="model-select" aria-label="Model">{opts}</select></label>')
+        storm_bar = (f'<div class="storm-bar"><div class="seg model-tabs storm-tabs" role="tablist">'
+                     f'<span class="seg-ind"></span>{tab_btns}</div>{model_pick}</div>')
 
         storm_views.append(f"""
     <section class="view" data-view="storm/{key_prefix}" data-title="{_esc(_title(info))}">
@@ -1542,10 +1564,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="gauge gauge-lg" data-kt="{kt_txt}" style="--cat:{info['color']}"></div>
             </div>
             <div class="stat-grid">{stats_html}</div>
-            <nav class="subnav" aria-label="Sections">{subnav}</nav>
-            {group_now}
-            {group_fc}
-            {group_bg}
+            <div class="storm-bar-anchor"></div>
+            {storm_bar}
+            {pane_html}
         </div>
     </section>""")
 
@@ -1685,7 +1706,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -1827,7 +1848,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     {share_meta}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200..800&family=Oswald:wght@300..700&family=Noto+Sans+TC:wght@300..900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&family=Noto+Sans+TC:wght@300..900&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | {_esc(title_track_ids)}</title>
     <script>
     // 在第一次繪製前就決定主題（預設黑底，使用者切過就沿用上次的選擇），避免閃一下
@@ -1846,7 +1867,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <a class="skip-link" href="#views">Skip to content</a>
     <header id="site-header">
         <a class="header-brand" href="#/overview">
-            <div class="brand-icon"><span>🌀</span></div>
+            <div class="brand-icon"><span><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M9 12A6 6 0 0 1 20.2 9M15 12A6 6 0 0 1 3.8 15"/></svg></span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
                 <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF / AIGFS / GFS Ensemble Forecast System · Western Pacific</small>
@@ -1906,7 +1927,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                    data-i18n="footer.link7">🌊 HYCOM</a>
             </div>
             <div class="footer-copy" data-i18n="footer.copy">© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use</div>
-            <div class="footer-credit" data-i18n="footer.credit">Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a></div>
         </div>
     </footer>
 
@@ -2742,408 +2762,9 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .badge-cat, .badge-id, .badge-live, .badge-name { padding: 5px 9px; font-size: .72em; }
 }
 
-/* ═════════════════════════════════════════════════════════════════
-   Noir 版面（v4）：參考 usta.agency —— 純黑底、白字、Oswald 大寫巨型標題、
-   描邊字跑馬燈、difference 混色游標、hover 由下往上填滿的反白。
-   寫在最後面整層覆蓋上方的 v3 樣式；淺色主題是同一套語言的「白紙黑字」版。
-   ═════════════════════════════════════════════════════════════════ */
-:root, [data-theme="light"] {
-    --bg:        #e6edf3;
-    --surface:   #f4f7fa;
-    --surface-2: #eaf0f5;
-    --surface-3: #dbe3ea;
-    --accent:    #16324f;
-    --accent-2:  #16324f;
-    --accent-lo: rgba(22,50,79,.07);
-    --accent-rgb: 22,50,79;
-    --text:      #16324f;
-    --text-2:    #3e556b;
-    --text-3:    #6b7785;
-    --border:    rgba(22,50,79,.18);
-    --shadow: none; --shadow-md: none; --shadow-lg: none;
-    --btn-bg:    #16324f;
-    --glass:     rgba(230,237,243,.72);
-    --radius:    0px;
-    --hero-1: #000; --hero-2: #000; --hero-3: #000;
-    --display: 'Oswald', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
-}
-[data-theme="dark"] {
-    --bg:        #000000;
-    --surface:   #050505;
-    --surface-2: #0d0d0d;
-    --surface-3: #181818;
-    --accent:    #fff3dd;
-    --accent-2:  #ffffff;
-    --accent-lo: rgba(255,243,221,.08);
-    --accent-rgb: 255,243,221;
-    --text:      #ffffff;
-    --text-2:    #d1d5db;
-    --text-3:    #7d828a;
-    --border:    rgba(255,255,255,.2);
-    --btn-bg:    #ffffff;
-    --glass:     rgba(0,0,0,.45);
-}
-body {
-    font-family: 'Montserrat', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
-    font-weight: 400;
-}
-::selection { background: #fff3dd; color: #000; }
-
-/* 大標一律 Oswald 大寫；中文落到 Noto Sans TC（大寫對中文無作用） */
-.hero-title, .storm-title, .page-title, .section-head h3, .tile-name, .brand-text h1,
-.empty-title, .model-name, .footer-brand h3, .panel-header, .stat-value, .chip-v,
-.gauge-val b, .scale-now, .btn-primary, .btn-ghost, .mq {
-    font-family: var(--display);
-    text-transform: uppercase;
-}
-
-/* 方角、無陰影 */
-.storm-tile, .empty-card, .genesis-teaser, .storm-hero, .stat, .model-card, .panel, .subnav,
-.subnav button, .seg, .seg-ind, .model-tab-btn, .zoomable, .player, .update-badge, .theme-btn,
-.version-badge, .btn-primary, .btn-ghost, .hero-chip, .eyebrow, .badge-cat, .badge-id, .badge-live,
-.badge-name, .cat-pill, .count-chip, .mini-chip, .switch-chip, .ghost-btn, .pc-btn:not(.pc-main),
-.speed-seg, .speed-btn, .genesis-legend, .scale-row, .model-label, .cmp-stage, .lightbox img,
-.lb-close, .compare-pickers select, .ss-seg, .teaser-img, .calm-sea, .bottom-nav, .bottom-nav a,
-.zoom-hint, kbd, .brand-icon, .nav-link, .nav-indicator { border-radius: 0 !important; }
-.btn-primary, .btn-primary:hover, .subnav button.active, .pc-main, .seg-ind, .storm-hero,
-.storm-tile, .panel, .stat, .model-card { box-shadow: none !important; }
-
-/* ── 自訂游標：外層跟著滑鼠平移；整顆用 difference 混色 ── */
-html.has-cursor, html.has-cursor * { cursor: none !important; }
-html.has-cursor input[type="range"], html.has-cursor select, html.has-cursor .cmp-stage { cursor: auto !important; }
-#cursor {
-    position: fixed; left: 0; top: 0; z-index: 100000; pointer-events: none;
-    width: 0; height: 0; mix-blend-mode: difference;
-    opacity: 0; transition: opacity .3s;
-}
-/* 圓點固定大小（原本按下時縮到的 11.2px，即 16px × 0.7），不隨懸停／按下縮放 */
-#cursor::before {
-    content: ""; position: absolute; left: -5.6px; top: -5.6px; width: 11.2px; height: 11.2px; border-radius: 50%;
-    background: #fff;
-}
-#cursor.on { opacity: 1; }
-
-/* ── Header：黑色毛玻璃 ── */
-header { background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); padding: 0 32px; }
-[data-theme="dark"] header { background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.15)); }
-.scroll-progress { background: var(--text); height: 1px; }
-.brand-icon { background: none; box-shadow: none; border: 1px solid var(--border); }
-.brand-text h1 { font-weight: 600; font-size: 1.15em; letter-spacing: .06em; }
-html[lang^="zh"] .brand-text h1 { letter-spacing: .08em; }
-
-/* 導覽連結等：hover 時色塊由下往上填滿、字反白 */
-.nav-link, .footer-link, .theme-btn, .btn-ghost {
-    isolation: isolate; overflow: hidden; position: relative;
-    transition: color .55s cubic-bezier(0,0,.2,1), border-color .3s;
-}
-.nav-link { text-transform: uppercase; letter-spacing: .08em; font-weight: 500; font-size: .8em; color: var(--text-2); }
-html[lang^="zh"] .nav-link { letter-spacing: .1em; }
-.nav-link::before, .footer-link::before, .theme-btn::before, .btn-ghost::before {
-    content: ""; position: absolute; left: 0; right: 0; top: 100%; bottom: 0; z-index: -1;
-    background: var(--text);
-    transition: top .6s cubic-bezier(0,0,.2,1);
-}
-.nav-link:hover::before, .footer-link:hover::before, .theme-btn:hover::before, .btn-ghost:hover::before { top: 0; }
-.nav-link:hover, .footer-link:hover, .theme-btn:hover, .btn-ghost:hover,
-.nav-link.active:hover { color: var(--bg) !important; }
-.nav-link.active { color: var(--text); }
-.nav-indicator { background: none; border: 0; box-shadow: inset 0 -2px 0 var(--text); }
-.nav-dot { box-shadow: none; }
-
-/* 颱風下拉選單：.collapsed 時隱藏各颱風連結、改顯示「颱風 ▾」。
-   .nav-drop 刻意不設定位，讓按鈕的 offsetParent 仍是 .top-nav，滑動指示塊才對得準；
-   選單改以 .top-nav 為定位基準，左緣由 JS 對齊按鈕。 */
-.top-nav.measuring .nav-link { flex-shrink: 0; }
-header.compact .header-actions { gap: 6px; }
-header.compact .ub-long { display: none; }
-header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
-header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
-header.compact #lang-btn .bt { display: none; }
-header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
-header.mini .brand-text { display: none; }
-.top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
-.top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
-.nav-drop { display: none; }
-.nav-drop-btn { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
-.top-nav.collapsed .nav-storm { display: none; }
-.top-nav.collapsed .nav-drop { display: flex; }
-.nd-count { font-style: normal; font-size: .82em; line-height: 1; padding: 3px 6px; border: 1px solid currentColor; opacity: .8; }
-.nd-caret { width: 13px !important; height: 13px !important; transition: transform .3s var(--ease-out); }
-.nav-drop.open .nd-caret { transform: rotate(180deg); }
-.nav-menu {
-    position: absolute; top: calc(100% + 12px); left: 0; z-index: 300; min-width: 300px;
-    display: flex; flex-direction: column; padding: 6px;
-    background: rgba(0,0,0,.86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-    border: 1px solid var(--border);
-    opacity: 0; visibility: hidden; transform: translateY(-6px);
-    transition: opacity .25s, transform .3s var(--ease-out), visibility 0s .3s;
-}
-[data-theme="light"] .nav-menu { background: rgba(255,255,255,.94); }
-.nav-drop.open .nav-menu { opacity: 1; visibility: visible; transform: none; transition: opacity .25s, transform .3s var(--ease-out); }
-.nav-menu-item {
-    display: grid; grid-template-columns: 9px 1fr auto 56px; align-items: center; gap: 12px;
-    padding: 11px 14px; color: var(--text-2); text-decoration: none; white-space: nowrap;
-    font-size: .8em; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
-    transition: background .2s, color .2s;
-}
-.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--text); color: var(--bg); outline: none; }
-.nav-menu-item.active { color: var(--text); box-shadow: inset 2px 0 0 var(--text); }
-.nav-menu-item.active:hover { color: var(--bg); }
-.nm-cat { font-size: .82em; font-weight: 700; padding: 3px 7px; letter-spacing: .06em; }
-.nm-kt { text-align: right; opacity: .75; }
-
-.update-badge, .theme-btn { background: transparent; border-color: var(--border); color: var(--text-2); }
-.theme-btn:hover { background: transparent; border-color: var(--text); }
-.version-badge, [data-theme="dark"] .version-badge { background: var(--text); color: var(--bg); border-color: var(--text); font-family: var(--display); letter-spacing: .08em; }
-.ring-fg { stroke: var(--text); }
-
-/* ── Hero：滿版黑、文字貼底 ── */
-.hero {
-    background: #000;
-    min-height: calc(100svh - var(--header-h));
-    align-items: flex-end;
-}
-[data-theme="light"] .hero::after { background: linear-gradient(to bottom, transparent, var(--bg)); height: 90px; }
-[data-theme="dark"] .hero::after { display: none; }
-.hero-eye { background: radial-gradient(circle, #000 0 16%, rgba(var(--flow-rgb),.14) 32%, transparent 70%); }
-.hero-inner { max-width: 1480px; padding: 80px 32px 64px; }
-.eyebrow {
-    background: none; border: 0; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
-    font-weight: 500; letter-spacing: .3em; color: rgba(255,255,255,.72);
-}
-.eyebrow::before { content: ""; width: 42px; height: 1px; background: currentColor; }
-.hero-title {
-    font-weight: 600; font-size: clamp(2.4rem, 6.5vw, 5.2rem);
-    line-height: .9; letter-spacing: .01em; max-width: none;
-    margin: 22px 0 26px; text-shadow: none;
-}
-html[lang^="zh"] .hero-title { font-size: clamp(2.4rem, 6.5vw, 5.2rem); line-height: 1.12; letter-spacing: .06em; }
-.hero-title.storm-name, .storm-title.storm-name { letter-spacing: .02em !important; }
-.hero-lead { font-weight: 300; font-size: clamp(1.05rem, 1.8vw, 1.5rem); color: rgba(255,255,255,.86); }
-.hero-storms a { font-weight: 300; font-size: clamp(1.05rem, 1.8vw, 1.5rem); color: rgba(255,255,255,.86); }
-.hero-storms .hs-name { font-weight: 500; color: #fff; }
-.hero-sub { font-weight: 300; color: rgba(255,255,255,.62); }
-.cat-pill { font-family: var(--display); font-weight: 500; letter-spacing: .1em; }
-.btn-primary, .btn-ghost { padding: 16px 28px; font-weight: 500; letter-spacing: .14em; font-size: .9em; }
-.btn-primary { background: #fff; color: #000; transition: background .4s, color .4s, transform .4s var(--ease-out); }
-.btn-primary:hover { transform: none; background: #fff3dd; }
-.btn-ghost { color: #fff; border: 1px solid rgba(255,255,255,.4); background: transparent; }
-.btn-ghost::before { background: #fff; }
-.btn-ghost:hover { color: #000 !important; background: transparent; transform: none; }
-/* 上框線只延伸到最後一格（活躍系統）為止，不橫跨整個畫面 */
-.hero-meta { gap: 0; margin-top: 56px; border-top: 1px solid rgba(255,255,255,.2); width: fit-content; max-width: 100%; }
-.hero-chip {
-    background: none; border: 0; border-right: 1px solid rgba(255,255,255,.2);
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-    padding: 18px 34px 4px 0; margin-right: 34px; min-width: 0;
-}
-.hero-chip:last-child { border-right: 0; margin-right: 0; }
-.chip-k { font-weight: 500; letter-spacing: .24em; opacity: .55; font-size: .7em; }
-.chip-v, html[lang^="zh"] .chip-v { font-weight: 400; font-size: 2.1em; letter-spacing: .04em; }
-.scroll-cue { display: none; }
-
-/* ── 跑馬燈：實心／描邊交替的巨型字，中間用小圓點隔開 ── */
-.marquee {
-    overflow: hidden; padding: clamp(28px, 5vw, 64px) 0;
-    border-bottom: 1px solid var(--border); background: var(--bg);
-    display: flex; flex-direction: column; gap: clamp(8px, 1.5vw, 20px);
-}
-.strip { display: flex; width: max-content; animation: run 42s linear infinite; will-change: transform; }
-.strip.reverse { animation-direction: reverse; animation-duration: 56s; }
-.marquee:hover .strip { animation-play-state: paused; }
-@keyframes run { to { transform: translate3d(-50%,0,0); } }
-.mq {
-    display: inline-flex; align-items: center; white-space: nowrap;
-    font-size: clamp(3rem, 9vw, 8.5rem); font-weight: 600; line-height: 1.02; letter-spacing: .01em;
-    color: var(--c, var(--text));
-}
-.mq::after {
-    content: ""; flex-shrink: 0; width: .09em; height: .09em; min-width: 7px; min-height: 7px; border-radius: 50%;
-    background: var(--text); margin: 0 .45em;
-}
-.mq.o { color: transparent; -webkit-text-stroke: 1px var(--text); }
-@media (min-width: 1024px) { .mq.o { -webkit-text-stroke-width: 2px; } }
-.strip.reverse .mq { font-size: clamp(2.2rem, 6vw, 5.5rem); font-weight: 300; }
-.footer-marquee { border-top: 1px solid var(--border); border-bottom: 0; background: transparent; margin-bottom: 40px; }
-
-/* ── 標語：捲動時逐字點亮 ── */
-.statement {
-    max-width: 1480px; margin: 0 auto; padding: clamp(90px, 16vh, 200px) 32px;
-    min-height: 70vh; display: flex; align-items: center;
-}
-.words {
-    font-size: clamp(1.9rem, 4.6vw, 4.4rem); font-weight: 200; line-height: 1.22;
-    color: var(--text-3); max-width: 24ch;
-}
-html[lang^="zh"] .words { font-weight: 300; line-height: 1.5; letter-spacing: .06em; max-width: 20em; font-size: clamp(1.6rem, 3.6vw, 3.4rem); }
-.words strong { font-weight: 600; }
-.wd { opacity: .22; transition: opacity .5s ease, color .5s ease; }
-.wd.lit { opacity: 1; color: var(--text-2); }
-.words strong .wd.lit { color: var(--text); }
-
-/* ── 版面與區塊標題 ── */
-.page { max-width: 1480px; padding: 40px 32px 72px; gap: 32px; }
-.section-head {
-    margin-top: 70px; padding-bottom: 22px; border-bottom: 1px solid var(--border);
-    align-items: flex-end;
-}
-.section-head:first-child { margin-top: 10px; }
-.section-head h3 { font-size: clamp(2.1rem, 4.8vw, 4rem); font-weight: 600; line-height: .95; letter-spacing: .01em; }
-html[lang^="zh"] .section-head h3 { letter-spacing: .08em; line-height: 1.15; }
-.kicker { color: var(--text-3); font-weight: 500; letter-spacing: .3em; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
-.kicker::before { content: ""; width: 32px; height: 1px; background: currentColor; }
-.count-chip { background: none; color: var(--text); font-family: var(--display); font-size: clamp(2.1rem, 4.8vw, 4rem); font-weight: 200; line-height: .95; padding: 0; }
-.page-title { font-size: clamp(2rem, 4.6vw, 3.8rem); font-weight: 600; line-height: 1.1; letter-spacing: .01em; max-width: 20ch; }
-html[lang^="zh"] .page-title { line-height: 1.2; letter-spacing: .06em; }
-.page-lead { font-weight: 300; font-size: 1.1em; }
-.legend-inline { text-transform: uppercase; letter-spacing: .14em; font-weight: 500; }
-
-/* ── 卡片：透明底＋細框，hover 框變實 ── */
-.storm-tile, .empty-card, .genesis-teaser, .model-card, .stat, .panel {
-    background: transparent; border: 1px solid var(--border);
-}
-.storm-tile { padding: 30px; transition: border-color .4s, transform .5s var(--ease-out), opacity .8s var(--ease-out); }
-.storm-tile:hover, .genesis-teaser:hover, .model-card:hover, .stat:hover { border-color: var(--text); transform: none; }
-.storm-tile::before { height: 2px; }
-.storm-tile::after { opacity: .1; }
-.storm-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; }
-/* 兩欄時顆數為奇數，最後一張會單獨佔半邊、右邊空一格 → 讓它橫跨整排（一欄時本來就滿版，不受影響） */
-.storm-grid > .storm-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
-/* 只有真的排成兩欄（容器 ≥ 2×520+24）時，橫跨整排的那張才加寬儀表；單欄時每張都一樣，
-   也讓手機版 .tile-body 單欄規則生效 */
-.storm-grid { container-type: inline-size; }
-@container (min-width: 1064px) {
-    .storm-grid > .storm-tile:last-child:nth-child(odd) .tile-body { grid-template-columns: 1fr minmax(150px, 240px); }
-}
-.tile-name { font-size: clamp(2.2rem, 3.8vw, 3.3rem); font-weight: 600; line-height: .95; overflow-wrap: normal; }
-.tile-catname { font-weight: 400; letter-spacing: .06em; }
-.tile-facts dt { font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: .85em; }
-.tile-facts dd { font-weight: 500; }
-.tile-cta { color: var(--text); font-weight: 500; letter-spacing: .16em; text-transform: uppercase; font-size: .78em; }
-.empty-card { border-style: solid; }
-.empty-title { font-weight: 500; font-size: 1.8em; letter-spacing: .04em; }
-.teaser-body { border-left: 1px solid var(--border); padding: 34px; }
-.mini-chip { background: none; }
-.model-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
-/* 9 個模式：桌機固定一排 3 張（3＋3＋3），不會剩一兩張孤零零掉到下一排 */
-@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(3, 1fr); } }
-.model-card { border-width: 0 1px 1px 0; padding: 24px; }
-.model-card:hover { background: var(--surface-2); }
-.model-name { font-weight: 500; font-size: 1.6em; letter-spacing: .04em; }
-.model-org { color: var(--text-2); font-weight: 500; text-transform: uppercase; letter-spacing: .14em; font-size: .7em; margin-top: 10px; }
-.model-state.on, .model-card.on .model-state { background: #fff3dd; box-shadow: none; animation: none; }
-[data-theme="light"] .model-state.on, [data-theme="light"] .model-card.on .model-state { background: #0a0a0a; }
-
-/* ── 颱風頁 ── */
-.switch-chip { background: none; text-transform: uppercase; }
-.switch-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
-.storm-hero {
-    background: radial-gradient(700px 380px at 85% 50%, color-mix(in srgb, var(--cat) 18%, transparent), transparent 70%), #000;
-    border: 1px solid rgba(255,255,255,.14); padding: 48px 44px;
-}
-.storm-hero .swirl { opacity: .14; }
-.storm-subtitle { font-weight: 500; letter-spacing: .3em; }
-.storm-title { font-size: clamp(2.8rem, 7vw, 6rem); font-weight: 600; line-height: .9; text-shadow: none; margin: 16px 0 24px; }
-.badge-cat, .badge-name, .badge-live, .badge-id { font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
-.badge-id { font-family: var(--display); }
-.gauge-val b { font-weight: 400; }
-.g-prog { filter: none; }
-.stat-grid { gap: 0; border-left: 1px solid var(--border); }
-.stat { border-left: 0; padding: 22px 24px; }
-.stat-label { font-weight: 500; letter-spacing: .24em; }
-.stat-label span[aria-hidden] { display: none; }
-.stat-value { font-weight: 400; font-size: 2.2em; letter-spacing: .03em; }
-.stat-value small { font-family: 'Montserrat', sans-serif; text-transform: none; }
-.scale-head { text-transform: uppercase; letter-spacing: .16em; font-weight: 500; font-size: .78em; }
-.scale-now { font-size: 1.6em; font-weight: 400; letter-spacing: .04em; }
-.ss-seg em { font-weight: 600; }
-.ss-marker span, .ss-marker span::before { box-shadow: 0 0 0 3px var(--bg); }
-.subnav { background: var(--glass); padding: 0; gap: 0; }
-.subnav button { text-transform: uppercase; letter-spacing: .14em; font-weight: 500; font-size: .74em; padding: 12px 20px; }
-.subnav button.active { background: var(--text); color: var(--bg); }
-
-.panel { padding: 28px; }
-.panel-header { font-size: 1.5em; font-weight: 500; letter-spacing: .05em; padding-bottom: 18px; margin-bottom: 22px; }
-html[lang^="zh"] .panel-header { font-size: 1.3em; letter-spacing: .08em; }
-.panel-icon { display: none; }
-.kbd-hint { font-family: 'Montserrat', sans-serif; text-transform: none; letter-spacing: 0; }
-.map-note { font-weight: 300; }
-/* 深色模式的圖說：--text-3 配細字在黑底上太暗，改亮一階、字重回到一般 */
-[data-theme="dark"] .map-note { color: #aeb5be; font-weight: 400; }
-.model-label { background: var(--text); color: var(--bg); font-weight: 500; letter-spacing: .1em; }
-.seg { background: transparent; padding: 0; gap: 0; }
-.model-tab-btn { font-weight: 500; letter-spacing: .1em; padding: 10px 18px; }
-.model-tab-btn.active { color: var(--bg); }
-.seg-ind { background: var(--text); }
-.zoom-hint { background: #000; letter-spacing: .08em; }
-.player, .player-controls, .pc-btn, .speed-seg { background: transparent; }
-.pc-btn:hover { color: var(--text); border-color: var(--text); }
-.pc-main, .pc-main:hover { background: var(--text); color: var(--bg); }
-.player.playing .pc-main { animation: none; }
-.timeline { height: 2px; background: linear-gradient(90deg, var(--text) 0 var(--fill, 0%), var(--border) var(--fill, 0%) 100%); }
-.timeline::-webkit-slider-thumb { background: var(--text); border: 0; width: 14px; height: 14px; }
-.timeline::-moz-range-thumb { background: var(--text); border: 0; }
-.buffer span { background: var(--text); }
-.speed-btn.active { background: var(--text); color: var(--bg); }
-
-/* ── 生成潛勢／說明 ── */
-.genesis-panel { border-top: 2px solid var(--warn); }
-.genesis-legend { background: transparent; }
-.ghost-btn { background: transparent; text-transform: uppercase; letter-spacing: .1em; font-weight: 500; }
-.ghost-btn:hover { color: var(--text); border-color: var(--text); }
-.ghost-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); }
-.pick-dot.a { background: var(--text); }
-.scale-row { background: transparent; border-bottom: 1px solid var(--border); padding: 12px 4px; font-weight: 400; }
-.read-list h4 { font-family: var(--display); text-transform: uppercase; font-weight: 500; font-size: 1.1em; letter-spacing: .05em; }
-
-/* ── Footer ── */
-footer { border-top: 0; padding-top: 0; margin-top: 60px; }
-.footer-inner { max-width: 1480px; padding: 0 32px 40px; }
-.footer-brand h3 { font-weight: 500; font-size: 1.6em; letter-spacing: .04em; }
-.footer-brand p { font-weight: 300; }
-.footer-link { padding: 4px 8px; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; font-size: .74em; }
-.footer-copy { text-transform: uppercase; letter-spacing: .14em; font-size: .68em; }
-/* 設計出處：版面參考 usta.agency */
-.footer-credit { grid-column: 1 / -1; margin-top: -12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .14em; font-size: .68em; }
-.footer-credit a { color: var(--text-2); text-decoration: none; box-shadow: inset 0 -1px 0 currentColor; }
-.footer-credit a:hover { color: var(--text); }
-
-/* ── Lightbox ── */
-.lightbox { background: rgba(0,0,0,.96); }
-.lb-close { background: transparent; border-color: rgba(255,255,255,.4); }
-
-@media (max-width: 900px) {
-    header { padding: 10px 16px; }
-    .bottom-nav { left: 0; right: 0; bottom: 0; padding-bottom: calc(6px + env(safe-area-inset-bottom)); border-width: 1px 0 0; }
-    .bottom-nav a { text-transform: uppercase; letter-spacing: .08em; font-weight: 500; }
-    .bottom-nav a.active { background: var(--text); color: var(--bg); }
-    .hero-inner { padding: 60px 20px 48px; }
-    .statement { padding: 90px 20px; min-height: 0; }
-    .page { padding: 28px 20px 56px; }
-    .storm-hero { padding: 32px 24px; }
-    .teaser-body { border-left: 0; border-top: 1px solid var(--border); }
-}
-@media (max-width: 600px) {
-    .page { padding: 20px 16px 48px; gap: 22px; }
-    .hero-inner { padding: 48px 16px 36px; }
-    .hero-meta { margin-top: 36px; width: auto; }
-    /* 兩顆按鈕固定一排：英文字較長會換行，文字貼底時會把標題往上推到地球上 */
-    .hero-cta { flex-wrap: nowrap; gap: 10px; }
-    .btn-primary, .btn-ghost { flex: 1 1 auto; justify-content: center; padding: 14px 10px; letter-spacing: .06em; font-size: .8em; white-space: nowrap; }
-    .hero-lead { font-size: .95rem; gap: 7px; }
-    .chip-k { letter-spacing: .12em; }
-    .hero-chip { flex: 1 1 30%; padding: 14px 10px 2px 0; margin-right: 10px; }
-    .chip-v, html[lang^="zh"] .chip-v { font-size: 1.35em; }
-    .statement { padding: 72px 16px; }
-    .section-head { margin-top: 44px; }
-    .storm-tile, .panel { padding: 18px; }
-    .footer-inner { padding: 0 16px 32px; }
-}
-@media (max-width: 370px) { .chip-v, html[lang^="zh"] .chip-v { font-size: 1.15em; } }
-
 /* ── 3D 地球（v4.1）：固定在整個頁面最底層，WebGL 載好才加 html.has-globe ──
-   深色主題時地球一路跟著捲動（usta 那種背景 3D）；淺色主題只在總覽的黑色主視覺裡出現，
-   由 JS 用 clip-path 裁到 hero 的範圍。 */
+   深色主題時地球一路跟著捲動當背景；淺色主題只在總覽的深色主視覺卡片裡出現，
+   由 JS 用 clip-path 裁到 hero 的範圍（含圓角）。 */
 #globe {
     position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1;
     pointer-events: none; opacity: 0;
@@ -3151,7 +2772,6 @@ footer { border-top: 0; padding-top: 0; margin-top: 60px; }
 [data-theme="light"] #globe { background: #000; }
 html.has-globe .hero { background: transparent; }
 html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
-html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
 
 /* 使用者要求減少動態時：停掉所有非必要的動畫與轉場 */
 @media (prefers-reduced-motion: reduce) {
@@ -3165,8 +2785,6 @@ html.has-globe[data-theme="dark"] .marquee { background: rgba(0,0,0,.35); }
 /* 每張圖放在一張滿版的白色圖紙上（圖本身就是白底），不再是大小不一的白框浮在黑底；
    深色主題整張圖紙調暗一點，不刺眼 */
 .zoomable { background: #fff; border: 1px solid var(--border); }
-.zoomable.loaded:not(.frame-stage):not(.broken) { width: auto; }
-.zoomable > img:not(.frame) { padding: 10px 0; }
 .frame-stage { background: #fff; }
 [data-theme="dark"] .zoomable, [data-theme="dark"] .frame-stage { filter: brightness(.9) contrast(1.02); }
 [data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
@@ -3182,7 +2800,7 @@ html[lang^="zh"] .i-en { display: none; }
 .storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
 
 /* 三組區塊：組標題是結構，不是裝飾；「背景與校驗」預設收合 */
-.sec-group { margin-top: 56px; }
+.sec-group { margin-top: 40px; }
 .sec-group-title { font-family: var(--display); font-weight: 500; font-size: clamp(1.5rem, 3vw, 2.2rem);
                    letter-spacing: .04em; padding-bottom: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
 html[lang^="zh"] .sec-group-title { letter-spacing: .1em; }
@@ -3215,6 +2833,469 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
     .version-badge { display: none; }
     .stat-value { font-size: 1.35em; }
     .stat-grid > .stat:first-child { grid-column: 1 / -1; }   /* 觀測時間最長，自己一列，不會折成三行 */
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   v6.9「毛玻璃」：參考 iOS 26 Liquid Glass —— 半透明玻璃面板浮在
+   柔和的海洋色背景上；面板用 backdrop-filter 模糊＋提高彩度，
+   上緣一道高光、大圓角、膠囊形按鈕，字體回到一般大小寫的無襯線字。
+   ═════════════════════════════════════════════════════════════════ */
+:root, [data-theme="light"] {
+    --bg:          #e7eef6;
+    --solid:       #eef3f9;          /* 需要不透明底色的地方（表格固定欄） */
+    --surface:     rgba(255,255,255,.52);
+    --surface-2:   rgba(255,255,255,.42);
+    --surface-3:   rgba(110,130,155,.16);
+    --accent:      #0a6fdc;
+    --accent-2:    #0a6fdc;
+    --accent-lo:   rgba(10,111,220,.10);
+    --accent-rgb:  10,111,220;
+    --text:        #0c1c2d;
+    --text-2:      #3f5266;
+    --text-3:      #6b7d90;
+    --border:      rgba(20,45,75,.10);
+    --btn-bg:      #0a6fdc;
+    --glass:       rgba(255,255,255,.50);
+    --glass-hi:    rgba(255,255,255,.72);    /* 較實的玻璃：選單、選取中的膠囊 */
+    --glass-line:  rgba(255,255,255,.75);    /* 玻璃外框 */
+    --glass-spec:  inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.25);
+    --shadow:      0 1px 2px rgba(15,35,60,.05), 0 6px 18px rgba(15,35,60,.07);
+    --shadow-md:   0 1px 2px rgba(15,35,60,.05), 0 12px 32px rgba(15,35,60,.09);
+    --shadow-lg:   0 2px 6px rgba(15,35,60,.06), 0 24px 60px rgba(15,35,60,.14);
+    --blur:        blur(24px) saturate(180%);
+    --track:       rgba(118,118,128,.12);   /* iOS 分段控制的底槽 */
+    --radius:      26px;
+    --display:     'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, -apple-system, sans-serif;
+    --hero-1: #071528; --hero-2: #0b2440; --hero-3: #12365c;
+}
+[data-theme="dark"] {
+    --bg:          #050b15;
+    --solid:       #111b28;
+    --surface:     rgba(40,52,70,.40);
+    --surface-2:   rgba(255,255,255,.06);
+    --surface-3:   rgba(255,255,255,.10);
+    --accent:      #5ab4ff;
+    --accent-2:    #5ab4ff;
+    --accent-lo:   rgba(90,180,255,.14);
+    --accent-rgb:  90,180,255;
+    --text:        #f1f5fa;
+    --text-2:      rgba(232,240,248,.74);
+    --text-3:      rgba(232,240,248,.50);
+    --border:      rgba(255,255,255,.10);
+    --btn-bg:      #3a9bf0;
+    --glass:       rgba(30,42,60,.42);
+    --glass-hi:    rgba(70,86,110,.55);
+    --glass-line:  rgba(255,255,255,.14);
+    --glass-spec:  inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.04);
+    --shadow:      0 1px 2px rgba(0,0,0,.25), 0 8px 22px rgba(0,0,0,.25);
+    --shadow-md:   0 1px 2px rgba(0,0,0,.25), 0 14px 36px rgba(0,0,0,.32);
+    --shadow-lg:   0 2px 6px rgba(0,0,0,.3), 0 26px 64px rgba(0,0,0,.45);
+    --track:       rgba(118,118,128,.24);
+}
+
+/* overflow-x: hidden 會讓 body 變成捲動容器，頁首與段落導覽的 sticky 因此失效；
+   支援 clip 的瀏覽器改用 clip（只裁切、不建立捲動容器），頁首才會浮在內容上 */
+@supports (overflow: clip) { html, body { overflow-x: clip; } }
+
+/* ── 背景：固定的海洋色漸層，讓玻璃有東西可以「透」 ── */
+body { font-family: var(--display); font-weight: 400; background: var(--bg); }
+body::before {
+    content: ""; position: fixed; inset: -12vmax; z-index: -2; pointer-events: none;
+    background:
+        radial-gradient(42vmax 34vmax at 12% 8%,  rgba(96,176,255,.55), transparent 70%),
+        radial-gradient(38vmax 32vmax at 88% 14%, rgba(170,150,255,.42), transparent 70%),
+        radial-gradient(44vmax 36vmax at 78% 88%, rgba(80,214,196,.40), transparent 70%),
+        radial-gradient(40vmax 32vmax at 8% 92%,  rgba(255,196,160,.38), transparent 70%),
+        var(--bg);
+    transition: opacity .35s;
+}
+[data-theme="dark"] body::before {
+    background:
+        radial-gradient(42vmax 34vmax at 12% 6%,  rgba(28,96,190,.55), transparent 70%),
+        radial-gradient(38vmax 30vmax at 90% 22%, rgba(96,64,190,.34), transparent 70%),
+        radial-gradient(44vmax 36vmax at 74% 92%, rgba(0,138,140,.30), transparent 70%),
+        radial-gradient(40vmax 32vmax at 4% 82%,  rgba(22,62,128,.42), transparent 70%),
+        var(--bg);
+}
+::selection { background: rgba(var(--accent-rgb),.28); }
+:focus-visible { outline-color: var(--accent); border-radius: 12px; }
+
+/* 共同的玻璃材質 */
+header, .bottom-nav, .subnav, .panel, .stat, .storm-hero, .genesis-teaser, .model-card, .switch-chip,
+.update-badge, .theme-btn, .nav-menu, .hero-storms, .hero-chip, .footer-inner, .arch-card,
+.empty-card, .player-controls, .lb-close {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-line);
+    box-shadow: var(--glass-spec), var(--shadow);
+}
+
+/* 大標題：一般大小寫、粗體、字距略收（像 SF Pro Display） */
+.hero-title, .storm-title, .page-title, .section-head h3, .sec-group-title, .panel-header, .brand-text h1,
+.footer-brand h3, .model-name, .empty-title, .tile-name {
+    font-family: var(--display); text-transform: none;
+}
+.hero-title, .storm-title, .page-title { font-weight: 750; letter-spacing: -.025em; }
+html[lang^="zh"] .hero-title, html[lang^="zh"] .storm-title, html[lang^="zh"] .page-title { letter-spacing: .02em; }
+.storm-name { letter-spacing: .02em !important; }
+
+/* ── Header：浮在頁面上方的玻璃條 ── */
+header {
+    top: 10px; margin: 10px 12px 0; padding: 0 12px 0 14px;
+    min-height: 60px; border-radius: 24px;
+    box-shadow: var(--glass-spec), var(--shadow-md);
+}
+.scroll-progress { left: 24px; right: 24px; bottom: 0; height: 2px; border-radius: 2px; background: var(--accent); }
+.brand-icon {
+    position: relative; overflow: hidden; width: 38px; height: 38px; border-radius: 12px; color: #fff;
+    background: linear-gradient(145deg, #3aa0ff, #0a5fc4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.12), 0 4px 12px rgba(10,111,220,.32);
+}
+/* 上半部一層亮面，像 iOS 圖示的玻璃反光 */
+.brand-icon::after { content: ""; position: absolute; inset: 0 0 50% 0; background: linear-gradient(rgba(255,255,255,.28), rgba(255,255,255,0)); pointer-events: none; }
+.brand-icon span { display: flex; animation: none; }
+/* logo 平常不轉；滑鼠移上去時旋臂逆時針轉一圈（北半球颱風的旋轉方向） */
+.header-brand:hover .brand-icon { transform: scale(1.05); }
+.brand-mark { transition: transform .9s var(--ease-out); }
+.header-brand:hover .brand-mark { transform: rotate(-360deg); }
+.brand-mark { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
+.brand-text h1 { font-weight: 700; font-size: 1.02em; letter-spacing: -.01em; }
+html[lang^="zh"] .brand-text h1 { letter-spacing: .04em; }
+.nav-link { border-radius: 999px; font-weight: 600; font-size: .86em; color: var(--text-2); padding: 8px 14px; }
+.nav-link:hover { color: var(--text); }
+.nav-link.active { color: var(--text); }
+.nav-indicator {
+    border-radius: 999px; border: 1px solid var(--glass-line);
+    background: var(--glass-hi); box-shadow: var(--glass-spec), 0 2px 10px rgba(15,35,60,.10);
+}
+.nav-dot { box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+.update-badge, .theme-btn { border-radius: 999px; color: var(--text-2); box-shadow: var(--glass-spec); }
+.update-badge { padding: 7px 13px 7px 10px; }
+.theme-btn { padding: 7px 14px; }
+.theme-btn:hover { background: var(--glass-hi); color: var(--text); border-color: var(--glass-line); }
+.ring-fg { stroke: var(--ok); }
+.version-badge, [data-theme="dark"] .version-badge {
+    background: transparent; color: var(--text-3); border-color: transparent; font-size: .76em; font-weight: 600; padding: 7px 6px;
+}
+
+/* 颱風下拉選單（功能規則） */
+/* 颱風下拉選單：.collapsed 時隱藏各颱風連結、改顯示「颱風 ▾」。
+   .nav-drop 刻意不設定位，讓按鈕的 offsetParent 仍是 .top-nav，滑動指示塊才對得準；
+   選單改以 .top-nav 為定位基準，左緣由 JS 對齊按鈕。 */
+.top-nav.measuring .nav-link { flex-shrink: 0; }
+header.compact .header-actions { gap: 6px; }
+header.compact .ub-long { display: none; }
+header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
+header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
+header.compact #lang-btn .bt { display: none; }
+header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
+header.mini .brand-text { display: none; }
+.top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
+.top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
+.nav-drop { display: none; }
+.nav-drop-btn { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+.top-nav.collapsed .nav-storm { display: none; }
+.top-nav.collapsed .nav-drop { display: flex; }
+.nd-count { font-style: normal; font-size: .82em; line-height: 1; padding: 3px 6px; border: 1px solid currentColor; opacity: .8; }
+.nd-caret { width: 13px !important; height: 13px !important; transition: transform .3s var(--ease-out); }
+.nav-drop.open .nd-caret { transform: rotate(180deg); }
+.nav-menu {
+    position: absolute; top: calc(100% + 12px); left: 0; z-index: 300; min-width: 300px;
+    display: flex; flex-direction: column; padding: 6px;
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-line);
+    opacity: 0; visibility: hidden; transform: translateY(-6px);
+    transition: opacity .25s, transform .3s var(--ease-out), visibility 0s .3s;
+}
+.nav-drop.open .nav-menu { opacity: 1; visibility: visible; transform: none; transition: opacity .25s, transform .3s var(--ease-out); }
+.nav-menu-item {
+    display: grid; grid-template-columns: 9px 1fr auto 56px; align-items: center; gap: 12px;
+    padding: 11px 14px; color: var(--text-2); text-decoration: none; white-space: nowrap;
+    font-size: .8em; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    transition: background .2s, color .2s;
+}
+.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--text); color: var(--bg); outline: none; }
+.nav-menu-item.active { color: var(--text); box-shadow: inset 2px 0 0 var(--text); }
+.nav-menu-item.active:hover { color: var(--bg); }
+.nm-cat { font-size: .82em; font-weight: 700; padding: 3px 7px; letter-spacing: .06em; }
+.nm-kt { text-align: right; opacity: .75; }
+.nav-menu { border-radius: 22px; background: var(--glass-hi); box-shadow: var(--glass-spec), var(--shadow-lg); }
+.nav-menu-item { border-radius: 14px; font-weight: 600; letter-spacing: .02em; text-transform: none; }
+.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--accent-lo); color: var(--text); }
+.nav-menu-item.active { color: var(--accent); box-shadow: none; background: var(--accent-lo); }
+.nav-menu-item.active:hover { color: var(--accent); }
+.nm-cat { border-radius: 999px; }
+.nd-count { border-radius: 999px; }
+
+/* ── 總覽 Hero ── */
+.hero { min-height: calc(100svh - var(--header-h) - 20px); background: transparent; }
+.hero::after { display: none; }
+.hero-inner { max-width: 1380px; padding: 64px 28px 72px; }
+.eyebrow {
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+    font-weight: 600; letter-spacing: .04em; text-transform: none; color: rgba(255,255,255,.88);
+}
+.hero-title { font-size: clamp(2.6rem, 6.5vw, 5rem); line-height: 1.02; margin: 22px 0 26px; text-shadow: 0 2px 30px rgba(0,0,0,.25); max-width: none; }
+html[lang^="zh"] .hero-title { line-height: 1.15; }
+/* 颱風清單：一張玻璃卡片，每列一顆 */
+.hero-storms {
+    background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 18px 50px rgba(0,0,0,.22);
+    border-radius: 26px; padding: 4px 22px;
+}
+.hero-storms a { border-bottom: 1px solid rgba(255,255,255,.14); padding: 14px 0; font-weight: 500; color: rgba(255,255,255,.9); }
+.hero-storms li:first-child a { border-top: 0; }
+.hero-storms li:last-child a { border-bottom: 0; }
+.hero-storms .hs-name { font-weight: 700; color: #fff; }
+.cat-pill { border-radius: 999px; font-weight: 700; padding: 4px 12px; }
+.hero-sub { color: rgba(255,255,255,.72); }
+.btn-primary, .btn-ghost { border-radius: 999px; padding: 13px 24px; font-weight: 650; }
+.btn-primary { background: rgba(255,255,255,.92); color: #0b2440; box-shadow: inset 0 1px 0 #fff, 0 10px 30px rgba(0,0,0,.25); }
+.btn-ghost {
+    color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.26);
+    -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+}
+.btn-ghost:hover { background: rgba(255,255,255,.2); }
+.hero-meta { margin-top: 32px; }
+.hero-chip {
+    background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28); border-radius: 20px; padding: 12px 18px;
+}
+.chip-k { font-weight: 600; letter-spacing: .04em; text-transform: none; opacity: .7; }
+.chip-v, html[lang^="zh"] .chip-v { font-weight: 650; letter-spacing: .01em; }
+.scroll-cue { display: none; }
+/* 淺色主題：Hero 是一張深色圓角卡片（地球只畫在卡片裡） */
+[data-theme="light"] .hero { margin: 12px 12px 0; border-radius: 34px; box-shadow: var(--shadow-lg); }
+[data-theme="light"] #globe { background: linear-gradient(160deg, #071528, #0b2440 55%, #12365c); }
+
+/* ── 版面、區塊標題 ── */
+.page { max-width: 1380px; padding: 28px 24px 64px; gap: 24px; }
+.section-head h3 { font-size: clamp(1.5rem, 2.6vw, 2rem); font-weight: 700; letter-spacing: -.015em; }
+.page-title { font-size: clamp(1.8rem, 3.6vw, 2.8rem); }
+.page-lead { color: var(--text-2); }
+.kicker { display: none; }
+
+/* ── 卡片 ── */
+.panel { border-radius: var(--radius); padding: 24px 26px; }
+.panel-header { font-weight: 700; font-size: 1.12em; letter-spacing: -.01em; border-bottom-color: var(--border); }
+html[lang^="zh"] .panel-header { letter-spacing: .03em; }
+.panel-icon { display: none; }
+.stat { border-radius: 22px; padding: 16px 20px; }
+.stat:hover, .model-card:hover { transform: translateY(-2px); box-shadow: var(--glass-spec), var(--shadow-md); }
+.stat-label { font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--text-3); }
+.stat-label span[aria-hidden] { display: none; }
+.stat-value { font-weight: 650; font-size: 1.6em; letter-spacing: -.01em; }
+.genesis-teaser { border-radius: 30px; }
+.genesis-teaser:hover { border-color: var(--glass-line); box-shadow: var(--glass-spec), var(--shadow-lg); }
+.teaser-img { border-radius: 22px; margin: 8px; min-height: 240px; }
+.teaser-body { border-left: 0; padding: 28px 30px; }
+.mini-chip { border-radius: 999px; }
+.model-grid { gap: 12px; }
+@media (min-width: 900px) { .model-grid { grid-template-columns: repeat(3, 1fr); } }
+.model-card { border-radius: 22px; }
+.model-name { font-weight: 700; letter-spacing: -.01em; }
+.arch-card { border-radius: 22px; border-top: 1px solid var(--glass-line); }
+.arch-card::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: var(--cat); }
+
+/* ── 颱風頁 ── */
+.switch-chip { border-radius: 999px; color: var(--text-2); font-weight: 650; }
+.switch-chip:hover { color: var(--text); border-color: var(--glass-line); }
+.switch-chip.active { color: var(--text); background: var(--glass-hi); border-color: var(--glass-line); box-shadow: var(--glass-spec), 0 4px 14px rgba(15,35,60,.12); }
+/* 颱風主卡：玻璃＋颱風強度色的光暈 */
+.storm-hero {
+    color: var(--text); border-radius: 32px; padding: 36px 40px;
+    background:
+        radial-gradient(640px 360px at 86% 50%, color-mix(in srgb, var(--cat) 26%, transparent), transparent 70%),
+        var(--glass);
+    box-shadow: var(--glass-spec), var(--shadow-lg);
+}
+.storm-hero .swirl { opacity: .16; }
+.storm-title { font-size: clamp(2.6rem, 6vw, 4.4rem); text-shadow: none; margin: 12px 0 14px; }
+.storm-subtitle { color: var(--text-3); }
+.storm-summary p { color: var(--text); font-weight: 450; }
+.badge-cat, .badge-id, .badge-name, .badge-live { border-radius: 999px; }
+.storm-badges .badge-cat { font-weight: 700; }
+.storm-hero .badge-id, .storm-hero .badge-name { background: var(--surface-2); border-color: var(--border); color: var(--text-2); }
+.storm-hero .badge-live { color: var(--danger); }
+.storm-hero .g-track { stroke: var(--surface-3); }
+.storm-hero .g-needle line { stroke: var(--text); }
+.storm-hero .g-tick { fill: var(--text-3); }
+.gauge-val b { font-weight: 700; }
+/* 段落導覽：玻璃膠囊，選中的那格是較亮的玻璃 */
+.subnav { top: calc(var(--header-h) + 22px); border-radius: 999px; padding: 5px; gap: 2px; box-shadow: var(--glass-spec), var(--shadow-md); }
+.subnav button { border-radius: 999px; font-weight: 600; color: var(--text-2); }
+.subnav button.active { background: var(--glass-hi); color: var(--accent); box-shadow: var(--glass-spec), 0 2px 10px rgba(15,35,60,.12); }
+[data-theme="dark"] .subnav button.active { color: #fff; background: rgba(255,255,255,.16); }
+.sec-group-title { font-weight: 700; font-size: clamp(1.4rem, 2.6vw, 1.9rem); letter-spacing: -.015em; border-bottom: 0; padding-bottom: 6px; margin-bottom: 14px; }
+html[lang^="zh"] .sec-group-title { letter-spacing: .04em; }
+details.sec-group > summary { border-bottom: 0; margin-bottom: 14px; }
+details.sec-group > summary .fold-hint {
+    padding: 6px 14px; margin-bottom: 6px; border-radius: 999px; font-size: .84em; font-weight: 600;
+    background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-spec);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+/* iOS 分段控制：灰色底槽＋白色滑塊 */
+.seg { background: var(--track); border: 0; border-radius: 999px; padding: 3px; gap: 2px; }
+.seg-ind { border-radius: 999px; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04); }
+[data-theme="dark"] .seg-ind { background: rgba(255,255,255,.2); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 3px 8px rgba(0,0,0,.3); }
+.model-tab-btn { border-radius: 999px; font-weight: 600; padding: 7px 16px; }
+.model-tab-btn.active { color: var(--text); }
+.seg:not(.ready) .model-tab-btn.active { background: #fff; }
+[data-theme="dark"] .seg:not(.ready) .model-tab-btn.active { background: rgba(255,255,255,.2); }
+.run-btn { border-radius: 999px; background: var(--surface-2); border-color: var(--glass-line); }
+.run-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ghost-btn { border-radius: 999px; }
+.scale-row { border-radius: 16px; background: var(--surface-2); }
+.ss-seg { border-radius: 8px; }
+.model-label { border-radius: 999px; }
+
+/* 圖：白色圖紙配大圓角（圖本身是白底），深色主題稍微調暗 */
+.zoomable { background: #fff; border: 1px solid var(--glass-line); border-radius: 20px; box-shadow: var(--shadow); }
+.zoom-hint { border-radius: 999px; background: rgba(20,28,40,.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.player { background: transparent; border: 0; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); }
+.frame-stage { border-radius: 22px 22px 0 0; }
+/* 圖紙貼齊圖片：圖被限高時，白底不再撐滿整個面板寬度、兩旁留白；播放器寬度也依圖的長寬比收窄 */
+.player { width: min(100%, calc((100vh - var(--header-h) - 190px) * var(--arv, 1.6))); margin-inline: auto; }
+.player-controls { border-radius: 0 0 22px 22px; border-top: 0; box-shadow: var(--glass-spec); }
+.pc-btn { border-radius: 999px; background: var(--surface-2); border-color: var(--glass-line); }
+.pc-main { background: var(--accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(var(--accent-rgb),.35); }
+.speed-seg { border-radius: 999px; background: var(--track); border: 0; }
+.speed-btn { border-radius: 999px; }
+.speed-btn.active { background: #fff; color: var(--text); }
+[data-theme="dark"] .speed-btn.active { background: rgba(255,255,255,.2); }
+.timeline { accent-color: var(--accent); }
+.cmp-stage { border-radius: 20px; }
+
+/* 城市表：固定欄用不透明底色，陰影提示可左右捲動 */
+.city-table-wrap {
+    background:
+        linear-gradient(to right, var(--solid) 30%, transparent) left / 40px 100% no-repeat local,
+        linear-gradient(to left, var(--solid) 30%, transparent) right / 40px 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgba(15,35,60,.18), transparent) left / 14px 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgba(15,35,60,.18), transparent) right / 14px 100% no-repeat scroll;
+    border-radius: 16px;
+}
+.city-table th:first-child, .city-table td.c-name { background: var(--solid); }
+.city-table td { border-radius: 9px; }
+
+/* ── Footer：底部一張玻璃卡 ── */
+footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
+.footer-inner { max-width: 1332px; padding: 26px 28px; border-radius: 28px; }
+.footer-brand h3 { font-weight: 700; }
+.footer-link { border-radius: 999px; }
+.footer-copy { border-top-color: var(--border); }
+
+/* ── Lightbox：整頁霧面 ── */
+.lightbox { background: rgba(8,14,24,.55); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); }
+.lightbox img { border-radius: 18px; }
+.lb-close { color: #fff; background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); }
+
+@media (max-width: 900px) {
+    /* 手機頁首有兩列，黏在上面太佔畫面：讓它跟著捲走，只留段落導覽浮在上方 */
+    header { position: relative; top: 0; margin: 8px 8px 0; padding: 10px 12px; border-radius: 22px; }
+    .subnav { top: 8px; }
+    .panel, .maps-grid { scroll-margin-top: 76px; }
+    /* 底部分頁列：iOS 26 那種浮動的玻璃膠囊 */
+    .bottom-nav {
+        left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+        border-radius: 30px; padding: 6px; box-shadow: var(--glass-spec), var(--shadow-lg);
+    }
+    .bottom-nav a { border-radius: 24px; font-weight: 600; color: var(--text-2); }
+    .bottom-nav a.active { color: var(--accent); background: var(--glass-hi); box-shadow: var(--glass-spec); }
+    [data-theme="dark"] .bottom-nav a.active { color: #fff; background: rgba(255,255,255,.16); }
+    .storm-hero { padding: 28px 24px; }
+    .hero-inner { padding: 48px 20px 56px; }
+    [data-theme="light"] .hero { margin: 10px 8px 0; border-radius: 30px; }
+}
+@media (max-width: 600px) {
+    .page { padding: 18px 12px 40px; gap: 18px; }
+    .panel { padding: 18px 16px; border-radius: 24px; }
+    .storm-hero { padding: 24px 20px; border-radius: 28px; }
+    .stat { padding: 13px 15px; border-radius: 20px; }
+    .stat-value { font-size: 1.2em; }
+    .hero-inner { padding: 40px 16px 44px; }
+    .brand-icon { width: 34px; height: 34px; border-radius: 11px; }
+    .brand-mark { width: 22px; height: 22px; }
+    .hero-storms { padding: 2px 16px; border-radius: 22px; }
+    /* 手機：每顆排兩行 —— 名字＋強度在上、風速與位置在下，箭頭靠右 */
+    .hero-storms a { gap: 4px 10px; font-size: 1.02rem; }
+    .hero-storms .hs-name { min-width: 0; }
+    .hero-storms a > span[data-i18n^="catname"] { flex: 1 0 auto; }
+    .hero-storms a > span[data-i18n^="catname"] + .sep { display: none; }
+    .hero-storms .hs-go { order: 1; margin-left: 0; }
+    .hero-storms a::after { content: ""; order: 2; flex-basis: 100%; }
+    .hero-storms a > .mono, .hero-storms a > .mono + .sep { order: 3; font-size: .86em; color: rgba(255,255,255,.72); }
+    .hero-cta { flex-wrap: nowrap; gap: 10px; }
+    .btn-primary, .btn-ghost { flex: 1 1 auto; justify-content: center; padding: 13px 12px; white-space: nowrap; font-size: .9em; }
+    .hero-chip { flex: 1 1 30%; }
+    footer { padding: 0 12px 12px; }
+    .footer-inner { padding: 22px 20px; border-radius: 24px; }
+    .teaser-img { min-height: 190px; }
+}
+
+/* ── 颱風頁（v6.9）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
+.storm-bar {
+    position: sticky; top: calc(var(--header-h) + 22px); z-index: 50;
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
+    width: max-content; max-width: 100%; margin: 6px auto 4px; padding: 5px;
+    border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: var(--glass-spec), var(--shadow-md);
+}
+.storm-tabs { margin: 0; background: transparent; padding: 0; flex-wrap: nowrap; }
+.storm-tab { padding: 9px 20px; font-size: .92em; }
+.model-pick { display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border-left: 1px solid var(--border);
+              font-size: .84em; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.model-select {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    font: inherit; font-size: 1.04em; font-weight: 650; color: var(--text);
+    padding: 7px 32px 7px 14px; border-radius: 999px; border: 1px solid var(--glass-line);
+    background: var(--glass-hi) no-repeat right 12px center / 11px
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%237f8c99' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    box-shadow: var(--glass-spec);
+}
+.model-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-theme="dark"] .model-select option { background: #1b2533; color: #f1f5fa; }
+.storm-bar.no-pick .model-pick { display: none; }
+.tab-pane { display: flex; flex-direction: column; gap: 24px; }
+.tab-pane.swap-in { animation: swapIn .45s var(--ease-out); }
+
+/* 各圖的模式分頁交給上方選單；同一模式有系集／決定性兩種時才留兩顆小分頁 */
+.seg.mt-linked { display: none; }
+.seg.mt-linked.mt-variants { display: inline-flex; }
+.model-tab-btn[hidden] { display: none; }
+.mt-shown { margin-left: 4px; padding: 3px 10px; border-radius: 999px; font-size: .72em; font-weight: 650;
+            letter-spacing: .01em; background: var(--accent-lo); color: var(--accent); }
+.mt-shown:empty { display: none; }
+.mt-shown.miss { background: var(--surface-3); color: var(--text-2); }
+
+/* 圖說收合：「ⓘ 怎麼看這張圖」 */
+.note-fold { margin-top: 10px; }
+.note-fold > summary {
+    list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px 5px 9px; border-radius: 999px; font-size: .8em; font-weight: 600; color: var(--text-3);
+    transition: background .2s, color .2s;
+}
+.note-fold > summary::-webkit-details-marker { display: none; }
+.note-fold > summary::before { content: "ⓘ"; font-size: 1.1em; }
+.note-fold > summary:hover, .note-fold[open] > summary { background: var(--surface-2); color: var(--text-2); }
+.note-fold > .map-note { margin-top: 6px; }
+.jtwc-src { margin-top: 10px; font-size: .78em; color: var(--text-3); }
+
+@media (max-width: 900px) {
+    .storm-bar { top: 8px; }
+}
+@media (max-width: 600px) {
+    /* 手機：分頁佔滿一列，模式選單縮在第二列右邊 */
+    .storm-bar { width: 100%; border-radius: 24px; padding: 4px; justify-content: flex-end; }
+    .storm-tabs { width: 100%; justify-content: space-between; }
+    .storm-tab { flex: 1 1 0; padding: 8px 4px; font-size: .86em; }
+    .model-pick { border-left: 0; padding: 0 2px 2px; font-size: .78em; }
+    .model-select { padding: 5px 28px 5px 12px; }
+    .tab-pane { gap: 18px; }
 }
 """
 
@@ -3401,6 +3482,14 @@ const I18N = {
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
+    'tab.now':          'Summary',
+    'tab.track':        'Track',
+    'tab.strike':       'Strike',
+    'tab.int':          'Intensity',
+    'tab.score':        'Scores',
+    'mp.label':         'Model',
+    'mp.fallback':      'No {m} here · showing {y}',
+    'note.how':         'How to read this',
     'grp.now':          'Now',
     'grp.fc':           'Forecast',
     'grp.bg':           'Background &amp; verification',
@@ -3477,7 +3566,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page goes from the big picture to the details: a 3-hour Himawari-9 infrared satellite loop, model comparison, animation, ensemble maps and an interactive map, the official forecasts side by side, strike probabilities (by area, by period and by city, including Taiwan landfall), track trend, intensity forecast, the ocean heat content under the storm, the 500 hPa steering flow, and a scorecard of track, along-/cross-track and intensity errors. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3501,7 +3590,6 @@ const I18N = {
     'footer.link7':     '🌊 HYCOM',
     'footer.link8':     '🛰️ Himawari-9 (NOAA Open Data)',
     'footer.copy':      "© 2026 Pillar's Weather Site · Made by Pillar · Not for operational use",
-    'footer.credit':    'Design inspired by <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency (usta.agency)</a>',
     'lb.close':         'Close',
     'img.broken':       'Image unavailable',
     'rel.now':          'just now',
@@ -3620,6 +3708,14 @@ const I18N = {
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
+    'tab.now':          '概況',
+    'tab.track':        '路徑',
+    'tab.strike':       '侵襲',
+    'tab.int':          '強度',
+    'tab.score':        '成績',
+    'mp.label':         '模式',
+    'mp.fallback':      '這張圖沒有 {m}，顯示 {y}',
+    'note.how':         '怎麼看這張圖',
     'grp.now':          '現況',
     'grp.fc':           '預報',
     'grp.bg':           '背景與校驗',
@@ -3696,7 +3792,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁由整體到細節依序是：最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、模式比較、動畫、系集路徑圖與互動地圖、各國官方預報比較、侵襲機率（區域、分時段、城市與登陸臺灣）、預報趨勢、強度預報、颱風底下的海洋熱含量、500 hPa 駛流場，以及模式的路徑、沿／跨路徑與強度誤差成績單。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報與颱風底下的海洋熱含量）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -3720,7 +3816,6 @@ const I18N = {
     'footer.link7':     '🌊 HYCOM 海洋模式',
     'footer.link8':     '🛰️ 向日葵 9 號（NOAA 開放資料）',
     'footer.copy':      '© 2026 Pillar 氣象網 · Made by Pillar · 僅供參考，請勿作為作業依據',
-    'footer.credit':    '設計參考 <a href="https://usta.agency/" target="_blank" rel="noopener">USTA Agency（usta.agency）</a>',
     'lb.close':         '關閉',
     'img.broken':       '圖片暫時無法載入',
     'rel.now':          '剛剛',
@@ -4025,6 +4120,75 @@ function linkModelTabs(tab) {
         const hit = btns.find(b => b.dataset.model === tab.dataset.model) || btns.find(b => modelGroup(b.dataset.model) === g);
         if (hit && !hit.classList.contains('active')) switchModelTab(tr, hit.dataset.model);
     });
+}
+
+// ── 颱風頁：上方分頁（概況／路徑／侵襲／強度／成績）與整頁一個模式選單 ──────────
+// 分頁沿用 model-tab-btn／model-panel 的切換機制；換頁時若已捲過分頁列，捲回分頁列頂端。
+// 模式選單取代各圖自己的模式分頁：選了之後每張圖都切到同一個模式，各圖的分頁列隱藏；
+// 同一模式有系集與決定性兩種（如 AIFS-ENS／AIFS-single）時，該圖只留這兩顆小分頁。
+function pickModel(view, name, save = true) {
+    const g = modelGroup(name);
+    $$('.seg.mt-linked', view).forEach(seg => {
+        const btns = $$('.model-tab-btn', seg);
+        const hits = btns.filter(b => modelGroup(b.dataset.model) === g);
+        btns.forEach(b => { b.hidden = hits.length > 0 && !hits.includes(b); });
+        seg.classList.toggle('mt-variants', hits.length > 1);
+        let pick = hits.find(b => b.classList.contains('active')) || hits[0];
+        if (!pick) pick = btns.find(b => b.classList.contains('active')) || btns[0];
+        if (pick && !pick.classList.contains('active')) switchModelTab(pick.dataset.track, pick.dataset.model);
+        const panel = seg.closest('.panel');
+        const chip = panel && $('.mt-shown', panel);
+        if (!chip || !pick) return;
+        chip.classList.toggle('miss', !hits.length);
+        if (hits.length) { chip.removeAttribute('data-i18n'); chip.textContent = pick.dataset.model; }
+        else {
+            chip.setAttribute('data-i18n', 'mp.fallback');
+            chip.dataset.i18nM = name; chip.dataset.i18nY = pick.dataset.model;
+            chip.textContent = t('mp.fallback', { m: name, y: pick.dataset.model });
+        }
+    });
+    const sel = $('.model-select', view);
+    if (sel && sel.value !== name) sel.value = name;
+    if (save) try { sessionStorage.setItem('model', name); } catch (e) {}
+    requestAnimationFrame(updateIndicators);
+}
+function initStormTabs() {
+    $$('.view[data-view^="storm/"]').forEach(view => {
+        const sel = $('.model-select', view);
+        if (sel) {
+            const groups = new Set([...sel.options].map(o => modelGroup(o.value)));
+            $$('.seg.model-tabs:not(.storm-tabs)', view).forEach(seg => {
+                if ($$('.model-tab-btn', seg).some(b => groups.has(modelGroup(b.dataset.model)))) seg.classList.add('mt-linked');
+            });
+            let saved = null;
+            try { saved = sessionStorage.getItem('model'); } catch (e) {}
+            const opt = saved && [...sel.options].find(o => modelGroup(o.value) === modelGroup(saved));
+            pickModel(view, opt ? opt.value : sel.value, false);
+            sel.addEventListener('change', () => pickModel(view, sel.value));
+        }
+        // 自動重新整理後停在原本的分頁
+        let tab = null;
+        try { tab = sessionStorage.getItem('tab:' + view.dataset.view); } catch (e) {}
+        const b = tab && $(`.storm-tab[data-model="${tab}"]`, view);
+        if (b) switchModelTab(b.dataset.track, tab);
+        syncModelPick(view);
+    });
+}
+// 目前分頁沒有跟著模式切換的圖（概況、成績）時，模式選單先收起來
+function syncModelPick(view) {
+    const bar = $('.storm-bar', view), pane = $$('.tab-pane', view).find(p => p.style.display !== 'none');
+    if (bar) bar.classList.toggle('no-pick', !!pane && !$('.seg.mt-linked', pane));
+}
+function onStormTab(btn) {
+    const view = btn.closest('.view');
+    syncModelPick(view);
+    try { sessionStorage.setItem('tab:' + view.dataset.view, btn.dataset.model); } catch (e) {}
+    const anchor = $('.storm-bar-anchor', view), bar = $('.storm-bar', view);
+    if (anchor && bar) {
+        const stuck = parseFloat(getComputedStyle(bar).top) || 0;
+        const y = anchor.getBoundingClientRect().top + scrollY - stuck;
+        if (scrollY > y) window.scrollTo({ top: y, behavior: 'instant' });
+    }
 }
 
 // ── 捲動進場、數字跳動、儀表 ──────────────────────────────────────
@@ -4469,7 +4633,7 @@ function scrollSpy() {
     const view = currentRoute && viewFor(currentRoute);
     const nav = view && $('.subnav', view);
     if (!nav) return;
-    const line = (parseFloat(getComputedStyle(root).getPropertyValue('--header-h')) || 64) + nav.offsetHeight + 60;
+    const line = nav.getBoundingClientRect().bottom + 60;   // 段落導覽黏在上方，以它的底緣為準（手機頁首不黏，不能用頁首高度算）
     let active = null;
     $$('button[data-target]', nav).forEach(b => {
         const sec = document.getElementById(b.dataset.target);
@@ -4524,34 +4688,6 @@ if (canHover) {
     }, { passive: true });
 }
 
-// ── 自訂游標：白點以 difference 混色反白底下的內容，移到可點的東西上會放大 ──
-if (canHover && !reduced()) {
-    const cur = document.createElement('div');
-    cur.id = 'cursor';
-    cur.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(cur);
-    root.classList.add('has-cursor');
-    let x = 0, y = 0, cx = 0, cy = 0, raf = 0, shown = false;
-    const follow = () => {
-        cx += (x - cx) * 0.24; cy += (y - cy) * 0.24;
-        cur.style.transform = `translate3d(${cx.toFixed(1)}px,${cy.toFixed(1)}px,0)`;
-        raf = (Math.abs(x - cx) + Math.abs(y - cy) > 0.2) ? requestAnimationFrame(follow) : 0;
-    };
-    document.addEventListener('pointermove', e => {
-        if (e.pointerType !== 'mouse') return;
-        x = e.clientX; y = e.clientY;
-        if (!shown) { cx = x; cy = y; shown = true; cur.classList.add('on'); }
-        const hit = e.target.closest && e.target.closest('a, button, select, label, input, [role="slider"], .zoomable, .lightbox');
-        const zoom = !!hit && hit.matches('.zoomable:not(.broken)');
-        cur.classList.toggle('zoom', zoom);
-        cur.classList.toggle('big', !!hit && !zoom);
-        if (!raf) raf = requestAnimationFrame(follow);
-    }, { passive: true });
-    document.documentElement.addEventListener('mouseleave', () => { cur.classList.remove('on'); shown = false; });
-    document.addEventListener('pointerdown', () => cur.classList.add('press'));
-    document.addEventListener('pointerup', () => cur.classList.remove('press'));
-}
-
 // ── Lightbox ──────────────────────────────────────────────────────
 const lightbox = $('#lightbox');
 function zoomImgOf(fig) { return $('img.is-front', fig) || $('img', fig); }
@@ -4603,7 +4739,11 @@ function initPlayer(el) {
     };
     players[P.key] = P;
     const first = P.imgs[0];
-    const size = () => { if (first.naturalWidth) P.stage.style.setProperty('--ar', `${first.naturalWidth} / ${first.naturalHeight}`); };
+    const size = () => {
+        if (!first.naturalWidth) return;
+        P.stage.style.setProperty('--ar', `${first.naturalWidth} / ${first.naturalHeight}`);
+        el.style.setProperty('--arv', (first.naturalWidth / first.naturalHeight).toFixed(4));   // 播放器寬度跟著圖，左右不留白
+    };
     if (first.complete) size(); else first.addEventListener('load', size, { once: true });
     setPlayBtn(P);
     updPlayerUI(P);
@@ -4711,7 +4851,11 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 
 document.addEventListener('click', e => {
     const tab = e.target.closest('.model-tab-btn');
-    if (tab) { switchModelTab(tab.dataset.track, tab.dataset.model); linkModelTabs(tab); return; }
+    if (tab) {
+        switchModelTab(tab.dataset.track, tab.dataset.model);
+        if (tab.classList.contains('storm-tab')) onStormTab(tab); else linkModelTabs(tab);
+        return;
+    }
     const pl = e.target.closest('.player');
     if (!pl) return;
     const P = players[pl.dataset.animKey];
@@ -4893,7 +5037,7 @@ const Hero = (function () {
 })();
 
 // ═════════════════════════════════════════════════════════════════
-//  3D 地球（v4.1，參考 usta.agency 的 WebGL 背景）
+//  3D 地球（v4.1，WebGL 背景）
 //  點陣陸地＋即時晨昏線、颱風雲系 shader、系集平均預報路徑、繞行的衛星。
 //  固定在頁面最底層，跟著捲動換位置／旋轉、跟著滑鼠微微偏轉。
 //  Three.js 等頁面載完才從 CDN 載入；載入失敗或不支援 WebGL 就保留 2D 流線主視覺。
@@ -5079,8 +5223,8 @@ const Globe = (function () {
         const measureCtx = document.createElement('canvas').getContext('2d');
         function labelFrac(s) {
             const { name, sub } = labelText(s);
-            measureCtx.font = '600 60px Oswald, sans-serif'; const a = measureCtx.measureText(name).width;
-            measureCtx.font = '400 30px Oswald, sans-serif'; const b = measureCtx.measureText(sub).width;
+            measureCtx.font = '600 60px Inter, sans-serif'; const a = measureCtx.measureText(name).width;
+            measureCtx.font = '400 30px Inter, sans-serif'; const b = measureCtx.measureText(sub).width;
             return Math.min(1, (Math.max(a, b) + 34) / 512);
         }
         // 颱風靠得近時名稱會疊在一起：由強到弱依序放，每顆從「右上」開始試幾個候選位置
@@ -5129,12 +5273,12 @@ const Globe = (function () {
                 x.clearRect(0, 0, 512, 128);
                 x.textAlign = side > 0 ? 'left' : 'right';
                 x.fillStyle = s.color || '#fff'; x.fillRect(side > 0 ? 0 : 507, 16, 5, 96);
-                x.fillStyle = '#fff'; x.font = '600 60px Oswald, sans-serif'; x.fillText(name, side > 0 ? 22 : 490, 70);
-                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Oswald, sans-serif'; x.fillText(sub, side > 0 ? 24 : 488, 110);
+                x.fillStyle = '#fff'; x.font = '600 60px Inter, sans-serif'; x.fillText(name, side > 0 ? 22 : 490, 70);
+                x.fillStyle = 'rgba(255,255,255,.66)'; x.font = '400 30px Inter, sans-serif'; x.fillText(sub, side > 0 ? 24 : 488, 110);
                 tex.needsUpdate = true;
             };
             draw();
-            if (document.fonts) document.fonts.load('600 60px Oswald').then(draw).catch(() => {});
+            if (document.fonts) document.fonts.load('600 60px Inter').then(draw).catch(() => {});
             // 不做深度測試：標籤是面向鏡頭的平板，颱風靠近地球邊緣時平板會斜插進球面，
             // 下半（ID・風速那行）被球體擋掉；改成永遠畫在最上層，背面時由 frame() 淡出
             const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));
@@ -5164,7 +5308,7 @@ const Globe = (function () {
                 color: col, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
             ring.position.copy(geo(lat, lon, 1.004)); ring.lookAt(out);
             spin.add(ring);
-            // 名稱標籤（跟頁面一樣用 Oswald 大寫）
+            // 名稱標籤（跟頁面一樣用 Inter）
             const pl = places[idx];
             const lab = label(s, pl.side);
             lab.position.copy(geo(lat + pl.dLat, lon + pl.dLon, 1.03));
@@ -5282,7 +5426,7 @@ const Globe = (function () {
             const T = { camZ, lat: fl, lon: fo, extra: -.25, tiltX: 0, clip: 'none' };
             if (route === 'overview') {
                 const hero = $('.view.active .hero');
-                const hr = hero ? hero.getBoundingClientRect() : { top: 0, bottom: H, height: H };
+                const hr = hero ? hero.getBoundingClientRect() : { top: 0, bottom: H, left: 0, right: W, height: H };
                 const hp = reduced() ? 0 : clamp01(scrollY / Math.max(1, hr.height));
                 const pp = reduced() ? 0 : clamp01((scrollY - hr.height) / Math.max(1, docH - hr.height));
                 // 直式平板：起始位置置中在封面（未捲動時）看得到的範圍內，扣掉頁首與底部導覽列
@@ -5303,9 +5447,10 @@ const Globe = (function () {
                 T.tiltX = .25 * e2;
                 if (dark) T.op = 1 - .3 * e1 - .12 * e2;
                 else {
-                    // 淺色主題：只畫在黑色 hero 裡，捲出去就淡掉
+                    // 淺色主題：只畫在深色的 hero 卡片裡（連圓角一起裁），捲出去就淡掉
                     T.op = 1 - hp;
-                    T.clip = `inset(${Math.max(0, hr.top).toFixed(0)}px 0 ${Math.max(0, H - hr.bottom).toFixed(0)}px 0)`;
+                    const rad = hero ? parseFloat(getComputedStyle(hero).borderTopLeftRadius) || 0 : 0;
+                    T.clip = `inset(${hr.top.toFixed(0)}px ${Math.max(0, W - hr.right).toFixed(0)}px ${(H - hr.bottom).toFixed(0)}px ${Math.max(0, hr.left).toFixed(0)}px round ${rad}px)`;
                 }
             } else {
                 const p = reduced() ? 0 : clamp01(scrollY / Math.max(1, docH));
@@ -5461,6 +5606,7 @@ $('#lang-btn').addEventListener('click', switchLang);
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });
 $$('.player').forEach(initPlayer);
+initStormTabs();
 initCompare();
 staggerReveals();
 applyLang(currentLang, false);
