@@ -2764,12 +2764,9 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
         ax.set_xlim(lon0, lon1); ax.set_ylim(lat0, lat1)
         kw = {}
     stroke = [mpe.withStroke(linewidth=3, foreground='black')]
-    # 不畫路徑（路徑看海洋熱含量圖與預報分頁），只標 JTWC 中心
-    # 小圓點（依強度上色），只蓋住中心一兩個像素，颱風眼還看得到
-    col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
-    ax.scatter([st['lon']], [st['lat']], s=28, color=col, edgecolors='black', linewidths=1.0, zorder=5, **kw)
+    # 不畫路徑也不標中心（路徑看海洋熱含量圖），只在颱風右上方標名字與強度，不蓋住眼與眼牆
     label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
-    ax.text(st['lon'] + 0.8, st['lat'] + 0.6, label, fontsize=10, fontweight='bold', color='white', zorder=6,
+    ax.text(st['lon'] + 1.3, st['lat'] + 1.1, label, fontsize=10, fontweight='bold', color='white', zorder=6,
             clip_on=True, path_effects=stroke, **kw)
     cb = fig.colorbar(im, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
                       ticks=range(SAT_VMIN, SAT_VMAX + 1, 10), extend='both')
