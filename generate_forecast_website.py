@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "6.9.0"
+SITE_VERSION = "7.0.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -2836,7 +2836,7 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
 }
 
 /* ═════════════════════════════════════════════════════════════════
-   v6.9「毛玻璃」：參考 iOS 26 Liquid Glass —— 半透明玻璃面板浮在
+   v7「毛玻璃」：參考 iOS 26 Liquid Glass —— 半透明玻璃面板浮在
    柔和的海洋色背景上；面板用 backdrop-filter 模糊＋提高彩度，
    上緣一道高光、大圓角、膠囊形按鈕，字體回到一般大小寫的無襯線字。
    ═════════════════════════════════════════════════════════════════ */
@@ -3249,7 +3249,7 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
     .teaser-img { min-height: 190px; }
 }
 
-/* ── 颱風頁（v6.9）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
+/* ── 颱風頁（v7）：上方一條玻璃列 = 分頁＋模式選單；內容單欄 ── */
 .storm-bar {
     position: sticky; top: calc(var(--header-h) + 22px); z-index: 50;
     display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
