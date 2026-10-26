@@ -538,7 +538,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
                  [(smp, c) for smp, c in (('homog', h), ('all', a)) if c['track']])
         for sample, c in cands:
             if any(c == prev for _, _, prev in items):
-                if scope == 'storm' and 'score.onestorm' not in notes:
+                if scope == 'allst' and 'score.onestorm' not in notes:   # 只有這顆有資料：「所有颱風」與「這個颱風」相同
                     notes.append('score.onestorm')
                 continue
             if sample == 'same' and 'score.same' not in notes:
@@ -1387,9 +1387,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             order = [x for m in models if isinstance(m, dict)
                      for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x]
             det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
-            # 預設「所有颱風・同質樣本」：樣本最多、比較也最公平
+            # 「這個颱風」排前面（預設），「所有颱風」在後；各自再分同質／全部樣本
             body = _score_block(f"{key_prefix}-score",
-                                [('allst', _card_m.get('scorecard_all')), ('storm', _card_m.get('scorecard'))],
+                                [('storm', _card_m.get('scorecard')), ('allst', _card_m.get('scorecard_all'))],
                                 order, det_names)
             if not body:
                 body = ('<p class="map-note" data-i18n="score.pending">Collecting data — the first '
@@ -1504,10 +1504,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
         panes = [
-            ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}"),
+            ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}{ohc_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
             ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
-            ('intensity', 'tab.int', 'Intensity', f"{plume_html}{ohc_html}"),
+            ('intensity', 'tab.int', 'Intensity', plume_html),
             ('score', 'tab.score', 'Scores', score_html),
         ]
         panes = [pn for pn in panes if pn[3].strip()]
@@ -1706,7 +1706,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, and the ocean heat content under the storm), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -3581,7 +3581,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast and the ocean heat content under the storm) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, and the ocean heat content under the storm), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3807,7 +3807,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報與颱風底下的海洋熱含量）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率、颱風底下的海洋熱含量）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
