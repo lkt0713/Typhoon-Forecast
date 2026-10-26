@@ -789,7 +789,7 @@ def _app_icon(size: int):
     y = np.linspace(0, 1, S)[:, None]
     x = np.linspace(0, 1, S)[None, :]
     t = np.clip((x + y) / 2, 0, 1)[..., None]
-    a, b = np.array([27, 92, 148]), np.array([15, 155, 142])   # --accent → --accent-2
+    a, b = np.array([58, 160, 255]), np.array([10, 95, 196])    # 與頁首 logo 同一組漸層（#3aa0ff → #0a5fc4）
     img = Image.fromarray((a + (b - a) * t).astype('uint8'), 'RGB')
     d = ImageDraw.Draw(img)
     c, r, R, w = S / 2, S * 0.1, S * 0.2, int(S * 0.045)
@@ -1867,7 +1867,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <a class="skip-link" href="#views">Skip to content</a>
     <header id="site-header">
         <a class="header-brand" href="#/overview">
-            <div class="brand-icon"><span>🌀</span></div>
+            <div class="brand-icon"><span><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M9 12A6 6 0 0 1 20.2 9M15 12A6 6 0 0 1 3.8 15"/></svg></span></div>
             <div class="brand-text">
                 <h1 data-i18n="brand.title">Pillar's Tropical Cyclone Forecast</h1>
                 <small data-i18n="brand.sub">Real-time WN3-C / WN2-C r2 / WN2-C r1 / WN2-C 1000 / GENC / AIFS / ECMWF / AIGFS / GFS Ensemble Forecast System · Western Pacific</small>
@@ -2946,7 +2946,19 @@ header {
     box-shadow: var(--glass-spec), var(--shadow-md);
 }
 .scroll-progress { left: 24px; right: 24px; bottom: 0; height: 2px; border-radius: 2px; background: var(--accent); }
-.brand-icon { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(145deg, #3aa0ff, #0a5fc4); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 4px 12px rgba(10,111,220,.3); color: #fff; }
+.brand-icon {
+    position: relative; overflow: hidden; width: 38px; height: 38px; border-radius: 12px; color: #fff;
+    background: linear-gradient(145deg, #3aa0ff, #0a5fc4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.12), 0 4px 12px rgba(10,111,220,.32);
+}
+/* 上半部一層亮面，像 iOS 圖示的玻璃反光 */
+.brand-icon::after { content: ""; position: absolute; inset: 0 0 50% 0; background: linear-gradient(rgba(255,255,255,.28), rgba(255,255,255,0)); pointer-events: none; }
+.brand-icon span { display: flex; animation: none; }
+/* logo 平常不轉；滑鼠移上去時旋臂逆時針轉一圈（北半球颱風的旋轉方向） */
+.header-brand:hover .brand-icon { transform: scale(1.05); }
+.brand-mark { transition: transform .9s var(--ease-out); }
+.header-brand:hover .brand-mark { transform: rotate(-360deg); }
+.brand-mark { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
 .brand-text h1 { font-weight: 700; font-size: 1.02em; letter-spacing: -.01em; }
 html[lang^="zh"] .brand-text h1 { letter-spacing: .04em; }
 .nav-link { border-radius: 999px; font-weight: 600; font-size: .86em; color: var(--text-2); padding: 8px 14px; }
@@ -3205,6 +3217,8 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
     .stat { padding: 13px 15px; border-radius: 20px; }
     .stat-value { font-size: 1.2em; }
     .hero-inner { padding: 40px 16px 44px; }
+    .brand-icon { width: 34px; height: 34px; border-radius: 11px; }
+    .brand-mark { width: 22px; height: 22px; }
     .hero-storms { padding: 2px 16px; border-radius: 22px; }
     /* 手機：每顆排兩行 —— 名字＋強度在上、風速與位置在下，箭頭靠右 */
     .hero-storms a { gap: 4px 10px; font-size: 1.02rem; }
