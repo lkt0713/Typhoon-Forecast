@@ -55,22 +55,5 @@
     "r70_km": 330.0
    }
   ]
- },
- "TC2636": {
-  "agency": "JMA",
-  "id": "TC2636",
-  "number": "2630",
-  "name": "Champi",
-  "issue": "2026-10-25T12:00Z",
-  "points": [
-   {
-    "h": 0,
-    "lat": 31.0,
-    "lon": 126.0,
-    "kt": null,
-    "hpa": 1000.0,
-    "r70_km": null
-   }
-  ]
  }
 }
