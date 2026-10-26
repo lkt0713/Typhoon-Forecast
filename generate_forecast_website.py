@@ -1346,7 +1346,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_model_tabs(f"{key_prefix}-sat", sat_labels) if len(sat_labels) > 1 else f'<div class="model-label">{_esc(sat_labels[0])}</div>'}
                 {"".join(sat_panels)}
-                <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
+                <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
             </div>"""
 
         ohc_html = ""
@@ -1361,7 +1361,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <span data-i18n="panel.ohc">Ocean Heat Content</span>
                 </div>
                 {_figure(os.path.basename(_ohc), f"{track_id} Ocean Heat Content")}
-                <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far</p>
+                <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)</p>
             </div>"""
 
         steer_html = ""
@@ -1504,7 +1504,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
         panes = [
-            ('now', 'tab.now', 'Summary', f"{sat_html}{official_html}{cities_html}{ohc_html}"),
+            ('now', 'tab.now', 'Summary', f"{sat_html}{ohc_html}{official_html}{cities_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
             ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
             ('intensity', 'tab.int', 'Intensity', plume_html),
@@ -3511,10 +3511,10 @@ const I18N = {
     'grp.more':         'Ocean heat, steering flow and model scores',
     'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
-    'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Dot = latest JTWC position (warnings come every 6 h, so the storm may have moved a little since), solid line = track so far, dashed = JTWC forecast &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
+    'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
-    'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, line = track so far',
+    'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
     'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
@@ -3737,10 +3737,10 @@ const I18N = {
     'grp.more':         '海洋熱含量、駛流場與模式成績',
     'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
     'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
-    'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 圓點＝JTWC 最新位置（公報每 6 小時一次，颱風可能已移動一些），實線＝目前為止的路徑，虛線＝JTWC 預報 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
+    'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 以 JTWC 最新位置為中心（公報每 6 小時一次，颱風可能已移動一些）；路徑與 JTWC 預報畫在下方的海洋熱含量圖 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
-    'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，線＝目前為止的路徑',
+    'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
     'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',

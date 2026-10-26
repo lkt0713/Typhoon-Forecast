@@ -2624,6 +2624,18 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
             tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
             ax.plot(tl, [p[0] for p in st['track']], color='black', lw=3.4, alpha=0.75, zorder=3, **kw)
             ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3.1, **kw)
+        if st.get('forecast'):
+            # JTWC 預報路徑：白色虛線，每 24 小時一個點與時距
+            fc = [[st['lat'], st['lon'], 0]] + st['forecast']
+            fl = np.unwrap(np.radians([p[1] for p in fc])) * 180 / np.pi
+            ax.plot(fl, [p[0] for p in fc], color='white', lw=1.5, ls=(0, (4, 3)), zorder=3.2,
+                    path_effects=[mpe.withStroke(linewidth=3.2, foreground='black')], **kw)
+            for (la, _, tau), lo in zip(fc[1:], fl[1:]):
+                if tau % 24 == 0:
+                    ax.scatter([lo], [la], s=14, color='white', edgecolors='black', linewidths=0.8, zorder=4, **kw)
+                    # 時距標在點的下方：颱風名稱標在目前位置的右上，第一個 24 小時點常常很近
+                    ax.text(lo, la - 0.7, f"+{tau}h", fontsize=7, color='white', ha='center', va='top', zorder=4,
+                            clip_on=True, path_effects=[mpe.withStroke(linewidth=2.5, foreground='black')], **kw)
         col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
         ax.scatter([st['lon']], [st['lat']], s=40, marker='o', color=col, edgecolors='white',
                    linewidths=1.2, zorder=6, **kw)
@@ -2637,7 +2649,7 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
     src = 'CMEMS (Copernicus Marine) 1/12°' if source == 'CMEMS' else 'HYCOM (US Navy)'
     ax.set_title(f"Ocean Heat Content (OHC)  ·  {pd.Timestamp(date):%Y/%m/%d}", loc='left',
                  fontsize=14, fontweight='bold', color=TEXT_DARK, pad=22)
-    ax.text(0, 1.012, f"Heat above 26 °C down to the 26 °C isotherm  ·  {src}  ·  Dot = current JTWC position",
+    ax.text(0, 1.012, f"Heat above 26 °C  ·  {src}  ·  dot = JTWC position, solid = past track, dashed = JTWC forecast",
             transform=ax.transAxes,
             ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
     plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.12)
@@ -2671,10 +2683,21 @@ def _storm_marker(head: dict) -> dict | None:
             'track': track + [[pos[0], pos[1]]]}
 
 
+def _jtwc_forecast(head: dict) -> list:
+    """JTWC 最新一報的預報點 [[lat, lon, tau], ...]（不含 tau 0）。"""
+    jt = (head.get('current_info') or {}).get('jtwc') or {}
+    return [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
+
+
 def make_ohc_map(storms: list) -> str | None:
     """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。"""
     import ohc
-    now = [st for st in (_storm_marker(s) for s in _storm_heads(storms)) if st]
+    now = []
+    for head in _storm_heads(storms):
+        st = _storm_marker(head)
+        if st:
+            st['forecast'] = _jtwc_forecast(head)
+            now.append(st)
     if not now:
         if os.path.exists(OHC_PATH):
             os.remove(OHC_PATH)
@@ -2685,15 +2708,15 @@ def make_ohc_map(storms: list) -> str | None:
     return OHC_PATH
 
 
-# ── 目前的衛星雲圖動畫（向日葵 9 號 B13 紅外線）＋颱風位置與路徑 ──────────────────────
+# ── 目前的衛星雲圖動畫（向日葵 9 號 B13 紅外線）＋颱風中心 ──────────────────────────
 # 每顆颱風兩組、以 JTWC 目前位置為中心：彩色強化（CIRA／JTWC 那種，冷雲頂才上色，眼牆與
 # 深對流一眼可見）與傳統黑白（越冷越白），各是最近 3 小時、每 10 分鐘一幀的動畫。
 # 資料抓取與定位見 satellite.py。
-SAT_HALF_LON, SAT_HALF_LAT = 12.0, 9.0
+SAT_HALF_LON, SAT_HALF_LAT = 7.0, 5.25       # 只看颱風本身（不畫路徑），範圍 14°×10.5°
 SAT_FRAMES = 18                          # 動畫幀數：每 10 分鐘一幀，共 3 小時
 SAT_FRAME_DPI = 130
 SAT_DIR_PREFIX = "satellite_frames_"
-SAT_STYLE_VERSION = 2                    # 改了圖的樣式就加 1，下一輪會把現有的幀全部重畫
+SAT_STYLE_VERSION = 3                    # 改了圖的樣式就加 1，下一輪會把現有的幀全部重畫
 SAT_VMIN, SAT_VMAX = -90, 40             # 色階範圍（°C）
 SAT_STYLES = [('Enhanced IR', 'IR'), ('Grayscale IR', 'Gray')]   # (網頁分頁標籤, 檔名後綴)
 # 彩色強化：−30 °C 以上照黑白，以下依溫度分段上色（顏色順序同 CIRA 的 Rainbow IR）
@@ -2730,7 +2753,7 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
         ax.coastlines(resolution='50m', linewidth=0.7, color=coast, zorder=2)
         gl = ax.gridlines(draw_labels=True, linewidth=0.5, color='white', alpha=0.35, linestyle=(0, (2, 3)))
         gl.right_labels = gl.top_labels = False
-        gl.xlocator = gl.ylocator = mticker.MultipleLocator(5)
+        gl.xlocator = gl.ylocator = mticker.MultipleLocator(2)
         gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
         gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_MUTED}
         kw = dict(transform=ccrs.PlateCarree())
@@ -2741,25 +2764,9 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
         ax.set_xlim(lon0, lon1); ax.set_ylim(lat0, lat1)
         kw = {}
     stroke = [mpe.withStroke(linewidth=3, foreground='black')]
-    if len(st['track']) > 1:
-        tl = np.unwrap(np.radians([p[1] for p in st['track']])) * 180 / np.pi
-        ax.plot(tl, [p[0] for p in st['track']], color='white', lw=1.6, zorder=3,
-                path_effects=stroke, **kw)
-    if st.get('forecast'):
-        fc = [[st['lat'], st['lon'], 0]] + st['forecast']
-        fl = np.unwrap(np.radians([p[1] for p in fc])) * 180 / np.pi
-        ax.plot(fl, [p[0] for p in fc], color='white', lw=1.4, ls=(0, (4, 3)), zorder=3,
-                path_effects=stroke, **kw)
-        for (la, _, tau), lo in zip(fc[1:], fl[1:]):
-            if tau % 24 == 0:
-                ax.scatter([lo], [la], s=16, color='white', edgecolors='black', linewidths=0.8, zorder=4, **kw)
-                ax.text(lo + 0.35, la, f"+{tau}h", fontsize=7.5, color='white', va='center', zorder=4,
-                        clip_on=True, path_effects=stroke, **kw)
-    # 小圓點（依強度上色），只蓋住中心一兩個像素，颱風眼還看得到
-    col = COLOR_MAP.get(ss_category(st['kt']), MEAN_COLOR) if st.get('kt') is not None else MEAN_COLOR
-    ax.scatter([st['lon']], [st['lat']], s=28, color=col, edgecolors='black', linewidths=1.0, zorder=5, **kw)
+    # 不畫路徑也不標中心（路徑看海洋熱含量圖），只在颱風右上方標名字與強度，不蓋住眼與眼牆
     label = st['name'] + (f"  {st['kt']:.0f} kt" if st.get('kt') is not None else '')
-    ax.text(st['lon'] + 1.4, st['lat'] + 1.1, label, fontsize=10, fontweight='bold', color='white', zorder=6,
+    ax.text(st['lon'] + 1.3, st['lat'] + 1.1, label, fontsize=10, fontweight='bold', color='white', zorder=6,
             clip_on=True, path_effects=stroke, **kw)
     cb = fig.colorbar(im, ax=ax, orientation='vertical', pad=0.02, fraction=0.035, aspect=30,
                       ticks=range(SAT_VMIN, SAT_VMAX + 1, 10), extend='both')
@@ -2779,7 +2786,7 @@ def make_satellite_maps(storms: list) -> dict:
     """每顆颱風畫最近 SAT_FRAMES 個時次的衛星雲圖動畫（彩色強化＋黑白）→ {tid: [(分頁標籤, 幀目錄), ...]}。
 
     幀以觀測時間命名、存在 docs/ 跟著網站一起 commit，下一輪只補畫新的時次、刪掉超過 3 小時的。
-    中心與疊圖（JTWC 位置、路徑、預報）或 SAT_STYLE_VERSION 一變就整組重畫，動畫裡每一幀的範圍與疊圖才一致；
+    中心與疊圖（JTWC 位置與強度）或 SAT_STYLE_VERSION 一變就整組重畫，動畫裡每一幀的範圍與疊圖才一致；
     JTWC 約每 6 小時發一次公報，所以一天約整組重畫 4 次。整顆颱風抓圖失敗時沿用現有的幀，
     單一時次失敗只少那一幀，都不影響其他颱風。"""
     import json
@@ -2790,11 +2797,11 @@ def make_satellite_maps(storms: list) -> dict:
         if st is None:
             continue
         tid = st['tid']
-        jt = (head.get('current_info') or {}).get('jtwc') or {}
-        st['forecast'] = [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
         dirs = [(lbl, suf, os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}_{suf}")) for lbl, suf in SAT_STYLES]
         mark_path = os.path.join(OUTPUT_DIR, f"{SAT_DIR_PREFIX}{tid}.json")
-        sig = json.dumps({**st, 'style': SAT_STYLE_VERSION}, sort_keys=True)
+        # 簽章只放畫在圖上的東西（中心、強度、名稱），JTWC 改了路徑不用整組重畫
+        sig = json.dumps({k: st[k] for k in ('tid', 'name', 'lat', 'lon', 'kt')} | {'style': SAT_STYLE_VERSION},
+                         sort_keys=True)
         try:
             with open(mark_path, encoding='utf-8') as fh:
                 old_sig = json.load(fh).get('sig')
