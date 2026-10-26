@@ -3262,7 +3262,9 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
 .storm-tab { padding: 9px 20px; font-size: .92em; }
 .model-pick { display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border-left: 1px solid var(--border);
               font-size: .84em; font-weight: 600; color: var(--text-3); white-space: nowrap; }
-.model-select {
+/* 全站下拉選單同一個樣式：颱風頁模式選單、互動地圖、歷史頁、生成潛勢比較
+  （歷史頁的選單原本沒有樣式，iOS 會畫成文字貼左邊的原生膠囊） */
+.model-select, .arch-model, .track-map select, .compare-pickers select {
     appearance: none; -webkit-appearance: none; cursor: pointer;
     font: inherit; font-size: 1.04em; font-weight: 650; color: var(--text);
     padding: 7px 32px 7px 14px; border-radius: 999px; border: 1px solid var(--glass-line);
@@ -3270,8 +3272,8 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%237f8c99' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     box-shadow: var(--glass-spec);
 }
-.model-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-[data-theme="dark"] .model-select option { background: #1b2533; color: #f1f5fa; }
+.model-select:focus-visible, .arch-model:focus-visible, .track-map select:focus-visible, .compare-pickers select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-theme="dark"] :is(.model-select, .arch-model, .track-map select, .compare-pickers select) option { background: #1b2533; color: #f1f5fa; }
 .storm-bar.no-pick .model-pick { display: none; }
 .tab-pane { display: flex; flex-direction: column; gap: 24px; }
 .tab-pane.swap-in { animation: swapIn .45s var(--ease-out); }
