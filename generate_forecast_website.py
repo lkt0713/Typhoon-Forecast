@@ -2785,8 +2785,6 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 /* 每張圖放在一張滿版的白色圖紙上（圖本身就是白底），不再是大小不一的白框浮在黑底；
    深色主題整張圖紙調暗一點，不刺眼 */
 .zoomable { background: #fff; border: 1px solid var(--border); }
-.zoomable.loaded:not(.frame-stage):not(.broken) { width: auto; }
-.zoomable > img:not(.frame) { padding: 10px 0; }
 .frame-stage { background: #fff; }
 [data-theme="dark"] .zoomable, [data-theme="dark"] .frame-stage { filter: brightness(.9) contrast(1.02); }
 [data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
@@ -3147,6 +3145,8 @@ details.sec-group > summary .fold-hint {
 .zoom-hint { border-radius: 999px; background: rgba(20,28,40,.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .player { background: transparent; border: 0; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); }
 .frame-stage { border-radius: 22px 22px 0 0; }
+/* 圖紙貼齊圖片：圖被限高時，白底不再撐滿整個面板寬度、兩旁留白；播放器寬度也依圖的長寬比收窄 */
+.player { width: min(100%, calc((100vh - var(--header-h) - 190px) * var(--arv, 1.6))); margin-inline: auto; }
 .player-controls { border-radius: 0 0 22px 22px; border-top: 0; box-shadow: var(--glass-spec); }
 .pc-btn { border-radius: 999px; background: var(--surface-2); border-color: var(--glass-line); }
 .pc-main { background: var(--accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(var(--accent-rgb),.35); }
@@ -4725,7 +4725,11 @@ function initPlayer(el) {
     };
     players[P.key] = P;
     const first = P.imgs[0];
-    const size = () => { if (first.naturalWidth) P.stage.style.setProperty('--ar', `${first.naturalWidth} / ${first.naturalHeight}`); };
+    const size = () => {
+        if (!first.naturalWidth) return;
+        P.stage.style.setProperty('--ar', `${first.naturalWidth} / ${first.naturalHeight}`);
+        el.style.setProperty('--arv', (first.naturalWidth / first.naturalHeight).toFixed(4));   // 播放器寬度跟著圖，左右不留白
+    };
     if (first.complete) size(); else first.addEventListener('load', size, { once: true });
     setPlayBtn(P);
     updPlayerUI(P);
