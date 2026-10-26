@@ -3049,7 +3049,7 @@ html[lang^="zh"] .hero-title { line-height: 1.15; }
 .hero-storms li:first-child a { border-top: 0; }
 .hero-storms li:last-child a { border-bottom: 0; }
 .hero-storms .hs-name { font-weight: 700; color: #fff; }
-.cat-pill { border-radius: 999px; font-weight: 700; padding: 4px 12px; }
+.cat-pill { border-radius: 999px; font-weight: 700; padding: 4px 12px; text-align: center; }   /* 首頁颱風列對齊成欄時，膠囊會被撐成同寬，字要置中 */
 .hero-sub { color: rgba(255,255,255,.72); }
 .btn-primary, .btn-ghost { border-radius: 999px; padding: 13px 24px; font-weight: 650; }
 .btn-primary { background: rgba(255,255,255,.92); color: #0b2440; box-shadow: inset 0 1px 0 #fff, 0 10px 30px rgba(0,0,0,.25); }
