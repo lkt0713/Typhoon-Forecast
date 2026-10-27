@@ -3038,13 +3038,17 @@ def plot_shear_chart(tid: str, name: str, cycle, series: list, save_path: str) -
         ax.axhline(y, color='#9AA7B5', lw=0.8, ls=(0, (4, 3)), zorder=1)
     ax.plot(lead, shear, color=MEAN_COLOR, lw=2.4, zorder=3, solid_capstyle='round')
     ax.scatter(lead, shear, s=34, color=MEAN_COLOR, edgecolors='white', linewidths=1.2, zorder=4)
-    # 底部一排箭頭：風切向量指向的方向（從低層風指向高層風）
-    ya = top * 0.075
+    # 底部另闢一條灰帶畫箭頭：風切向量指向的方向（從低層風指向高層風），不跟風切很小的點疊在一起
+    strip = top * 0.13
+    ax.axhspan(-strip, 0, color='#EEF2F6', zorder=0, lw=0)
+    ax.axhline(0, color=BOX_EDGE, lw=0.8, zorder=1)
+    ya = -strip / 2
     rad = np.radians([p[2] for p in series])
     ax.quiver(lead, [ya] * len(lead), np.sin(rad), np.cos(rad), angles='uv', pivot='middle',
               scale=40, width=0.0032, headwidth=4.5, headlength=4.5, color='#5B6B7C', zorder=4)
     ax.set_xlim(-3, max(lead) + 3)
-    ax.set_ylim(0, top)
+    ax.set_ylim(-strip, top)
+    ax.set_yticks([t for t in ax.get_yticks() if 0 <= t <= top])
     ax.set_ylabel('200–850 hPa shear (kt)', color=TEXT_DARK, fontsize=10)
     ticks = [h for h in lead if h % 24 == 0]
     ax.set_xticks(ticks)
