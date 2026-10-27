@@ -4,8 +4,9 @@
 高壓的範圍：颱風多沿著它的外緣移動，高壓西伸時偏西走、東退時容易轉北。
 這裡只負責下載與解碼（畫圖在 forecast.py，才能共用底圖樣式）。
 
-資料來自 ECMWF Open Data（CC BY 4.0），用 ecmwf-opendata 套件依索引檔只抓需要的
-欄位：每個時距的 gh/u/v 三個 500 hPa 欄位，全球 0.25° 約 0.5 MB 一個。
+資料來自 ECMWF Open Data（CC BY 4.0）的 AIFS-single（ECMWF 的 AI 模式決定報），用
+ecmwf-opendata 套件依索引檔只抓需要的欄位：每個時距的 gh/u/v 三個 500 hPa 欄位，
+全球 0.25° 約 0.5 MB 一個。AIFS 每天四期都跑到 360 小時，所以每期都有 0–120 h。
 """
 from __future__ import annotations
 
@@ -15,21 +16,19 @@ from datetime import datetime, timezone
 import numpy as np
 
 STEPS = [0, 24, 48, 72, 96, 120]
-# 06Z／18Z 的 HRES（scda stream）只跑到 90 小時
-SHORT_RUN_MAX_STEP = 90
 # 裁切範圍（經度 0–360）：比畫圖範圍大一點，流線在邊緣才不會斷得太突然
 CROP = (90.0, 190.0, -10.0, 60.0)
 
 
 def steps_for(cycle: datetime) -> list[int]:
-    return STEPS if cycle.hour in (0, 12) else [s for s in STEPS if s <= SHORT_RUN_MAX_STEP]
+    return STEPS
 
 
 def fetch(cycle: datetime | None, target: str) -> datetime:
-    """下載某一期（None＝最新一期）HRES 的 500 hPa gh/u/v，回傳實際的起報時間（UTC）。"""
+    """下載某一期（None＝最新一期）AIFS-single 的 500 hPa gh/u/v，回傳實際的起報時間（UTC）。"""
     from ecmwf.opendata import Client  # 延後匯入：沒裝套件時 forecast.py 其餘部分照常
-    client = Client(source="ecmwf")
-    kw = dict(type="fc", model="ifs", param=["gh", "u", "v"], levelist=500)
+    client = Client(source="ecmwf", model="aifs-single")
+    kw = dict(type="fc", param=["gh", "u", "v"], levelist=500)
     if cycle is None:
         cycle = client.latest(step=0, **kw)
     cycle = cycle.replace(tzinfo=None)
