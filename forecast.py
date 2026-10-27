@@ -2978,6 +2978,146 @@ def make_steering_maps(storms: list) -> list:
     return out
 
 
+# ── 沿 AIFS 路徑的垂直風切（AIFS-single 200–850 hPa）─────────────────────
+# 每顆颱風一張時序圖：沿 AIFS 決定報自己的預報路徑，每 6 小時取颱風中心外 200–800 km 的
+# 平均風切（大小與方向）。風場與路徑同一期、同一個模式才一致。
+# 一期只抓一次：SHEAR_MARK 記著用的起報時間與颱風，沒變就沿用現有圖檔。
+SHEAR_MARK = os.path.join(OUTPUT_DIR, "WP_Shear.json")
+SHEAR_RAW = os.path.join("__pycache__", "aifs_shear.grib2")
+SHEAR_SUFFIX = "_Shear.png"
+SHEAR_BANDS = [(0, 10, '#E3F4E8', 'Low'), (10, 20, '#FCF3D6', 'Moderate'), (20, 999, '#FBE1DE', 'High')]
+
+
+def _shear_tracks(storms: list) -> tuple:
+    """(起報時間或 None, {tid: AIFS-single 路徑})：用最新一期的 AIFS 決定報。"""
+    tracks, cycle = {}, None
+    for s in storms:
+        ddf = s.get('det_df')
+        if s.get('model') == 'AIFS' and ddf is not None and not ddf.empty and s.get('det_init_time') is not None:
+            it = pd.Timestamp(s['det_init_time'])
+            it = it.tz_convert('UTC') if it.tzinfo else it.tz_localize('UTC')
+            if cycle is None or it > cycle:
+                cycle, tracks = it, {}
+            if it == cycle:
+                tracks[s['track_id']] = ddf.sort_values('valid_time')
+    return (cycle.to_pydatetime() if cycle is not None else None), tracks
+
+
+def _shear_series(fields: dict, cycle, ddf: pd.DataFrame) -> list:
+    """沿路徑每個時距的 [lead, 風切 kt, 方向 °, AIFS 強度 kt|None]；路徑沒到的時距不算。"""
+    import ecmwf_shear as esh
+    vt = pd.to_datetime(ddf['valid_time'])
+    vt = vt.dt.tz_convert('UTC') if vt.dt.tz is not None else vt.dt.tz_localize('UTC')
+    lead = (vt - pd.Timestamp(cycle)).dt.total_seconds().to_numpy() / 3600.0
+    lons = np.unwrap(np.radians(ddf['lon'].to_numpy(dtype=float))) * 180 / np.pi
+    lats = ddf['lat'].to_numpy(dtype=float)
+    wind = ddf['wind'].to_numpy(dtype=float) if 'wind' in ddf.columns else np.full(len(ddf), np.nan)
+    out = []
+    for st in sorted(fields):
+        if not (lead.min() - 1e-6 <= st <= lead.max() + 1e-6):
+            continue
+        la, lo = float(np.interp(st, lead, lats)), float(np.interp(st, lead, lons))
+        sh = esh.ring_shear(fields[st], la, lo)
+        if sh is None:
+            continue
+        w = float(np.interp(st, lead, wind)) if np.isfinite(wind).any() else float('nan')
+        out.append([int(st), round(sh[0], 1), round(sh[1]), None if not np.isfinite(w) else round(w)])
+    return out
+
+
+def plot_shear_chart(tid: str, name: str, cycle, series: list, save_path: str) -> str:
+    lead = [p[0] for p in series]
+    shear = [p[1] for p in series]
+    fig, ax = plt.subplots(figsize=(10.5, 4.8), facecolor='white')
+    top = max(30.0, np.ceil((max(shear) + 6) / 5) * 5)
+    for lo, hi, col, lbl in SHEAR_BANDS:
+        ax.axhspan(lo, min(hi, top), color=col, zorder=0, lw=0)
+        ax.text(1.005, (lo + min(hi, top)) / 2 / top, lbl, transform=ax.transAxes, fontsize=8,
+                color=TEXT_MUTED, va='center', ha='left', rotation=90)
+    for y in (10, 20):
+        ax.axhline(y, color='#9AA7B5', lw=0.8, ls=(0, (4, 3)), zorder=1)
+    ax.plot(lead, shear, color=MEAN_COLOR, lw=2.4, zorder=3, solid_capstyle='round')
+    ax.scatter(lead, shear, s=34, color=MEAN_COLOR, edgecolors='white', linewidths=1.2, zorder=4)
+    # 底部另闢一條灰帶畫箭頭：風切向量指向的方向（從低層風指向高層風），不跟風切很小的點疊在一起
+    strip = top * 0.13
+    ax.axhspan(-strip, 0, color='#EEF2F6', zorder=0, lw=0)
+    ax.axhline(0, color=BOX_EDGE, lw=0.8, zorder=1)
+    ya = -strip / 2
+    rad = np.radians([p[2] for p in series])
+    ax.quiver(lead, [ya] * len(lead), np.sin(rad), np.cos(rad), angles='uv', pivot='middle',
+              scale=40, width=0.0032, headwidth=4.5, headlength=4.5, color='#5B6B7C', zorder=4)
+    ax.set_xlim(-3, max(lead) + 3)
+    ax.set_ylim(-strip, top)
+    ax.set_yticks([t for t in ax.get_yticks() if 0 <= t <= top])
+    ax.set_ylabel('200–850 hPa shear (kt)', color=TEXT_DARK, fontsize=10)
+    ticks = [h for h in lead if h % 24 == 0]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"+{h} h\n{pd.Timestamp(cycle) + pd.Timedelta(hours=h):%m/%d %HZ}" for h in ticks],
+                       fontsize=8.5, color=TEXT_DARK)
+    ax.tick_params(axis='y', labelsize=8.5, colors=TEXT_DARK)
+    for sp in ax.spines.values():
+        sp.set_color(BOX_EDGE)
+    # 不疊 AIFS 強度：0.25° 的 AI 模式解析不出颱風核心，強度常比實際弱很多，放在一起會誤導
+    handles = [mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4, marker='o', ms=6, markeredgecolor='white'),
+               mlines.Line2D([], [], color='#5B6B7C', lw=0, marker=r'$\rightarrow$', ms=11)]
+    labels = ['Vertical wind shear', 'Shear direction (low → high level)']
+    leg = ax.legend(handles, labels, loc='upper left', fontsize=8, ncol=2, borderpad=0.6, **LEGEND_KW)
+    _style_legend(leg)
+    ax.set_title(f"AIFS-single  ·  {tid} ({name})  Vertical Wind Shear along the AIFS Track", loc='left',
+                 fontsize=13.5, fontweight='bold', color=TEXT_DARK, pad=22)
+    ax.text(0, 1.015, f"Init {pd.Timestamp(cycle):%Y-%m-%d %HZ}  ·  200–850 hPa, mean over 200–800 km from the "
+            "centre  ·  Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
+            ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
+def make_shear_charts(storms: list) -> dict:
+    """畫（或沿用）每顆颱風的沿路徑風切圖 → {tid: 路徑}；沒有 AIFS 決定報就不畫。"""
+    import json
+    import ecmwf_shear as esh
+    cycle, tracks = _shear_tracks(storms)
+    if cycle is None or not tracks:
+        print("[SHEAR] 沒有 AIFS 決定報路徑，略過")
+        return {}
+    names = {}
+    for head in _storm_heads(storms):
+        jt = (head.get('current_info') or {}).get('jtwc') or {}
+        names[head['track_id']] = str(jt.get('name')).title() if jt.get('name') else head['track_id']
+    want = {'cycle': cycle.strftime('%Y%m%d%H'), 'tracks': sorted(tracks)}
+    paths = {tid: os.path.join(OUTPUT_DIR, f"{tid}{SHEAR_SUFFIX}") for tid in tracks}
+    try:
+        with open(SHEAR_MARK, encoding='utf-8') as fh:
+            mark = json.load(fh)
+    except (OSError, ValueError):
+        mark = {}
+    if (mark.get('cycle') == want['cycle'] and mark.get('tracks') == want['tracks']
+            and all(os.path.exists(p) for p in paths.values())):
+        print(f"[SHEAR] 沿用 {want['cycle']} 的風切圖")
+        return paths
+    try:
+        esh.fetch(cycle, SHEAR_RAW)
+        fields = esh.decode(SHEAR_RAW)
+    finally:
+        if os.path.exists(SHEAR_RAW):
+            os.remove(SHEAR_RAW)
+    out, series = {}, {}
+    for tid, ddf in tracks.items():
+        ser = _shear_series(fields, cycle, ddf)
+        if len(ser) < 2:
+            print(f"[SHEAR] {tid} 路徑太短或在範圍外，略過")
+            continue
+        out[tid] = plot_shear_chart(tid, names.get(tid, tid), cycle, ser, paths[tid])
+        series[tid] = ser
+    with open(SHEAR_MARK, 'w', encoding='utf-8') as fh:
+        json.dump({**want, 'tracks': sorted(out), 'series': series}, fh)
+    print(f"[SHEAR] 已畫 {cycle:%m/%d %HZ} AIFS 風切圖：" +
+          ", ".join(f"{t}（{min(p[1] for p in v):.0f}–{max(p[1] for p in v):.0f} kt）" for t, v in series.items()))
+    return out
+
+
 # ── 颱風歷史存檔 ───────────────────────────────────────────────────────
 # 颱風消散後網頁上它的頁面就不見了；這裡替每顆颱風留一個小 JSON（docs/archive/{tid}.json）：
 # JTWC 實況路徑、各模式每一期的系集平均／決定報路徑（每 12 h 一點、到 168 h）與成績單。
@@ -4325,6 +4465,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
         return
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
                          r"|^((?:WP|CP|EP)\d{6})_Tracks(?:_\d{10})?\.json$"
+                         r"|^((?:WP|CP|EP)\d{6})_Shear\.png$"
                          rf"|^{SAT_DIR_PREFIX}((?:WP|CP|EP)\d{{6}})\.json$"
                          rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
@@ -4843,6 +4984,15 @@ def main():
         print(f"[STEER] 駛流場失敗，略過: {e}")
     for tid in dict.fromkeys(s['track_id'] for s in storms):
         next(s for s in storms if s['track_id'] == tid)['steering_maps'] = steer
+
+    # 沿 AIFS 路徑的垂直風切：每顆颱風一張。加分項，失敗不影響其他產品
+    try:
+        shear = make_shear_charts(storms)
+    except Exception as e:
+        shear = {}
+        print(f"[SHEAR] 風切圖失敗，略過: {e}")
+    for head in _storm_heads(storms):
+        head['shear_path'] = shear.get(head['track_id'])
 
     # 只留下本次仍在追蹤的颱風產物（JTWC 官方圖與模式比較圖都是每顆颱風一份，
     # 跨模式共用，須等所有模式跑完才知道哪些颱風已完全消失）
