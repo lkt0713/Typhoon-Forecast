@@ -1733,18 +1733,20 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="panel-header"><span class="panel-icon">🧭</span><span data-i18n="about.reading">Reading the maps</span></div>
                     <div class="read-list">
                         <div><h4 data-i18n="panel.sat">Satellite Loop (last 3 hours)</h4><p class="map-note" data-i18n="note.sat"></p></div>
-                        <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
-                        <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
-                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
+                        <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
+                        <div><h4 data-i18n="panel.shear">Vertical Wind Shear along the AIFS Track</h4><p class="map-note" data-i18n="note.shear"></p></div>
+                        <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
+                        <div><h4 data-i18n="panel.jtwc">JTWC Official Forecast</h4><p class="map-note" data-i18n="note.jtwc"></p></div>
+                        <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
+                        <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
+                        <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
+                        <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
+                        <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
-                        <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
-                        <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
-                        <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
-                        <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                         <div><h4 data-i18n="panel.score">Track Error by Model</h4><p class="map-note" data-i18n="note.score"></p></div>
                         <div><h4 data-i18n="arch.title">Storm Archive</h4><p class="map-note" data-i18n="arch.lead"></p></div>
                         <div><h4 data-i18n="nav.genesis">Genesis</h4><p class="map-note" data-i18n="note.genesis" data-i18n-source="Google DeepMind / ECMWF Open Data / NOAA NCEP"></p></div>
