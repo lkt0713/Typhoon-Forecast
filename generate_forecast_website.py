@@ -1517,7 +1517,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         summary_html = _storm_summary(info, city_cols)
 
-        # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
+        # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／校驗，每頁單欄排列
         panes = [
             ('now', 'tab.now', 'Summary',
              f"{sat_html}{ohc_html}{shear_html}{steer_html}{official_html}{jtwc_html}{cities_html}"),
@@ -1921,7 +1921,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     Ensemble track forecasts from DeepMind WeatherNext
                     (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data
                     (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>
-                    Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup.
+                    Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Steering flow and vertical wind shear are from AIFS-single (ECMWF Open Data).
                     Data refreshed automatically.
                 </p>
             </div>
@@ -3523,10 +3523,6 @@ const I18N = {
     'mp.label':         'Model',
     'mp.fallback':      'No {m} here · showing {y}',
     'note.how':         'How to read this',
-    'grp.now':          'Now',
-    'grp.fc':           'Forecast',
-    'grp.bg':           'Background &amp; verification',
-    'grp.more':         'Ocean heat, steering flow and model scores',
     'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
     'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
@@ -3616,7 +3612,7 @@ const I18N = {
     'key.seek':         'Step animation frames',
     'key.esc':          'Close the enlarged image',
     'footer.title':     "Pillar's Tropical Cyclone Forecast System",
-    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Data refreshed automatically.',
+    'footer.desc':      'Ensemble track forecasts from DeepMind WeatherNext (WN3-C, WN2-C r2, WN2-C r1, WN2-C 1000, GENC), ECMWF Open Data (AIFS-ENS + AIFS-single, IFS ENS + HRES) and NOAA NCEP (AIGEFS + AIGFS, GEFS + GFS).<br>Official forecasts from JTWC, JMA and CWA; satellite imagery from Himawari-9 (JMA), via NOAA Open Data on AWS; ocean heat content from Copernicus Marine (CMEMS), with HYCOM as backup. Steering flow and vertical wind shear are from AIFS-single (ECMWF Open Data). Data refreshed automatically.',
     'footer.link1':     '🌐 DeepMind Weather',
     'footer.link2':     '🇪🇺 ECMWF Open Data',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
@@ -3718,7 +3714,7 @@ const I18N = {
     'tmap.all':         '全部',
     'tmap.na':          '尚未出報',
     'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
-    'sub.score':        '成績',
+    'sub.score':        '校驗',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
     'score.all':        '所有颱風合計（近 90 天）',
@@ -3752,10 +3748,6 @@ const I18N = {
     'mp.label':         '模式',
     'mp.fallback':      '這張圖沒有 {m}，顯示 {y}',
     'note.how':         '怎麼看這張圖',
-    'grp.now':          '現況',
-    'grp.fc':           '預報',
-    'grp.bg':           '背景與校驗',
-    'grp.more':         '海洋熱含量、駛流場與模式成績',
     'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
     'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
     'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 以 JTWC 最新位置為中心（公報每 6 小時一次，颱風可能已移動一些）；路徑與 JTWC 預報畫在下方的海洋熱含量圖 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
@@ -3845,7 +3837,7 @@ const I18N = {
     'key.seek':         '動畫逐格播放',
     'key.esc':          '關閉放大的圖片',
     'footer.title':     'Pillar 熱帶氣旋預報系統',
-    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方預報來自 JTWC、日本氣象廳與中央氣象署；衛星雲圖來自日本氣象廳向日葵 9 號（經 NOAA 在 AWS 上的開放資料）；海洋熱含量來自哥白尼海洋服務（CMEMS），HYCOM 為備援。資料自動更新。',
+    'footer.desc':      '系集路徑預報來自 DeepMind WeatherNext（WN3-C、WN2-C r2、WN2-C r1、WN2-C 1000、GENC）、ECMWF Open Data（AIFS-ENS + AIFS-single、IFS ENS + HRES）與 NOAA NCEP（AIGEFS + AIGFS、GEFS + GFS）。<br>官方預報來自 JTWC、日本氣象廳與中央氣象署；衛星雲圖來自日本氣象廳向日葵 9 號（經 NOAA 在 AWS 上的開放資料）；海洋熱含量來自哥白尼海洋服務（CMEMS），HYCOM 為備援；駛流場與垂直風切來自 ECMWF Open Data 的 AIFS-single。資料自動更新。',
     'footer.link1':     '🌐 DeepMind 天氣實驗室',
     'footer.link2':     '🇪🇺 ECMWF 開放資料',
     'footer.link3':     '🇺🇸 NOAA NOMADS',
@@ -4176,7 +4168,7 @@ function linkModelTabs(tab) {
     });
 }
 
-// ── 颱風頁：上方分頁（概況／路徑／侵襲／強度／成績）與整頁一個模式選單 ──────────
+// ── 颱風頁：上方分頁（概況／路徑／侵襲／強度／校驗）與整頁一個模式選單 ──────────
 // 分頁沿用 model-tab-btn／model-panel 的切換機制；換頁時若已捲過分頁列，捲回分頁列頂端。
 // 模式選單取代各圖自己的模式分頁：選了之後每張圖都切到同一個模式，各圖的分頁列隱藏；
 // 同一模式有系集與決定性兩種（如 AIFS-ENS／AIFS-single）時，該圖只留這兩顆小分頁。
