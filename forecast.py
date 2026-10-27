@@ -2851,15 +2851,16 @@ STEER_PREFIX = "WP_Steering_"
 STEER_MARK = os.path.join(OUTPUT_DIR, "WP_Steering.json")
 STEER_RAW = os.path.join("__pycache__", "steering_500.grib2")
 STEER_5880 = 5880.0
+STEER_MODEL = "aifs-single"      # 標記檔裡記著用哪個模式畫的；換模式就重畫
 
 
 def _steer_tracks(storms: list) -> tuple:
-    """(起報時間或 None, {tid: det_df})：用 ECMWF HRES 決定報當疊圖路徑，起報時間也照它，
-    高度場與路徑才是同一期。沒有 HRES 時回 (None, {})，改抓最新一期、不疊路徑。"""
+    """(起報時間或 None, {tid: det_df})：用 AIFS-single 決定報當疊圖路徑，起報時間也照它，
+    高度場與路徑才是同一期、同一個模式。沒有 AIFS 決定報時回 (None, {})，改抓最新一期、不疊路徑。"""
     tracks, cycle = {}, None
     for s in storms:
         ddf = s.get('det_df')
-        if s.get('model') == 'ECMWF' and ddf is not None and not ddf.empty and s.get('det_init_time') is not None:
+        if s.get('model') == 'AIFS' and ddf is not None and not ddf.empty and s.get('det_init_time') is not None:
             it = pd.Timestamp(s['det_init_time'])
             it = it.tz_convert('UTC') if it.tzinfo else it.tz_localize('UTC')
             if cycle is None or it > cycle:
@@ -2916,10 +2917,10 @@ def plot_steering_map(f: dict, step: int, cycle, tracks: dict, save_path: str) -
     if tracks:
         handles.append(mlines.Line2D([], [], color=MEAN_COLOR, lw=1.8, marker='o', ms=7,
                                      markerfacecolor='#E0AC2B', markeredgecolor='white'))
-        labels.append('ECMWF HRES track · dot = position at this time')
+        labels.append('AIFS-single track · dot = position at this time')
     leg = ax.legend(handles, labels, loc='lower left', fontsize=8, borderpad=0.7, labelspacing=0.4, **LEGEND_KW)
     _style_legend(leg)
-    ax.set_title("ECMWF HRES  ·  500 hPa Height & Steering Flow", loc='left',
+    ax.set_title("AIFS-single  ·  500 hPa Height & Steering Flow", loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
     ax.text(0, 1.012, f"Init {pd.Timestamp(cycle):%Y-%m-%d %HZ}  ·  +{step} h  ·  Valid {valid:%m/%d %HZ}  ·  "
             "Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
@@ -2935,7 +2936,7 @@ def make_steering_maps(storms: list) -> list:
     import json
     import ecmwf_steering as es
     cycle, tracks = _steer_tracks(storms)
-    want = {'cycle': cycle.strftime('%Y%m%d%H') if cycle else None, 'tracks': sorted(tracks)}
+    want = {'cycle': cycle.strftime('%Y%m%d%H') if cycle else None, 'tracks': sorted(tracks), 'model': STEER_MODEL}
     try:
         with open(STEER_MARK, encoding='utf-8') as fh:
             mark = json.load(fh)
@@ -2944,6 +2945,7 @@ def make_steering_maps(storms: list) -> list:
     have = [(f"+{st} h", os.path.join(OUTPUT_DIR, f"{STEER_PREFIX}{st:03d}h.png")) for st in mark.get('steps', [])]
     # 沒有 HRES 時（cycle 是 None）每輪都會想抓最新一期；已經畫過同一期就不重抓
     if have and all(os.path.exists(p) for _, p in have) and (
+            mark.get('model') == STEER_MODEL and
             (cycle is not None and mark.get('cycle') == want['cycle'] and mark.get('tracks') == want['tracks'])
             or (cycle is None and not mark.get('tracks') and mark.get('fetched') and
                 (datetime.now(timezone.utc) - datetime.fromisoformat(mark['fetched'])).total_seconds() < 3 * 3600)):
@@ -2954,7 +2956,7 @@ def make_steering_maps(storms: list) -> list:
     except Exception as e:
         if cycle is None:
             raise
-        print(f"[STEER] 抓不到 {cycle:%m/%d %HZ}（{e}），改抓最新一期、不疊路徑")
+        print(f"[STEER] 抓不到 AIFS {cycle:%m/%d %HZ}（{e}），改抓最新一期、不疊路徑")
         got, tracks = es.fetch(None, STEER_RAW), {}
     try:
         fields = es.decode(STEER_RAW)
@@ -2972,7 +2974,7 @@ def make_steering_maps(storms: list) -> list:
         if m and int(m.group(1)) not in steps:
             os.remove(os.path.join(OUTPUT_DIR, name))
     with open(STEER_MARK, 'w', encoding='utf-8') as fh:
-        json.dump({'cycle': got.strftime('%Y%m%d%H'), 'tracks': sorted(tracks), 'steps': steps,
+        json.dump({'cycle': got.strftime('%Y%m%d%H'), 'tracks': sorted(tracks), 'steps': steps, 'model': STEER_MODEL,
                    'fetched': datetime.now(timezone.utc).isoformat(timespec='seconds')}, fh)
     print(f"[STEER] 已畫 {got:%m/%d %HZ} 駛流場 {len(out)} 張（疊 {', '.join(sorted(tracks)) or '無'} 路徑）")
     return out

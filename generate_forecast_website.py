@@ -1389,10 +1389,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             steer_html = _tabbed_image_panel(
                 sec_id, f"{key_prefix}-steer", '🌬️', 'panel.steer', 'Steering Flow (500 hPa)',
                 steer_items, 'note.steer',
-                'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) '
+                'AIFS-single 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) '
                 '&nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move '
                 'around it, west while the high extends west, turning north where it ends &nbsp;·&nbsp; '
-                'Navy line and dot = ECMWF HRES track and the storm\'s position at that time',
+                'Navy line and dot = AIFS-single track and the storm\'s position at that time',
                 f"{track_id} Steering Flow")
         score_html = ""
         _card_m = next((m for m in models if isinstance(m, dict) and 'scorecard' in m), None)
@@ -3535,7 +3535,7 @@ const I18N = {
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
-    'note.steer':       'ECMWF HRES 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = ECMWF HRES track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour; 06Z/18Z runs only go to 90 h',
+    'note.steer':       'AIFS-single (ECMWF\'s AI model) 500 hPa streamlines, wind speed (shading) and height (gray, every 30 gpm) &nbsp;·&nbsp; Red line = 5880 gpm, the usual edge of the subtropical high: typhoons tend to move around it, heading west while the high extends west and turning north where it ends &nbsp;·&nbsp; Navy line and dot = AIFS-single track and the storm\'s position at that time &nbsp;·&nbsp; Tabs = forecast hour',
     'score.m.track': 'Track',
     'score.more':     'More measures: along-track, cross-track and intensity',
     'score.m.at': 'Along-track',
@@ -3764,7 +3764,7 @@ const I18N = {
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
-    'note.steer':       'ECMWF HRES 的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝ECMWF HRES 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數；06Z／18Z 那兩期只到 90 小時',
+    'note.steer':       'AIFS-single（ECMWF 的 AI 模式）的 500 hPa 流線、風速（底色）與高度（灰線，每 30 gpm 一條） &nbsp;·&nbsp; 紅線＝5880 gpm，通常當作太平洋高壓的邊緣：颱風多沿著它的外圍移動，高壓西伸時往西走、到高壓西緣轉北 &nbsp;·&nbsp; 深藍線與圓點＝AIFS-single 路徑與颱風在該時刻的位置 &nbsp;·&nbsp; 分頁＝預報時數',
     'score.m.track': '路徑誤差',
     'score.more':     '其他指標：沿路徑、跨路徑與強度',
     'score.m.at': '沿路徑',
