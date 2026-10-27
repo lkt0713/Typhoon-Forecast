@@ -1364,6 +1364,21 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)</p>
             </div>"""
 
+        shear_html = ""
+        _shear = next((m.get('shear_path') for m in models if isinstance(m, dict) and m.get('shear_path')), None)
+        if _shear and os.path.exists(_shear):
+            sec_id = f"sec-{key_prefix}-shear"
+            sections.append((sec_id, 'sub.shear', 'Shear'))
+            shear_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🌀</span>
+                    <span data-i18n="panel.shear">Vertical Wind Shear along the AIFS Track</span>
+                </div>
+                {_figure(os.path.basename(_shear), f"{track_id} Vertical Wind Shear")}
+                <p class="map-note" data-i18n="note.shear">Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm's upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm's heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data</p>
+            </div>"""
+
         steer_html = ""
         _steer = next((m.get('steering_maps') for m in models
                        if isinstance(m, dict) and m.get('steering_maps')), None)
@@ -1504,7 +1519,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／成績，每頁單欄排列
         panes = [
-            ('now', 'tab.now', 'Summary', f"{sat_html}{ohc_html}{official_html}{cities_html}"),
+            ('now', 'tab.now', 'Summary', f"{sat_html}{ohc_html}{shear_html}{official_html}{cities_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}{jtwc_html}{steer_html}"),
             ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
             ('intensity', 'tab.int', 'Intensity', plume_html),
@@ -1706,7 +1721,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, and the ocean heat content under the storm), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, the ocean heat content under the storm, and the vertical wind shear along the AIFS track), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -3512,6 +3527,9 @@ const I18N = {
     'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
     'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
+    'sub.shear':        'Shear',
+    'panel.shear':      'Vertical Wind Shear along the AIFS Track',
+    'note.shear':       'Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm\'s upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm\'s heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
@@ -3581,7 +3599,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, and the ocean heat content under the storm), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the official forecasts side by side, Taiwan landfall and city strike probabilities, the ocean heat content under the storm, and the vertical wind shear along the AIFS track), Track (model comparison, ensemble maps, animation, an interactive map, track trend, the JTWC forecast and the 500 hPa steering flow), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Scores (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3738,6 +3756,9 @@ const I18N = {
     'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
     'panel.sat':        '衛星雲圖動畫（最近 3 小時）',
     'note.sat':         '向日葵 9 號紅外線雲圖（第 13 頻道，10.4 µm），最近 3 小時、每 10 分鐘一幀，以颱風為中心，一開始顯示最新一幀 &nbsp;·&nbsp; 顏色代表雲頂溫度：雲頂越冷，雲越高、對流越強；被最冷顏色包圍的暖點就是颱風眼與眼牆 &nbsp;·&nbsp; 以 JTWC 最新位置為中心（公報每 6 小時一次，颱風可能已移動一些）；路徑與 JTWC 預報畫在下方的海洋熱含量圖 &nbsp;·&nbsp; 原始資料取自 NOAA 在 AWS 上的日本氣象廳向日葵資料，每幀標題為觀測時間',
+    'sub.shear':        '風切',
+    'panel.shear':      '沿 AIFS 路徑的垂直風切',
+    'note.shear':       '200 hPa 與 850 hPa 風的向量差，取颱風中心外 200–800 km 的平均，沿 AIFS-single（決定報）的預報路徑每 6 小時一點；風場與路徑來自同一期 AIFS &nbsp;·&nbsp; 風切大時颱風上下層環流被吹得錯開，通常難以增強：10 kt 以下為弱、10–20 kt 中等、20 kt 以上為強 &nbsp;·&nbsp; 箭頭＝風切指向的方向（由低層風指向高層風），颱風最強的對流與降雨常偏在順風切方向的左側 &nbsp;·&nbsp; 資料：ECMWF Open Data',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
@@ -3807,7 +3828,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率、颱風底下的海洋熱含量）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、各國官方預報比較、登陸臺灣與城市侵襲機率、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢、JTWC 預報與 500 hPa 駛流場）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「成績」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
