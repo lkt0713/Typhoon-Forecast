@@ -3183,6 +3183,10 @@ header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
 header.compact #tz-btn .bi, header.compact #tz-btn .bt { display: none; }
 header.compact #tz-btn .bt-short { display: inline; font-weight: 800; }
 time.tz { font-variant-numeric: tabular-nums; }
+#tz-btn { min-width: 8em; justify-content: center; }
+html[lang="en"] #tz-btn { min-width: 9em; }
+header.compact #tz-btn, html[lang="en"] header.compact #tz-btn { min-width: 4em; }
+@media (max-width: 600px) { #tz-btn, html[lang="en"] #tz-btn { min-width: 4.6em; } }
 header.mini .brand-text { display: none; }
 .top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
 .top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
@@ -4114,7 +4118,11 @@ function applyTz(mode, save = true) {
         b.setAttribute('aria-pressed', tzMode === 'tw' ? 'true' : 'false');
         b.title = t('btn.tz.title', { z: t(k).replace(/^\S+\s/, '') });
     }
-    if (save) { try { localStorage.setItem('tz', tzMode); } catch (e) {} }
+    if (save) {
+        try { localStorage.setItem('tz', tzMode); } catch (e) {}
+        if (typeof NavDrop !== 'undefined') NavDrop.fit();     // 按鈕寬度變了，導覽列與指示塊要重新量
+        requestAnimationFrame(updateIndicators);
+    }
     document.dispatchEvent(new CustomEvent('tzchange'));
 }
 
