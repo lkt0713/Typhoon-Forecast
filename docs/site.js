@@ -605,7 +605,11 @@ function applyTz(mode, save = true) {
         b.setAttribute('aria-pressed', tzMode === 'tw' ? 'true' : 'false');
         b.title = t('btn.tz.title', { z: t(k).replace(/^\S+\s/, '') });
     }
-    if (save) { try { localStorage.setItem('tz', tzMode); } catch (e) {} }
+    if (save) {
+        try { localStorage.setItem('tz', tzMode); } catch (e) {}
+        if (typeof NavDrop !== 'undefined') NavDrop.fit();     // 按鈕寬度變了，導覽列與指示塊要重新量
+        requestAnimationFrame(updateIndicators);
+    }
     document.dispatchEvent(new CustomEvent('tzchange'));
 }
 
