@@ -339,7 +339,7 @@ def _build_jtwc_urls(track_ids: list[str]) -> tuple[dict, dict]:
 try:
     import cartopy.crs as ccrs # Type: ignore
     import cartopy.feature as cfeature # Type: ignore
-    from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER # type: ignore
+    from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter  # type: ignore
     HAS_CARTOPY = True
     print("[INFO] Cartopy 已載入")
 except ImportError:
@@ -364,8 +364,8 @@ def _configure_cartopy_gridlines(gl, extent):
 
     gl.xlocator = mticker.MultipleLocator(x_step)
     gl.ylocator = mticker.MultipleLocator(y_step)
-    gl.xformatter = LONGITUDE_FORMATTER
-    gl.yformatter = LATITUDE_FORMATTER
+    gl.xformatter = LongitudeFormatter()
+    gl.yformatter = LatitudeFormatter()
     gl.xlabel_style = {'size': 8}
     gl.ylabel_style = {'size': 8}
 
@@ -698,8 +698,8 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
     if grid_step is not None:
         gl.xlocator = mticker.MultipleLocator(grid_step)
         gl.ylocator = mticker.MultipleLocator(grid_step)
-        gl.xformatter = LONGITUDE_FORMATTER
-        gl.yformatter = LATITUDE_FORMATTER
+        gl.xformatter = LongitudeFormatter()
+        gl.yformatter = LatitudeFormatter()
         gl.xlabel_style = {'size': label_size, 'color': TEXT_MUTED}
         gl.ylabel_style = {'size': label_size, 'color': TEXT_MUTED}
     else:
@@ -2618,7 +2618,7 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
         gl.right_labels = gl.top_labels = False
         gl.xlocator = mticker.FixedLocator(range(100, 181, 10))
         gl.ylocator = mticker.FixedLocator(range(0, 51, 10))
-        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xformatter, gl.yformatter = LongitudeFormatter(), LatitudeFormatter()
         gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_DARK}
     for st in storms_now:
         if st.get('track') and len(st['track']) > 1:
@@ -2755,7 +2755,7 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
         gl = ax.gridlines(draw_labels=True, linewidth=0.5, color='white', alpha=0.35, linestyle=(0, (2, 3)))
         gl.right_labels = gl.top_labels = False
         gl.xlocator = gl.ylocator = mticker.MultipleLocator(2)
-        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xformatter, gl.yformatter = LongitudeFormatter(), LatitudeFormatter()
         gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_MUTED}
         kw = dict(transform=ccrs.PlateCarree())
     else:

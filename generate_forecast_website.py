@@ -228,7 +228,7 @@ def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt
                          data-frames='{_esc(json.dumps(frame_files))}' data-start="{start}">
                         <figure class="zoomable skel frame-stage" data-caption="{_esc(caption)}">
                             <img class="frame is-front" src="{_esc(folder)}/{_esc(frame_files[start])}" alt="{_esc(alt)}"
-                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
                             <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
@@ -839,6 +839,27 @@ def _write_app_assets(docs_dir: str) -> None:
         json.dump(manifest, fh, ensure_ascii=False, indent=1)
 
 
+TEASER_THUMB = 'genesis_teaser.jpg'
+
+
+def _write_teaser_thumb(docs_dir: str, src: str, width: int = 960) -> str | None:
+    """總覽封面用的生成潛勢縮圖（JPEG，寬 960px）。來源圖沒變就不重寫；失敗回 None，封面退回用原圖。"""
+    try:
+        from PIL import Image  # type: ignore
+        path = os.path.join(docs_dir, TEASER_THUMB)
+        if not os.path.exists(src):                      # 清單裡存的是給網頁用的檔名，不含 docs/
+            src = os.path.join(docs_dir, os.path.basename(src))
+        if os.path.exists(path) and os.path.getmtime(path) >= os.path.getmtime(src):
+            return TEASER_THUMB
+        im = Image.open(src).convert('RGB')
+        im.thumbnail((width, width * 4), Image.LANCZOS)
+        im.save(path, 'JPEG', quality=82, optimize=True, progressive=True)
+        return TEASER_THUMB
+    except Exception as e:
+        print(f"[HTML] 警告: 生成潛勢縮圖失敗，封面改用原圖: {e}")
+        return None
+
+
 def _write_share_image(docs_dir: str, lead: dict | None, updated: str, genesis_png: str | None) -> bool:
     """分享卡片圖：左邊文字（站名、颱風名、強度、更新時間），右邊最新的模式比較圖；
     沒有颱風時改放生成潛勢圖。兩者都沒有就不產生（網頁也不放 og:image）。"""
@@ -1109,13 +1130,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     _n_genesis_models = len(_genesis_entries)      # 含 WN2-C 1000，與首頁的模式數一致
     if _genesis_entries:
         chips = "".join(f'<span class="mini-chip">{_esc(lbl)}</span>' for lbl, _ in _genesis_entries)
+        # 總覽的封面只是縮圖：另存一張小的 JPEG（約 1/15 大小），不用載整張 2 MB 的潛勢圖
+        _teaser_src = _write_teaser_thumb(os.path.dirname(output_path) or '.', _genesis_entries[0][1]) or _genesis_entries[0][1]
         genesis_teaser = f"""
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
                 <h3 data-i18n="sec.genesis">Genesis potential</h3></div>
             </div>
             <a class="genesis-teaser reveal" href="#/genesis">
-                <div class="teaser-img"><img src="{_esc(_genesis_entries[0][1])}" alt="" loading="lazy" decoding="async"></div>
+                <div class="teaser-img"><img src="{_esc(_teaser_src)}" alt="" loading="lazy" decoding="async"></div>
                 <div class="teaser-body">
                     <p data-i18n="genesis.teaser" data-i18n-n="{_n_genesis_models}">Where might the next storm form? Explore ensemble genesis signals from {_n_genesis_models} models.</p>
                     <div class="mini-chips">{chips}</div>
@@ -1657,8 +1680,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <label><select id="cmp-b" aria-label="Right model">{opts_b}</select><span class="pick-dot b"></span></label>
                     </div>
                     <div class="cmp-stage" tabindex="0" role="slider" aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="" draggable="false">
-                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="" draggable="false"></div>
+                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="" draggable="false" loading="lazy" decoding="async">
+                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="" draggable="false" loading="lazy" decoding="async"></div>
                         <div class="cmp-handle"><span>{ICONS['compare']}</span></div>
                     </div>
                 </div>"""
