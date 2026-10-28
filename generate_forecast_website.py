@@ -3187,6 +3187,11 @@ time.tz { font-variant-numeric: tabular-nums; }
 html[lang="en"] #tz-btn { min-width: 9em; }
 header.compact #tz-btn, html[lang="en"] header.compact #tz-btn { min-width: 5.6em; }
 @media (max-width: 600px) { #tz-btn, html[lang="en"] #tz-btn { min-width: 6em; } }
+/* 最窄的手機（≤360px）：「更新於」字樣省掉只留時間，時區鈕不再撐寬，四個東西才排得下 */
+@media (max-width: 360px) {
+    #update-badge .ub-text > span:first-child { display: none; }
+    #tz-btn, html[lang="en"] #tz-btn { min-width: 0; padding-left: 9px; padding-right: 9px; }
+}
 header.mini .brand-text { display: none; }
 .top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
 .top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
