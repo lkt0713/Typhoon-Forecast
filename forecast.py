@@ -736,11 +736,12 @@ def _set_map_titles(ax, main: str, right: str = '', main_size: int = 14, right_s
                 fontsize=right_size + 0.5, color=TEXT_MUTED)
 
 
-def _watermark(ax, side: str = 'right') -> None:
-    """署名，side 決定貼左下或右下。"""
+def _watermark(ax, side: str = 'right', top: bool = False) -> None:
+    """署名，side 決定貼左邊或右邊，top=True 改貼上緣（底下另有東西時，例如風切圖的箭頭列）。"""
     x, ha = (0.995, 'right') if side == 'right' else (0.005, 'left')
-    ax.text(x, 0.008, 'By Pillar', transform=ax.transAxes,
-            ha=ha, va='bottom', fontsize=7, style='italic',
+    y, va = (0.992, 'top') if top else (0.008, 'bottom')
+    ax.text(x, y, 'By Pillar', transform=ax.transAxes,
+            ha=ha, va=va, fontsize=7, style='italic',
             color=TEXT_MUTED, zorder=10)
 
 FIG_AR = 1.40
@@ -2987,6 +2988,7 @@ def make_steering_maps(storms: list) -> list:
 SHEAR_MARK = os.path.join(OUTPUT_DIR, "WP_Shear.json")
 SHEAR_RAW = os.path.join("__pycache__", "aifs_shear.grib2")
 SHEAR_SUFFIX = "_Shear.png"
+SHEAR_STYLE_VERSION = 2            # 改了圖的樣式就加 1：同一期會用存著的數值重畫，不用重新下載
 SHEAR_BANDS = [(0, 10, '#E3F4E8', 'Low'), (10, 20, '#FCF3D6', 'Moderate'), (20, 999, '#FBE1DE', 'High')]
 
 
@@ -3070,7 +3072,7 @@ def plot_shear_chart(tid: str, name: str, cycle, series: list, save_path: str) -
     ax.text(0, 1.015, f"Init {pd.Timestamp(cycle):%Y-%m-%d %HZ}  ·  200–850 hPa, mean over 200–800 km from the "
             "centre  ·  Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
             ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
-    _watermark(ax, side='right')
+    _watermark(ax, side='right', top=True)   # 右下是箭頭列，署名改放右上
     plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     return save_path
@@ -3097,8 +3099,19 @@ def make_shear_charts(storms: list) -> dict:
         mark = {}
     if (mark.get('cycle') == want['cycle'] and mark.get('tracks') == want['tracks']
             and all(os.path.exists(p) for p in paths.values())):
-        print(f"[SHEAR] 沿用 {want['cycle']} 的風切圖")
-        return paths
+        if mark.get('style') == SHEAR_STYLE_VERSION:
+            print(f"[SHEAR] 沿用 {want['cycle']} 的風切圖")
+            return paths
+        # 同一期、只是樣式改了：用存著的風切數值重畫
+        ser = mark.get('series') or {}
+        if all(len(ser.get(t) or []) >= 2 for t in tracks):
+            for tid in tracks:
+                plot_shear_chart(tid, names.get(tid, tid), cycle, ser[tid], paths[tid])
+            mark['style'] = SHEAR_STYLE_VERSION
+            with open(SHEAR_MARK, 'w', encoding='utf-8') as fh:
+                json.dump(mark, fh)
+            print(f"[SHEAR] 以新樣式重畫 {want['cycle']} 的風切圖")
+            return paths
     try:
         esh.fetch(cycle, SHEAR_RAW)
         fields = esh.decode(SHEAR_RAW)
@@ -3114,7 +3127,7 @@ def make_shear_charts(storms: list) -> dict:
         out[tid] = plot_shear_chart(tid, names.get(tid, tid), cycle, ser, paths[tid])
         series[tid] = ser
     with open(SHEAR_MARK, 'w', encoding='utf-8') as fh:
-        json.dump({**want, 'tracks': sorted(out), 'series': series}, fh)
+        json.dump({**want, 'tracks': sorted(out), 'series': series, 'style': SHEAR_STYLE_VERSION}, fh)
     print(f"[SHEAR] 已畫 {cycle:%m/%d %HZ} AIFS 風切圖：" +
           ", ".join(f"{t}（{min(p[1] for p in v):.0f}–{max(p[1] for p in v):.0f} kt）" for t, v in series.items()))
     return out
