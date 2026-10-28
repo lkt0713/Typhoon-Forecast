@@ -3140,6 +3140,38 @@ def _archive_points(f: pd.DataFrame) -> list:
             for h, la, lo, w in zip(f['lead_h'], f['lat'], f['lon'], wind)]
 
 
+ARCHIVE_TREND_DIR = os.path.join(ARCHIVE_DIR, 'trend')
+
+
+def _archive_trends(storms: list) -> dict:
+    """把仍在追蹤的颱風的預報趨勢圖複製到 docs/archive/trend/{tid}/，回傳 {tid: [[標籤, 相對路徑], ...]}。
+
+    docs/ 根目錄的趨勢圖在颱風消散後會被清掉；這份複本留在存檔裡，歷史頁還看得到最後一版
+    （涵蓋整個生命期的所有期數）。內容沒變就不覆寫，git 才不會每輪都多一份。"""
+    import shutil
+    out = {}
+    for s in storms:
+        tid = s.get('track_id')
+        for lbl, src in ((s.get('ens_name') or s.get('model'), s.get('trend_path')),
+                         (s.get('det_name'), s.get('det_trend_path'))):
+            if not (tid and lbl and src and os.path.exists(src)):
+                continue
+            slug = re.sub(r'[^A-Za-z0-9.-]+', '_', lbl).strip('_')
+            rel = f"trend/{tid}/{slug}.png"
+            dst = os.path.join(ARCHIVE_DIR, rel)
+            try:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                with open(src, 'rb') as a:
+                    new = a.read()
+                old = open(dst, 'rb').read() if os.path.exists(dst) else None
+                if new != old:
+                    shutil.copyfile(src, dst)
+                out.setdefault(tid, []).append([lbl, rel])
+            except OSError as e:
+                print(f"[ARCHIVE] 警告: 複製 {src} 失敗: {e}")
+    return out
+
+
 def update_storm_archive(storms: list, card: dict) -> None:
     """把每顆有 JTWC 實況的颱風合併寫進 docs/archive/{tid}.json（見上方說明）。"""
     import json
@@ -3154,6 +3186,7 @@ def update_storm_archive(storms: list, card: dict) -> None:
         if nm:
             names[s['track_id']] = str(nm).title()
     det_models = {s.get('det_name') for s in storms if s.get('det_name')}
+    trends = _archive_trends(storms)
     fnames = sorted(os.listdir(fdir)) if os.path.isdir(fdir) else []
     for oname in sorted(os.listdir(odir)):
         if not oname.endswith('.csv'):
@@ -3193,6 +3226,13 @@ def update_storm_archive(storms: list, card: dict) -> None:
         data['det'] = sorted(set(data.get('det', [])) | (det_models & set(fc)))
         if card.get(tid):
             data['card'] = card[tid]
+        if trends.get(tid):
+            # 新的一輪有哪些模式就以它為準；之前有、這輪沒畫的模式（例如晚加入的）照舊保留
+            have = {lbl: rel for lbl, rel in data.get('trends', [])
+                    if os.path.exists(os.path.join(ARCHIVE_DIR, rel))}
+            have.update({lbl: rel for lbl, rel in trends[tid]})
+            order = [lbl for lbl, _ in trends[tid]] + [lbl for lbl in have if lbl not in dict(trends[tid])]
+            data['trends'] = [[lbl, have[lbl]] for lbl in order]
         winds = [r[3] for r in data['obs'] if r[3] is not None]
         data['peak'] = max(winds) if winds else None
         data['first'], data['last'] = (data['obs'][0][0], data['obs'][-1][0]) if data['obs'] else (None, None)

@@ -748,6 +748,28 @@ def _load_archive(docs_dir: str) -> list[dict]:
                 fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
         except OSError:
             pass
+        # 預報趨勢圖（颱風消散前最後一版的複本）：每模式一個分頁，網頁點開時才載入
+        trends = [(lbl, rel) for lbl, rel in (d.get('trends') or []) if os.path.exists(os.path.join(adir, rel))]
+        tpath = os.path.join(adir, f'{tid}_trend.html')
+        if trends:
+            track = f'arch-{tid}-trend'
+            panels = "".join(
+                f'<div class="model-panel" data-track="{_esc(track)}" data-model="{_esc(lbl)}"'
+                f'{"" if i == 0 else " style=\"display:none;\""}>'
+                f'{_figure("archive/" + rel, f"{tid} {lbl} Track Trend")}</div>'
+                for i, (lbl, rel) in enumerate(trends))
+            tabs = (_model_tabs(track, [lbl for lbl, _ in trends]) if len(trends) > 1
+                    else f'<div class="model-label">{_esc(trends[0][0])}</div>')
+            frag = (f'<h4 class="arch-sub" data-i18n="panel.trend">Track Trend</h4>{tabs}{panels}'
+                    '<p class="map-note" data-i18n="note.arch.trend">The last version drawn before the storm '
+                    'ended: ensemble-mean (or deterministic) tracks from every run, older = lighter</p>')
+            try:
+                with open(tpath, 'w', encoding='utf-8') as fh:
+                    fh.write(frag)
+            except OSError:
+                pass
+        elif os.path.exists(tpath):
+            os.remove(tpath)
         out.append({'id': tid, 'name': d.get('name'), 'first': d.get('first'), 'last': d.get('last'),
                     'peak': d.get('peak'), 'active': bool(d.get('active')),
                     'n': sum(len(v) for v in fc.values()), 'models': len(fc)})
@@ -1711,6 +1733,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 <div class="arch-map"></div>
                 <p class="map-note" data-i18n="note.arch.map">Thick colored line = the real JTWC track, colored by intensity &nbsp;·&nbsp; Orange = the selected run's ensemble-mean (or deterministic) forecast, with a dot every 24 h &nbsp;·&nbsp; Thin lines = all other runs of the same model, light = older, dark = newer &nbsp;·&nbsp; Drag the slider to step through the runs</p>
+                <div class="arch-trend"></div>
                 <div class="arch-score"></div>
             </div>
         </div>
@@ -2548,6 +2571,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .arch-slider { flex: 1 1 220px; min-width: 160px; accent-color: var(--accent); }
 .arch-detail .arch-map { height: min(68vh, 560px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .arch-score { margin-top: 22px; }
+.arch-trend:not(:empty) { margin-top: 26px; }
+.arch-sub { font-size: 1.05em; font-weight: 700; margin-bottom: 12px; }
 .zoomable { position:relative; border-radius: 12px; overflow:hidden; cursor: zoom-in; background: var(--surface-2); border: 1px solid var(--border); }
 .zoomable.skel:not(.loaded) { min-height: 240px; }
 .zoomable.skel:not(.loaded)::before {
@@ -3427,6 +3452,7 @@ const I18N = {
     'arch.init':        'Run',
     'arch.all':         'Show every run',
     'arch.noscore':     'No verified forecasts for this storm yet.',
+    'note.arch.trend':  'The last version drawn before the storm ended: ensemble-mean (or deterministic) tracks from every run, older = lighter &nbsp;·&nbsp; Shows which way successive forecasts shifted',
     'note.arch.map':    'Thick colored line = the real JTWC track, colored by intensity &nbsp;·&nbsp; Orange = the selected run\'s forecast, with a dot every 24 h &nbsp;·&nbsp; Thin lines = all other runs of the same model, light = older, dark = newer &nbsp;·&nbsp; Drag the slider to step through the runs; the number after each model is how many runs were saved',
     'hero.eyebrow.live':  'Now tracking',
     'hero.eyebrow.multi': 'Now tracking {count} storms',
@@ -3652,6 +3678,7 @@ const I18N = {
     'arch.init':        '起報',
     'arch.all':         '顯示所有期數',
     'arch.noscore':     '這顆颱風還沒有可校驗的預報。',
+    'note.arch.trend':  '颱風結束前畫的最後一版：每一期的系集平均（或決定報）路徑，越舊越淡 &nbsp;·&nbsp; 看預報一路往哪個方向修正',
     'note.arch.map':    '粗的彩色線＝JTWC 實際路徑，依強度上色 &nbsp;·&nbsp; 橘線＝選取那一期的預報，每 24 小時一個圓點 &nbsp;·&nbsp; 細線＝同一模式的其他期數，淺＝較舊、深＝較新 &nbsp;·&nbsp; 拖動滑桿逐期查看；模式名稱後的數字是存了幾期',
     'hero.eyebrow.live':  '正在追蹤',
     'hero.eyebrow.multi': '正在追蹤 {count} 個颱風',
@@ -4490,6 +4517,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const initVal = box.querySelector('.arch-init-val');
     const mapEl = box.querySelector('.arch-map');
     const scoreEl = box.querySelector('.arch-score');
+    const trendEl = box.querySelector('.arch-trend');
     const OLD = [126, 196, 232], NEW = [59, 47, 143];          // 舊期淺藍 → 新期深紫，同趨勢圖
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
@@ -4554,8 +4582,20 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
         box.hidden = false;
         box.querySelector('.arch-title').textContent = card.querySelector('.arch-name').textContent + ' · ' + tid;
         try {
-            const [lib, d, html] = await Promise.all([loadLeaflet(), fetch(`archive/${tid}.json`).then(r => r.json()),
-                fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            // 成績單與趨勢圖不需要地圖：先放上去，地圖函式庫載不到也看得到
+            const [html, trendHtml] = await Promise.all([
+                fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
+                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            scoreEl.innerHTML = html;
+            i18nIn(scoreEl);
+            trendEl.innerHTML = trendHtml;
+            i18nIn(trendEl);
+            // 預設顯示 WN3-C（有的話），與地圖的預設模式一致
+            const tb = trendEl.querySelector('.model-tab-btn[data-model="WN3-C"]');
+            if (tb) switchModelTab(tb.dataset.track, 'WN3-C');
+            requestAnimationFrame(updateIndicators);
+            box.scrollIntoView({behavior: reduced() ? 'auto' : 'smooth', block: 'start'});
+            const [lib, d] = await Promise.all([loadLeaflet(), fetch(`archive/${tid}.json`).then(r => r.json())]);
             L = lib; data = d;
             if (!map) {
                 map = L.map(mapEl, {preferCanvas: true}).setView([20, 130], 4);
@@ -4569,11 +4609,8 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
             sel.innerHTML = '';
             models.forEach(m => sel.add(new Option(`${m}（${Object.keys(data.fcst[m]).length}）`, m)));
             sel.value = PREFER.find(m => data.fcst[m]) || models[0];
-            scoreEl.innerHTML = html;
-            i18nIn(scoreEl);
             setModel(true);
             requestAnimationFrame(() => { map.invalidateSize(); updateIndicators(); });
-            box.scrollIntoView({behavior: reduced() ? 'auto' : 'smooth', block: 'start'});
         } catch (e) {
             mapEl.textContent = 'Archive failed to load';
             console.log('[archive]', e);
