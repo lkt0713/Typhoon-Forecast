@@ -3185,8 +3185,8 @@ header.compact #tz-btn .bt-short { display: inline; font-weight: 800; }
 time.tz { font-variant-numeric: tabular-nums; }
 #tz-btn { min-width: 8em; justify-content: center; }
 html[lang="en"] #tz-btn { min-width: 9em; }
-header.compact #tz-btn, html[lang="en"] header.compact #tz-btn { min-width: 4em; }
-@media (max-width: 600px) { #tz-btn, html[lang="en"] #tz-btn { min-width: 4.6em; } }
+header.compact #tz-btn, html[lang="en"] header.compact #tz-btn { min-width: 5.6em; }
+@media (max-width: 600px) { #tz-btn, html[lang="en"] #tz-btn { min-width: 6em; } }
 header.mini .brand-text { display: none; }
 .top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
 .top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
@@ -3596,7 +3596,7 @@ const I18N = {
     'btn.tz.utc':       '🕒 UTC',
     'btn.tz.tw':        '🕒 Taiwan time',
     'btn.tz.utc.short': 'UTC',
-    'btn.tz.tw.short':  '+8',
+    'btn.tz.tw.short':  'UTC+8',
     'btn.tz.title':     'Times shown in {z}. Click to switch between UTC and Taiwan time (UTC+8); map images stay in UTC.',
     'nav.overview':     'Overview',
     'nav.storms':       'Storms',
@@ -3833,7 +3833,7 @@ const I18N = {
     'btn.tz.utc':       '🕒 UTC',
     'btn.tz.tw':        '🕒 臺灣時間',
     'btn.tz.utc.short': 'UTC',
-    'btn.tz.tw.short':  '+8',
+    'btn.tz.tw.short':  'UTC+8',
     'btn.tz.title':     '目前以{z}顯示時間。點一下在 UTC 與臺灣時間（UTC+8）之間切換；圖片裡的時間仍是 UTC。',
     'nav.overview':     '總覽',
     'nav.storms':       '颱風',
