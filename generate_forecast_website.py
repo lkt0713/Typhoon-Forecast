@@ -4,7 +4,7 @@ import html
 import re
 import math
 import pandas as pd  # type: ignore
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
 SITE_VERSION = "7.0.0"
@@ -188,6 +188,34 @@ def _fmt_obs_time(raw: str) -> str:
     return str(raw)
 
 
+def _obs_iso(raw: str) -> str | None:
+    """JTWC 的 'DDHHMM Z' → ISO（UTC）；月份取不晚於現在、最接近的那個月（與 forecast.py 同一規則）。"""
+    s = str(raw).replace('Z', '').strip()
+    if len(s) != 6 or not s.isdigit():
+        return None
+    day, hh, mm = int(s[:2]), int(s[2:4]), int(s[4:])
+    now = datetime.now(timezone.utc)
+    for back in range(0, 2):
+        y, mo = now.year, now.month - back
+        if mo < 1:
+            y, mo = y - 1, 12
+        try:
+            t = datetime(y, mo, day, hh, mm, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if t <= now + timedelta(hours=6):
+            return t.strftime('%Y-%m-%dT%H:%MZ')
+    return None
+
+
+def _tz(iso, text: str, fmt: str = 'mdh') -> str:
+    """UTC 時間包成 <time class="tz">：前端依「UTC／臺灣時間」設定重排文字；沒有 ISO 就原樣輸出。
+    fmt：mdh＝月/日 時、dhm＝日 / 時:分（JTWC 觀測時間）、ymd／hm／s＝頁首更新時間的三段。"""
+    if not iso:
+        return text
+    return f'<time class="tz" data-utc="{_esc(str(iso))}" data-fmt="{fmt}">{text}</time>'
+
+
 def _figure(src: str, alt: str, onerror_extra: str = "", cls: str = "") -> str:
     """可點擊放大的圖：載入前顯示骨架閃光，載入後淡入；壞圖時標記 broken。
 
@@ -204,7 +232,7 @@ def _figure(src: str, alt: str, onerror_extra: str = "", cls: str = "") -> str:
 
 def _model_tabs(track: str, labels: list[str], extra_cls: str = "") -> str:
     buttons = "".join(
-        f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
         f'data-track="{_esc(track)}" data-model="{_esc(lbl)}">{_esc(lbl)}</button>'
         for i, lbl in enumerate(labels))
     return f'<div class="seg model-tabs {extra_cls}" role="tablist"><span class="seg-ind"></span>{buttons}</div>'
@@ -228,7 +256,7 @@ def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt
                          data-frames='{_esc(json.dumps(frame_files))}' data-start="{start}">
                         <figure class="zoomable skel frame-stage" data-caption="{_esc(caption)}">
                             <img class="frame is-front" src="{_esc(folder)}/{_esc(frame_files[start])}" alt="{_esc(alt)}"
-                                 decoding="async" onload="this.parentNode.classList.add('loaded')"
+                                 loading="lazy" decoding="async" onload="this.parentNode.classList.add('loaded')"
                                  onerror="this.parentNode.classList.add('loaded','broken')">
                             <img class="frame" alt="" decoding="async">
                             <span class="zoom-hint" data-i18n="zoom.hint">🔍 Click to enlarge</span>
@@ -442,6 +470,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
             rows.append(f'<tr><td class="{name_cls}">{_esc(m)}</td>{"".join(cells)}</tr>')
     head = ''.join(f'<th>{ld} h<span class="eta">{unit}</span></th>' for ld in SCORE_LEADS)
     return (f'<div class="city-table-wrap"><table class="city-table score-table">'
+            f'<caption class="sr-only" data-i18n="cap.score">Mean forecast error by lead time for each model</caption>'
             f'<thead><tr><th data-i18n="score.model">Model</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
@@ -510,7 +539,7 @@ def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set
     tabs, panels = [], []
     for i, (mk, lkey, ltxt, _, _) in enumerate(m for m in SCORE_METRICS if m[0] != 'track'):
         c = cards.get(mk) or {}
-        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
                     f'data-track="{_esc(key)}-m" data-model="{mk}"><span data-i18n="{lkey}">{ltxt}</span></button>')
         nkey, ntxt = SCORE_METRIC_TEXT[mk][2:]
         note = f'<p class="map-note" style="margin:0 0 10px;" data-i18n="{nkey}">{ntxt}</p>' if nkey else ''
@@ -547,11 +576,14 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
     if not items:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
-                'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.'}
+                'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.'}
+    if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
+        notes.append('score.official')
     tabs, panels = [], []
     for i, (scope, sample, c) in enumerate(items):
         key = f'{scope}-{sample}'
-        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
                     f'data-track="{_esc(track_key)}" data-model="{key}">'
                     f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
         hide = '' if i == 0 else ' style="display:none;"'
@@ -628,6 +660,14 @@ def _city_table(cols: list[tuple]) -> str:
     決定報只有一條路徑，機率不是 0 就是 100，改顯示 ✓（附抵達時間）或 —。
     """
     keys = list(dict.fromkeys(k for c in cols for k in c[1] if not k.startswith('_')))
+    # 整欄都 <1%（決定報：沒有 ✓）的模式預設收起，表格才不會十幾欄全是 <1%；按鈕可展開
+    def _col_has(c):
+        det = len(c) > 2 and c[2]
+        return any(((c[1].get(k) or {}).get('p') or 0) >= (50 if det else CITY_LEVELS[0]) for k in keys)
+    dim = [not _col_has(c) for c in cols]
+    if all(dim):
+        dim = [False] * len(cols)                  # 全部都 <1% 時沒有可留的欄，就全列出
+    cls = lambda i: ' class="col-dim"' if dim[i] else ''
     rows = []
     quiet = []          # 臺灣城市裡每個模式都 <1% 的：不逐列列出一整排 <1%，合成一行
     for key in keys:
@@ -639,23 +679,24 @@ def _city_table(cols: list[tuple]) -> str:
             quiet.append(key)
             continue
         cells = []
-        for c, v in zip(cols, vals):
+        for i, (c, v) in enumerate(zip(cols, vals)):
             p = v.get('p')
+            dc = ' col-dim' if dim[i] else ''
             if len(c) > 2 and c[2]:
                 eta = v.get('eta') or ''
-                cells.append((f'<td class="c-det" title="{_esc(eta)}">✓<span class="eta">'
-                              f'{_esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z") if eta else ""}</span></td>')
-                             if (p or 0) >= 50 else '<td class="c-nil">—</td>')
+                cells.append((f'<td class="c-det{dc}" title="{_esc(eta)}">✓<span class="eta">'
+                              f'{_tz(eta, _esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z")) if eta else ""}</span></td>')
+                             if (p or 0) >= 50 else f'<td class="c-nil{dc}">—</td>')
                 continue
             if p is None or p < CITY_LEVELS[0]:
-                cells.append('<td class="c-nil">&lt;1%</td>')
+                cells.append(f'<td class="c-nil{dc}">&lt;1%</td>')
                 continue
             idx = sum(p >= lv for lv in CITY_LEVELS) - 1
             fg = '#16324F' if idx in CITY_DARK_TEXT else '#fff'
             eta = v.get('eta') or ''
             eta_txt = (f'{eta[5:7]}/{eta[8:10]} {eta[11:13]}Z') if eta else ''
-            cells.append(f'<td style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
-                         f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
+            cells.append(f'<td{cls(i)} style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
+                         f'{p:.0f}%<span class="eta">{_tz(eta, _esc(eta_txt))}</span></td>')
         rows.append((key, f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>'))
     if not rows and not quiet:
         return ''
@@ -681,13 +722,20 @@ def _city_table(cols: list[tuple]) -> str:
                  + _bi(f'{names_en}: under 1% in every model', f'{names}：各模式都低於 1%') + '</td></tr>')
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
     def _th_sub(d):
-        parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
-        parts = [p for p in parts if p]
-        return f'<span class="eta">{_esc(" · ".join(parts))}</span>' if parts else ''
-    head = ''.join(f'<th>{_esc(m)}{_th_sub(d)}</th>' for m, d, *_ in cols)
-    return (f'<div class="city-table-wrap"><table class="city-table">'
+        parts = ([_tz(d.get('_init_iso'), _esc(d['_init']))] if d.get('_init') else []) + \
+                ([_esc(f'≤{d["_max_h"]} h')] if d.get('_max_h') else [])
+        return f'<span class="eta">{" · ".join(parts)}</span>' if parts else ''
+    head = ''.join(f'<th{cls(i)}>{_esc(m)}{_th_sub(d)}</th>' for i, (m, d, *_) in enumerate(cols))
+    n_dim = sum(dim)
+    toggle = ''
+    if n_dim:
+        toggle = (f'<button type="button" class="city-toggle" aria-expanded="false">'
+                  f'<span class="ct-more">{_bi(f"Show all {len(cols)} models ({n_dim} under 1% everywhere)", f"顯示全部 {len(cols)} 個模式（{n_dim} 個各地都低於 1%）")}</span>'
+                  f'<span class="ct-less">{_bi(f"Hide the {n_dim} models under 1% everywhere", f"收起 {n_dim} 個各地都低於 1% 的模式")}</span></button>')
+    return (f'<div class="city-table-wrap{" compact" if n_dim else ""}"><table class="city-table">'
+            f'<caption class="sr-only" data-i18n="cap.cities">Taiwan landfall and city strike probability by model</caption>'
             f'<thead><tr><th data-i18n="cities.city">Model</th>{head}</tr></thead>'
-            f'<tbody>{body}</tbody></table></div>')
+            f'<tbody>{body}</tbody></table></div>{toggle}')
 
 
 # 線條圖示（導覽列與行動版底部分頁列共用）
@@ -837,6 +885,65 @@ def _write_app_assets(docs_dir: str) -> None:
     }
     with open(os.path.join(docs_dir, 'manifest.webmanifest'), 'w', encoding='utf-8') as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=1)
+    # 搜尋引擎：robots.txt／sitemap.xml（單頁站，分頁都是 #/ 路由，只有一個網址）；
+    # 404.html：GitHub Pages 找不到路徑時（舊連結、打錯）導回首頁，#/ 後面的分頁保留
+    site = _site_url()
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    with open(os.path.join(docs_dir, 'robots.txt'), 'w', encoding='utf-8') as fh:
+        fh.write(f'User-agent: *\nAllow: /\nDisallow: /verification/\n\nSitemap: {site}sitemap.xml\n')
+    with open(os.path.join(docs_dir, 'sitemap.xml'), 'w', encoding='utf-8') as fh:
+        fh.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                 f'  <url><loc>{_esc(site)}</loc><lastmod>{today}</lastmod><changefreq>hourly</changefreq></url>\n'
+                 '</urlset>\n')
+    with open(os.path.join(docs_dir, '404.html'), 'w', encoding='utf-8') as fh:
+        fh.write(f'''<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>{_esc(SITE_NAME)}</title>
+<script>location.replace({json.dumps(site)} + location.hash);</script>
+<noscript><meta http-equiv="refresh" content="0;url={_esc(site)}"></noscript>
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;background:{APP_BG};color:#eaf0f5;text-align:center;padding:24px}}a{{color:#8ec5ff}}</style>
+</head><body><p>找不到這個頁面，正在帶你回到首頁… <a href="{_esc(site)}">回到颱風預報網站</a><br>
+Page not found, taking you back to the <a href="{_esc(site)}">forecast site</a>.</p></body></html>
+''')
+
+
+def _write_static_assets(docs_dir: str) -> str:
+    """寫出 site.css／site.js，回傳內容雜湊（8 碼）當網址的版本參數。"""
+    import hashlib
+    h = hashlib.sha1()
+    for fn, body in (('site.css', _CSS), ('site.js', _JS)):
+        data = body.encode('utf-8')
+        h.update(data)
+        path = os.path.join(docs_dir, fn)
+        if not (os.path.exists(path) and open(path, 'rb').read() == data):   # 沒變就不重寫，git 不會有多餘變動
+            with open(path, 'wb') as fh:
+                fh.write(data)
+    return h.hexdigest()[:8]
+
+
+NOTE_OHCTRACK = "Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
+CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm."
+
+TEASER_THUMB = 'genesis_teaser.jpg'
+
+
+def _write_teaser_thumb(docs_dir: str, src: str, width: int = 960) -> str | None:
+    """總覽封面用的生成潛勢縮圖（JPEG，寬 960px）。來源圖沒變就不重寫；失敗回 None，封面退回用原圖。"""
+    try:
+        from PIL import Image  # type: ignore
+        path = os.path.join(docs_dir, TEASER_THUMB)
+        if not os.path.exists(src):                      # 清單裡存的是給網頁用的檔名，不含 docs/
+            src = os.path.join(docs_dir, os.path.basename(src))
+        if os.path.exists(path) and os.path.getmtime(path) >= os.path.getmtime(src):
+            return TEASER_THUMB
+        im = Image.open(src).convert('RGB')
+        im.thumbnail((width, width * 4), Image.LANCZOS)
+        im.save(path, 'JPEG', quality=82, optimize=True, progressive=True)
+        return TEASER_THUMB
+    except Exception as e:
+        print(f"[HTML] 警告: 生成潛勢縮圖失敗，封面改用原圖: {e}")
+        return None
 
 
 def _write_share_image(docs_dir: str, lead: dict | None, updated: str, genesis_png: str | None) -> bool:
@@ -924,6 +1031,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     now_local = datetime.now().astimezone()
     update_time = now_local.strftime('%Y-%m-%d %H:%M:%S')
+    updated_iso = now_local.isoformat(timespec='seconds')
 
     # 依 track_id 分組（保留原始出現順序），同一顆颱風的 WNC/GENC 併入同一組
     groups: dict[str, list[dict]] = {}
@@ -971,6 +1079,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             'pos': (f"{jtwc_data['latitude']}, {jtwc_data['longitude']}"
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
+            'time_iso': _obs_iso(jtwc_update) if jtwc_update else None,
             'models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)],
             # 首頁颱風卡片列的模式：多算 1000 成員版（它沒有自己的動畫／路徑圖分頁，
             # 不能放進上面的 models，那份清單颱風頁拿去產生模式分頁）
@@ -1042,7 +1151,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         _wind = lambda i: f"{i['wind']:.0f} kt" if i['wind'] is not None else "— kt"
         hero_sub = (f'<p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"\n'
                     f'                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · '
-                    f'ensemble guidance from {len(active_models)} models, refreshed every 10 minutes.</p>')
+                    f'ensemble guidance from {len(active_models)} models, refreshed every 10–15 minutes.</p>')
         genesis_btn = ('<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>'
                        if _genesis_entries else '')
         if len(infos) == 1:
@@ -1098,9 +1207,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="hero-eye" aria-hidden="true"></div>
             <div class="hero-inner">
                 {hero_inner}
-                <div class="hero-meta">
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">{update_time[5:10]}</span> {update_time[11:16]}</span></div>
-                </div>
             </div>
             <div class="scroll-cue" aria-hidden="true"><span></span></div>
         </div>"""
@@ -1109,13 +1215,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     _n_genesis_models = len(_genesis_entries)      # 含 WN2-C 1000，與首頁的模式數一致
     if _genesis_entries:
         chips = "".join(f'<span class="mini-chip">{_esc(lbl)}</span>' for lbl, _ in _genesis_entries)
+        # 總覽的封面只是縮圖：另存一張小的 JPEG（約 1/15 大小），不用載整張 2 MB 的潛勢圖
+        _teaser_src = _write_teaser_thumb(os.path.dirname(output_path) or '.', _genesis_entries[0][1]) or _genesis_entries[0][1]
         genesis_teaser = f"""
             <div class="section-head reveal">
                 <div><div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
                 <h3 data-i18n="sec.genesis">Genesis potential</h3></div>
             </div>
             <a class="genesis-teaser reveal" href="#/genesis">
-                <div class="teaser-img"><img src="{_esc(_genesis_entries[0][1])}" alt="" loading="lazy" decoding="async"></div>
+                <div class="teaser-img"><img src="{_esc(_teaser_src)}" alt="" loading="lazy" decoding="async"></div>
                 <div class="teaser-body">
                     <p data-i18n="genesis.teaser" data-i18n-n="{_n_genesis_models}">Where might the next storm form? Explore ensemble genesis signals from {_n_genesis_models} models.</p>
                     <div class="mini-chips">{chips}</div>
@@ -1162,7 +1270,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         kt_txt = f"{info['wind']:.0f}" if info['wind'] is not None else ''
         stats = [
-            ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_esc(info["time"])}</span>'),
+            ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_tz(info.get("time_iso"), _esc(info["time"]), "dhm")}</span>'),
             ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["pos"])}</span>'),
         ]
         if info['pressure'] is not None:
@@ -1245,7 +1353,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             run_row = ""
             if history and map_src and m.get('forecast_map_init'):
                 def _run_lbl(iso):
-                    return pd.Timestamp(iso).strftime('%m/%d %HZ')
+                    return _tz(pd.Timestamp(iso).strftime('%Y-%m-%dT%H:%MZ'), pd.Timestamp(iso).strftime('%m/%d %HZ'))
                 run_row = ('<div class="run-picks" role="group" aria-label="Init">'
                            f'<button type="button" class="run-btn active" data-src="{_esc(map_src)}">'
                            f'<span data-i18n="run.latest">Latest</span> {_run_lbl(m["forecast_map_init"])}</button>'
@@ -1324,7 +1432,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
                         f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
-                           f'<span class="eta">{_esc(f["issue"][5:13].replace("-", "/").replace("T", " ")) + ":00" if f.get("issue") else ""}</span></th>'
+                           f'<span class="eta">{_tz(f["issue"], _esc(f["issue"][5:13].replace("-", "/").replace("T", " ")) + ":00") if f.get("issue") else ""}</span></th>'
                            for f in fcs)
             rows = ''.join(f'<tr><td class="c-name">{"<span data-i18n=\"off.now\">Now</span>" if h == 0 else f"+{h} h"}</td>'
                            f'{"".join(_cell(f, h) for f in fcs)}</tr>' for h in hours)
@@ -1336,9 +1444,10 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_figure(os.path.basename(_off['path']), f"{track_id} Official Forecasts")}
                 <div class="city-table-wrap"><table class="city-table off-table">
+                    <caption class="sr-only" data-i18n="cap.official">Official forecasts by agency and forecast hour</caption>
                     <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
                 </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
             </div>"""
 
         sat_html = ""
@@ -1373,6 +1482,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         ohc_html = ""
         _ohc = next((m.get('ohc_path') for m in models if isinstance(m, dict) and m.get('ohc_path')), None)
+        _ohc_tr = next((m.get('ohc_track_path') for m in models if isinstance(m, dict) and m.get('ohc_track_path')), None)
+        _ohc_tr_html = ''
+        if _ohc_tr and os.path.exists(_ohc_tr):
+            _ohc_tr_html = (f'<h4 class="sub-head" data-i18n="panel.ohctrack">Ocean Heat Content along the JTWC Track</h4>'
+                            + _figure(os.path.basename(_ohc_tr), f"{track_id} Ocean Heat Content along the JTWC Track")
+                            + f'<p class="map-note" data-i18n="note.ohctrack">{NOTE_OHCTRACK}</p>')
         if _ohc and os.path.exists(_ohc):
             sec_id = f"sec-{key_prefix}-ohc"
             sections.append((sec_id, 'sub.ohc', 'Ocean heat'))
@@ -1384,6 +1499,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_figure(os.path.basename(_ohc), f"{track_id} Ocean Heat Content")}
                 <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)</p>
+                {_ohc_tr_html}
             </div>"""
 
         shear_html = ""
@@ -1472,7 +1588,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="tm-map"></div>
                 </div>
                 <p class="map-note" data-i18n="note.tmap">
-                    Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
+                    Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time and wind &nbsp;·&nbsp;
                     Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                 </p>
             </div>"""
@@ -1497,9 +1613,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 f"{track_id} Track Trend")
         plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
         if plume_items:
+            plume_html = (f'<div class="callout"><span class="callout-icon" aria-hidden="true">⚠️</span>'
+                          f'<p data-i18n="caveat.intensity">{CAVEAT_INTENSITY}</p></div>')
             sec_id = f"sec-{key_prefix}-plume"
             sections.append((sec_id, 'sub.plume', 'Intensity'))
-            plume_html = _tabbed_image_panel(
+            plume_html += _tabbed_image_panel(
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
@@ -1532,7 +1650,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 {table}
                 <p class="map-note" data-i18n="note.cities">
                     Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp;
-                    Time below = median first arrival among those members (UTC) &nbsp;·&nbsp;
+                    Time below = median first arrival among those members &nbsp;·&nbsp;
                     Taiwan cities always shown; others only when any model reaches 1%
                 </p>
             </div>"""
@@ -1557,7 +1675,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                           html, flags=re.S)
 
         tab_btns = "".join(
-            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" '
+            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
             f'data-track="{key_prefix}-tabs" data-model="{pid}" data-i18n="{k}">{txt}</button>'
             for i, (pid, k, txt, _) in enumerate(panes))
         hide = ' style="display:none;"'
@@ -1657,8 +1775,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <label><select id="cmp-b" aria-label="Right model">{opts_b}</select><span class="pick-dot b"></span></label>
                     </div>
                     <div class="cmp-stage" tabindex="0" role="slider" aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="" draggable="false">
-                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="" draggable="false"></div>
+                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="" draggable="false" loading="lazy" decoding="async">
+                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="" draggable="false" loading="lazy" decoding="async"></div>
                         <div class="cmp-handle"><span>{ICONS['compare']}</span></div>
                     </div>
                 </div>"""
@@ -1745,7 +1863,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -1757,6 +1875,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="read-list">
                         <div><h4 data-i18n="panel.sat">Satellite Loop (last 3 hours)</h4><p class="map-note" data-i18n="note.sat"></p></div>
                         <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
+                        <div><h4 data-i18n="panel.ohctrack">Ocean Heat Content along the JTWC Track</h4><p class="map-note" data-i18n="note.ohctrack"></p></div>
                         <div><h4 data-i18n="panel.shear">Vertical Wind Shear along the AIFS Track</h4><p class="map-note" data-i18n="note.shear"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                                                 <div><h4 data-i18n="panel.jtwc">JTWC Official Forecast</h4><p class="map-note" data-i18n="note.jtwc"></p></div>
@@ -1850,7 +1969,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     site_data = {
         'routes': routes,
         'archiveOrder': ARCHIVE_MODEL_ORDER,
-        'updatedIso': now_local.isoformat(timespec='seconds'),
+        'updatedIso': updated_iso,
         'hero': {'rgb': hero_rgb, 'strength': round(hero_strength, 3)},
         'trackIds': joined_ids,
         'scaleMax': SCALE_MAX_KT,
@@ -1871,6 +1990,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     docs_dir = os.path.dirname(output_path) or '.'
     share_time = now_local.strftime('%m/%d %H:%M UTC%z').replace('+0800', '+8')
+    # 樣式與腳本拆成獨立檔案、網址帶內容雜湊：每 10–15 分鐘重新整理時瀏覽器直接用快取，
+    # 只有 HTML 本身重抓；改了產生器雜湊才會變。status.json 給頁面輪詢用：時間沒變就不重新整理。
+    asset_ver = _write_static_assets(docs_dir)
+    with open(os.path.join(docs_dir, 'status.json'), 'w', encoding='utf-8') as fh:
+        json.dump({'updated': updated_iso, 'version': SITE_VERSION, 'storms': list(track_ids)}, fh, ensure_ascii=False)
     try:
         _write_app_assets(docs_dir)
         has_share = _write_share_image(docs_dir, lead, share_time,
@@ -1901,7 +2025,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         d.setAttribute('data-theme', (saved === 'light' || saved === 'dark') ? saved : 'dark');
     }})();
     </script>
-    <style>{_CSS}</style>
+    <link rel="stylesheet" href="site.css?v={asset_ver}">
 </head>
 <body>
     <canvas id="globe" aria-hidden="true"></canvas>
@@ -1918,10 +2042,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <div class="header-actions">
             <div class="update-badge" id="update-badge" data-full="{update_time}">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: {update_time[:10]}</span> {update_time[11:16]}<span class="ub-long">{update_time[16:]}</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: {_tz(updated_iso, update_time[:10], "ymd")}</span> {_tz(updated_iso, update_time[11:16], "hm")}<span class="ub-long">{_tz(updated_iso, update_time[16:], "s")}</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
+            <button class="theme-btn" id="tz-btn" title="UTC / Taiwan time (UTC+8)" aria-pressed="false">🕒 UTC</button>
             <span class="actions-break"></span>
             <span class="version-badge" title="Site version / 網站版本">v{SITE_VERSION}</span>
         </div>
@@ -1981,7 +2106,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     </div>
 
     <script id="site-data" type="application/json">{site_json}</script>
-    <script>{_JS}</script>
+    <script src="site.js?v={asset_ver}" defer></script>
 </body>
 </html>"""
 
@@ -2016,7 +2141,7 @@ _CSS = r"""
     --accent-rgb: 27,92,148;
     --text:      #16324f;
     --text-2:    #4a6076;
-    --text-3:    #72869b;
+    --text-3:    #5c6e81;
     --border:    #d2dde9;
     --danger:    #dc3a4e;
     --ok:        #1fa97e;
@@ -2773,6 +2898,8 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .theme-btn .bi:not(:empty) + .bt { display:none; }
     #lang-btn .bt { display:none; }
     #lang-btn .bt-short { display:inline; font-weight: 800; }
+    #tz-btn .bi, #tz-btn .bt { display:none; }
+    #tz-btn .bt-short { display:inline; font-weight: 800; }
     .version-badge { padding: 7px 10px; }
     .hero { min-height: 88vh; }
     .hero-meta { gap: 8px; }
@@ -2833,6 +2960,16 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 [data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
 .lightbox img { filter: none; }
 
+/* 提醒框（強度分頁：AI 模式強度偏弱） */
+.callout { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 16px; padding: 14px 16px; border-radius: 18px;
+    background: rgba(238,122,34,.10); border: 1px solid rgba(238,122,34,.32); }
+.callout-icon { font-size: 1.05em; line-height: 1.5; flex: 0 0 auto; }
+.callout p { margin: 0; font-size: .92em; line-height: 1.6; color: var(--text); }
+.sub-head { margin: 18px 0 10px; font-size: 1em; font-weight: 700; color: var(--text); }
+
+/* 只給螢幕閱讀器的文字（表格標題） */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* 颱風頁頂端的白話摘要 */
 .i-zh { display: none; }
 html[lang^="zh"] .i-zh { display: inline; }
@@ -2866,6 +3003,16 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
 }
 .city-table th:first-child, .city-table td.c-name { position: sticky; left: 0; z-index: 1; background: var(--surface); }
 .city-table tr.c-quiet td { text-align: left; color: var(--text-2); font-weight: 500; padding-top: 10px; }
+/* 整欄 <1% 的模式預設收起，按鈕展開 */
+.city-table-wrap.compact .col-dim { display: none; }
+.city-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 10px; padding: 6px 2px; border: 0; background: none;
+    font: inherit; font-size: .84em; font-weight: 650; color: var(--accent); cursor: pointer; }
+.city-toggle::before { content: ''; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .25s var(--ease-out); }
+.city-toggle[aria-expanded="true"]::before { transform: translateY(1px) rotate(-135deg); }
+.city-toggle .ct-less, .city-toggle[aria-expanded="true"] .ct-more { display: none; }
+.city-toggle[aria-expanded="true"] .ct-less { display: inline; }
+.city-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
 /* 上方小標（Live、Outlook…）沒有提供資訊，拿掉 */
 .kicker { display: none; }
@@ -2895,7 +3042,7 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
     --accent-rgb:  10,111,220;
     --text:        #0c1c2d;
     --text-2:      #3f5266;
-    --text-3:      #6b7d90;
+    --text-3:      #5c6e81;   /* 白底對比 4.7:1（WCAG AA） */
     --border:      rgba(20,45,75,.10);
     --btn-bg:      #0a6fdc;
     --glass:       rgba(255,255,255,.50);
@@ -3033,6 +3180,9 @@ header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
 header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
 header.compact #lang-btn .bt { display: none; }
 header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
+header.compact #tz-btn .bi, header.compact #tz-btn .bt { display: none; }
+header.compact #tz-btn .bt-short { display: inline; font-weight: 800; }
+time.tz { font-variant-numeric: tabular-nums; }
 header.mini .brand-text { display: none; }
 .top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
 .top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
@@ -3439,6 +3589,11 @@ const I18N = {
     'btn.light':        '☀️ Light',
     'btn.lang':         '🌐 中文',
     'btn.lang.short':   '中',
+    'btn.tz.utc':       '🕒 UTC',
+    'btn.tz.tw':        '🕒 Taiwan time',
+    'btn.tz.utc.short': 'UTC',
+    'btn.tz.tw.short':  '+8',
+    'btn.tz.title':     'Times shown in {z}. Click to switch between UTC and Taiwan time (UTC+8); map images stay in UTC.',
     'nav.overview':     'Overview',
     'nav.storms':       'Storms',
     'nav.genesis':      'Genesis',
@@ -3459,13 +3614,15 @@ const I18N = {
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
-    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10 minutes.',
+    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
-    'hero.updated':     'Data updated',
+    'cap.score':        'Mean forecast error by lead time for each model',
+    'cap.cities':       'Taiwan landfall and city strike probability by model',
+    'cap.official':     'Official forecasts by agency and forecast hour',
     'hero.active':      'Active systems',
-    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 10 minutes, side by side with the official forecast.',
+    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 10–15 minutes, side by side with the official forecast.',
     'sec.active.kicker':'Live',
     'sec.active':       'Active systems',
     'sec.genesis.kicker':'Outlook',
@@ -3481,7 +3638,7 @@ const I18N = {
     'empty.title':      'No Active Systems',
     'empty.status':     'Status',
     'empty.await':      'Awaiting data…',
-    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 10 minutes.',
+    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 10–15 minutes.',
     'storm.subtitle':   'Western Pacific Tropical Cyclone',
     'badge.live':       'LIVE',
     'catname.TD':       'Tropical Depression',
@@ -3514,7 +3671,7 @@ const I18N = {
     'run.latest':       'Latest',
     'tmap.all':         'All',
     'tmap.na':          'not issued yet',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -3539,7 +3696,7 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.hour':         'Hour',
-    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
+    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
     'tab.now':          'Summary',
     'tab.track':        'Track',
@@ -3557,6 +3714,10 @@ const I18N = {
     'note.shear':       'Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm\'s upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm\'s heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
+    'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
+    'note.ohctrack':    'Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
+    'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -3590,7 +3751,7 @@ const I18N = {
     'cities.grp.city': 'City strike',
     'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
     'cities.city':    'Model',
-    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS = deterministic run: ✓ = hits (with arrival time)',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
     'city.kaohsiung':    'Kaohsiung',
@@ -3624,7 +3785,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3665,6 +3826,11 @@ const I18N = {
     'btn.light':        '☀️ 淺色',
     'btn.lang':         '🌐 English',
     'btn.lang.short':   'EN',
+    'btn.tz.utc':       '🕒 UTC',
+    'btn.tz.tw':        '🕒 臺灣時間',
+    'btn.tz.utc.short': 'UTC',
+    'btn.tz.tw.short':  '+8',
+    'btn.tz.title':     '目前以{z}顯示時間。點一下在 UTC 與臺灣時間（UTC+8）之間切換；圖片裡的時間仍是 UTC。',
     'nav.overview':     '總覽',
     'nav.storms':       '颱風',
     'nav.genesis':      '生成潛勢',
@@ -3685,13 +3851,15 @@ const I18N = {
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
-    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10 分鐘更新。',
+    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
-    'hero.updated':     '資料更新',
+    'cap.score':        '各模式隨預報時數的平均誤差',
+    'cap.cities':       '各模式的登陸臺灣與城市侵襲機率',
+    'cap.official':     '各單位、各預報時數的官方預報',
     'hero.active':      '活躍系統',
-    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 10 分鐘更新，與官方預報並列呈現。',
+    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 10–15 分鐘更新，與官方預報並列呈現。',
     'sec.active.kicker':'即時',
     'sec.active':       '活躍系統',
     'sec.genesis.kicker':'展望',
@@ -3707,7 +3875,7 @@ const I18N = {
     'empty.title':      '目前無活躍系統',
     'empty.status':     '狀態',
     'empty.await':      '等待資料中…',
-    'empty.desc':       '目前沒有發展中的系統，每 10 分鐘自動更新',
+    'empty.desc':       '目前沒有發展中的系統，每 10–15 分鐘自動更新',
     'storm.subtitle':   '西北太平洋熱帶氣旋',
     'badge.live':       '即時',
     'catname.TD':       '熱帶性低氣壓',
@@ -3740,7 +3908,7 @@ const I18N = {
     'run.latest':       '最新',
     'tmap.all':         '全部',
     'tmap.na':          '尚未出報',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
     'sub.score':        '校驗',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -3765,7 +3933,7 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.hour':         '時數',
-    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
+    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間 &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
     'tab.now':          '概況',
     'tab.track':        '路徑',
@@ -3783,6 +3951,10 @@ const I18N = {
     'note.shear':       '200 hPa 與 850 hPa 風的向量差，取颱風中心外 200–800 km 的平均，沿 AIFS-single（決定報）的預報路徑每 6 小時一點；風場與路徑來自同一期 AIFS &nbsp;·&nbsp; 風切大時颱風上下層環流被吹得錯開，通常難以增強：10 kt 以下為弱、10–20 kt 中等、20 kt 以上為強 &nbsp;·&nbsp; 箭頭＝風切指向的方向（由低層風指向高層風），颱風最強的對流與降雨常偏在順風切方向的左側 &nbsp;·&nbsp; 資料：ECMWF Open Data',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
+    'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
+    'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
+    'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，用同一套方法校驗；它們的存檔比模式晚開始，只列在「全部」樣本，不進同質樣本。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
@@ -3816,7 +3988,7 @@ const I18N = {
     'cities.grp.city': '城市侵襲',
     'cities.grp.city.sub': '路徑通過城市 1°（約 111 公里）以內',
     'cities.city':    '模式',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS＝決定報：✓＝會侵襲（附抵達時間）',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數 &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
     'city.taichung':     '臺中',
     'city.kaohsiung':    '高雄',
@@ -3850,7 +4022,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切、500 hPa 駛流場、JTWC 預報、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「校驗」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10–15 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切、500 hPa 駛流場、JTWC 預報、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「校驗」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -3900,6 +4072,52 @@ function t(key, params) {
     return s;
 }
 
+// ── 時區：UTC／臺灣時間（UTC+8，無夏令時間）。頁面上的 <time class="tz"> 依設定重排 ──
+let tzMode = (function () {
+    try { const v = localStorage.getItem('tz'); if (v === 'utc' || v === 'tw') return v; } catch (e) {}
+    return currentLang === 'zh' ? 'tw' : 'utc';
+})();
+function tzDate(iso) {
+    let s = String(iso || '');
+    if (!/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z';       // 沒寫時區的一律當 UTC，不要被當成本地時間
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+}
+function fmtTz(iso, fmt) {
+    const d = tzDate(iso);
+    if (!d) return null;
+    const tw = tzMode === 'tw';
+    const u = new Date(d.getTime() + (tw ? 8 * 3600e3 : 0));
+    const p = n => String(n).padStart(2, '0');
+    const Y = u.getUTCFullYear(), M = p(u.getUTCMonth() + 1), D = p(u.getUTCDate()), H = p(u.getUTCHours()), m = p(u.getUTCMinutes()), s = p(u.getUTCSeconds());
+    switch (fmt) {
+        case 'mdh':  return tw ? `${M}/${D} ${H}:00` : `${M}/${D} ${H}Z`;
+        case 'dhm':  return tw ? `${D} / ${H}:${m} UTC+8` : `${D} / ${H}:${m} UTC`;
+        case 'ymd':  return `${Y}-${M}-${D}`;
+        case 'hm':   return `${H}:${m}`;
+        case 's':    return `:${s}`;
+        case 'full': return `${Y}-${M}-${D} ${H}:${m}:${s} ${tw ? 'UTC+8' : 'UTC'}`;
+    }
+    return null;
+}
+function applyTz(mode, save = true) {
+    tzMode = mode === 'tw' ? 'tw' : 'utc';
+    root.setAttribute('data-tz', tzMode);
+    $$('time.tz').forEach(el => {
+        const txt = fmtTz(el.dataset.utc, el.dataset.fmt || 'mdh');
+        if (txt !== null) el.textContent = txt;
+    });
+    const b = $('#tz-btn');
+    if (b) {
+        const k = tzMode === 'tw' ? 'btn.tz.tw' : 'btn.tz.utc';
+        b.innerHTML = btnHTML(t(k), t(k + '.short'));
+        b.setAttribute('aria-pressed', tzMode === 'tw' ? 'true' : 'false');
+        b.title = t('btn.tz.title', { z: t(k).replace(/^\S+\s/, '') });
+    }
+    if (save) { try { localStorage.setItem('tz', tzMode); } catch (e) {} }
+    document.dispatchEvent(new CustomEvent('tzchange'));
+}
+
 function i18nParams(el) {
     const p = {};
     for (const k in el.dataset) {
@@ -3920,6 +4138,7 @@ function applyLang(lang, save = true) {
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
+    applyTz(tzMode, false);                    // 時區按鈕文字跟著語言換；<time> 文字也重排
     applyTheme(root.getAttribute('data-theme') || 'light', false);
     $$('.split').forEach(splitText);
     $$('.words').forEach(splitWords);
@@ -4171,7 +4390,12 @@ function switchModelTab(trackId, model) {
         if (!isActive) pausePlayersIn(el);
     });
     $$('.model-tab-btn').filter(b => b.dataset.track === trackId)
-        .forEach(b => { b.classList.toggle('active', b.dataset.model === model); if (b.dataset.model === model && b.offsetParent) revealTab(b); });
+        .forEach(b => {
+            const on = b.dataset.model === model;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+            if (on && b.offsetParent) revealTab(b);
+        });
     requestAnimationFrame(updateIndicators);
 }
 
@@ -4325,10 +4549,7 @@ async function initTrackMap(box) {
         const showD = box.querySelector('.tm-det');
         Object.keys(data.models).forEach(m => sel.add(new Option(m, m)));
         const pad = n => String(n).padStart(2, '0');
-        const fmtAt = (iso, h) => {
-            const d = new Date(new Date(iso).getTime() + h * 3600e3);
-            return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
-        };
+        const fmtAt = (iso, h) => { const d = tzDate(iso); return d ? fmtTz(new Date(d.getTime() + h * 3600e3).toISOString(), 'mdh') : '–'; };
         // cur＝目前畫的資料：「最新」是 data（各模式各自最新一期），選了某期就換成那期的檔（所有模式同一期）
         let cur = data, run = null;
         const fmt = (m, h) => fmtAt((cur.inits || {})[m] || cur.init, h);
@@ -4522,10 +4743,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
     const pad = n => String(n).padStart(2, '0');
-    const fmt = (iso, h = 0) => {
-        const d = new Date(new Date(iso).getTime() + h * 3600e3);
-        return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
-    };
+    const fmt = (iso, h = 0) => { const d = tzDate(iso); return d ? fmtTz(new Date(d.getTime() + h * 3600e3).toISOString(), 'mdh') : '–'; };
     const isoOf = st => `${st.slice(0, 4)}-${st.slice(4, 6)}-${st.slice(6, 8)}T${st.slice(8, 10)}:00:00Z`;
     const mix = f => `rgb(${OLD.map((a, i) => Math.round(a + (NEW[i] - a) * f)).join(',')})`;
     const unwrap = pts => { let prev = null; return pts.map(p => {
@@ -4933,6 +5151,14 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 }, { threshold: 0.35 }) : null;
 
 document.addEventListener('click', e => {
+    const ct = e.target.closest('.city-toggle');
+    if (ct) {
+        const open = ct.getAttribute('aria-expanded') !== 'true';
+        ct.setAttribute('aria-expanded', open ? 'true' : 'false');
+        const wrap = ct.previousElementSibling;
+        if (wrap && wrap.classList.contains('city-table-wrap')) wrap.classList.toggle('compact', !open);
+        return;
+    }
     const tab = e.target.closest('.model-tab-btn');
     if (tab) {
         switchModelTab(tab.dataset.track, tab.dataset.model);
@@ -5556,10 +5782,11 @@ const Globe = (function () {
                 T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
                 T.extra += .2 * e1 + .2 * e2;     // 捲動只微轉（合計約 23°），西北太平洋始終朝前
                 T.tiltX = .25 * e2;
-                if (dark) T.op = 1 - .3 * e1 - .12 * e2;
+                const dim = (portrait && W < 600) ? .62 : 1;   // 手機直式：地球疊在封面文字底下，淡一些才讀得清
+                if (dark) T.op = dim * (1 - .3 * e1 - .12 * e2);
                 else {
                     // 淺色主題：只畫在深色的 hero 卡片裡（連圓角一起裁），捲出去就淡掉
-                    T.op = 1 - hp;
+                    T.op = dim * (1 - hp);
                     const rad = hero ? parseFloat(getComputedStyle(hero).borderTopLeftRadius) || 0 : 0;
                     T.clip = `inset(${hr.top.toFixed(0)}px ${Math.max(0, W - hr.right).toFixed(0)}px ${(H - hr.bottom).toFixed(0)}px ${Math.max(0, hr.left).toFixed(0)}px round ${rad}px)`;
                 }
@@ -5662,7 +5889,8 @@ function nextRefresh(now) {
     next.setMinutes(slot, 0, 0);    // slot 超過 59 時 Date 會自動進位到下一小時
     return next;
 }
-const REFRESH_AT = nextRefresh(new Date());
+let REFRESH_AT = nextRefresh(new Date());
+let REFRESH_SPAN = REFRESH_AT - Date.now();
 function fmtRemain(ms) {
     const s = Math.max(0, Math.round(ms / 1000));
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -5673,27 +5901,73 @@ function tickClock() {
     const clk = $('#hero-clock');
     if (clk) clk.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
     const ring = $('.ring-fg');
-    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (REFRESH_MIN * 60000))) * 100).toFixed(2);
+    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / Math.max(1, REFRESH_SPAN))) * 100).toFixed(2);
     const mins = Math.floor((now - UPDATED) / 60000);
     const rel = isNaN(mins) ? '' : mins < 1 ? t('rel.now') : mins < 60 ? t('rel.min', { n: mins }) : t('rel.hr', { n: Math.floor(mins / 60) });
     const badge = $('#update-badge');
     if (badge) {
         const stale = mins > 40;      // 10 分鐘一輪，有新資料時一輪約 15 分鐘，40 分鐘沒更新就算過時
         badge.classList.toggle('stale', stale);
-        badge.title = t('header.updated') + ': ' + badge.dataset.full + ' · ' +
+        badge.title = t('header.updated') + ': ' + (fmtTz(SITE.updatedIso, 'full') || badge.dataset.full) + ' · ' +
             (stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) }));
     }
 }
-setTimeout(() => {
+// 到點先抓 status.json（百來個位元組），資料時間變了才整頁重新整理；沒變就 2 分鐘後再看。
+// 抓不到（離線、file://）連續兩次就退回原本的做法：到點直接重新整理。
+let statusFails = 0, checking = false;
+function reloadPage() {
     try { sessionStorage.setItem('scroll:' + location.hash, String(scrollY)); } catch (e) {}
     location.reload();
-}, REFRESH_AT - new Date());
+}
+async function checkUpdate() {
+    if (checking) return;
+    checking = true;
+    try {
+        const r = await fetch('status.json?_=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        const j = await r.json();
+        statusFails = 0;
+        if (j.updated && j.updated !== SITE.updatedIso) { reloadPage(); return; }
+        REFRESH_AT = new Date(Date.now() + 2 * 60000);
+    } catch (e) {
+        statusFails++;
+        if (statusFails >= 2 && location.protocol.startsWith('http')) { reloadPage(); return; }
+        REFRESH_AT = nextRefresh(new Date());
+    } finally {
+        checking = false;
+    }
+    REFRESH_SPAN = REFRESH_AT - Date.now();
+    scheduleCheck();
+}
+function scheduleCheck() {
+    setTimeout(() => {
+        if (document.hidden) { REFRESH_AT = new Date(Date.now() + 60000); scheduleCheck(); return; }   // 背景分頁不抓，回前景時再看
+        checkUpdate();
+    }, Math.max(1000, REFRESH_AT - Date.now()));
+}
+scheduleCheck();
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - UPDATED > 12 * 60000) checkUpdate();   // 回到前景：上次資料超過一輪就立刻看一眼
+});
 
 // ── Keyboard shortcuts ─────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    // 分頁列（role=tablist）：左右鍵／Home／End 在同一列的分頁間移動並切換（WAI-ARIA tabs 的鍵盤操作）
+    const tab = e.target.closest ? e.target.closest('.model-tab-btn[role="tab"]') : null;
+    if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+        const tabs = $$('.model-tab-btn', tab.parentElement);
+        let i = tabs.indexOf(tab);
+        if (e.key === 'ArrowLeft') i = (i - 1 + tabs.length) % tabs.length;
+        else if (e.key === 'ArrowRight') i = (i + 1) % tabs.length;
+        else i = e.key === 'Home' ? 0 : tabs.length - 1;
+        e.preventDefault();
+        tabs[i].focus();
+        tabs[i].click();
+        return;
+    }
     if (lightbox.classList.contains('open')) {
         if (e.key === 'Escape') { closeLightbox(); e.preventDefault(); }
         return;
@@ -5713,6 +5987,7 @@ document.addEventListener('keydown', e => {
 // ── Init ───────────────────────────────────────────────────────────
 $('#theme-btn').addEventListener('click', toggleTheme);
 $('#lang-btn').addEventListener('click', switchLang);
+$('#tz-btn').addEventListener('click', () => applyTz(tzMode === 'tw' ? 'utc' : 'tw'));
 
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });

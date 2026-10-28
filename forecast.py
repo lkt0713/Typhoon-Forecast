@@ -339,7 +339,7 @@ def _build_jtwc_urls(track_ids: list[str]) -> tuple[dict, dict]:
 try:
     import cartopy.crs as ccrs # Type: ignore
     import cartopy.feature as cfeature # Type: ignore
-    from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER # type: ignore
+    from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter  # type: ignore
     HAS_CARTOPY = True
     print("[INFO] Cartopy 已載入")
 except ImportError:
@@ -364,8 +364,8 @@ def _configure_cartopy_gridlines(gl, extent):
 
     gl.xlocator = mticker.MultipleLocator(x_step)
     gl.ylocator = mticker.MultipleLocator(y_step)
-    gl.xformatter = LONGITUDE_FORMATTER
-    gl.yformatter = LATITUDE_FORMATTER
+    gl.xformatter = LongitudeFormatter()
+    gl.yformatter = LatitudeFormatter()
     gl.xlabel_style = {'size': 8}
     gl.ylabel_style = {'size': 8}
 
@@ -698,8 +698,8 @@ def _setup_basemap(ax, extent, grid_step: float | None = None, label_size: int =
     if grid_step is not None:
         gl.xlocator = mticker.MultipleLocator(grid_step)
         gl.ylocator = mticker.MultipleLocator(grid_step)
-        gl.xformatter = LONGITUDE_FORMATTER
-        gl.yformatter = LATITUDE_FORMATTER
+        gl.xformatter = LongitudeFormatter()
+        gl.yformatter = LatitudeFormatter()
         gl.xlabel_style = {'size': label_size, 'color': TEXT_MUTED}
         gl.ylabel_style = {'size': label_size, 'color': TEXT_MUTED}
     else:
@@ -1703,6 +1703,7 @@ def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> di
     hs = [float(np.nanmax(h)) for _, _, h in tracks if len(h)]
     out['_max_h'] = int(round(max(hs))) if hs else None
     out['_init'] = init.strftime('%m/%d %HZ')   # 表頭顯示起報時間，各模式不一定同一期
+    out['_init_iso'] = pd.Timestamp(init).strftime('%Y-%m-%dT%H:%MZ')   # 給網頁的時區切換用
     return out
 
 
@@ -2084,6 +2085,9 @@ VERIF_MATCH_H = 1.5       # 實況時間與預報時間最多差多少小時算�
 VERIF_KEEP_DAYS = 90
 # 改名前存下的校驗檔用舊顯示名稱；讀回時對應到新名稱，成績與趨勢才不會斷成兩段
 VERIF_LEGACY_NAMES = {'AIFS': 'AIFS-ENS', 'ECMWF': 'ECMWF-ENS'}
+# 官方預報（JTWC／JMA／CWA）也存進校驗檔，但只列在「全部」樣本：它們的存檔比模式晚開始、
+# 時距也不同，放進同質樣本會把模式的期數整批擋掉
+OFFICIAL_AGENCIES = ('JTWC', 'JMA', 'CWA')
 
 
 def _jtwc_warning_time(jtwc: dict, now: datetime | None = None) -> pd.Timestamp | None:
@@ -2348,9 +2352,6 @@ def compute_scorecard() -> dict:
             continue
         model, tid = m.group(1).replace('~', ' '), m.group(2)
         model = VERIF_LEGACY_NAMES.get(model, model)
-        # JTWC 預報不比：存檔起點比模式晚一期，樣本數永遠少一筆，還會把同質樣本擋掉
-        if model == 'JTWC':
-            continue
         # 改名那一期新舊名稱各存了一份，同一模式／颱風／期數只算一次
         if (model, tid, m.group(3)) in seen:
             continue
@@ -2413,6 +2414,7 @@ def compute_scorecard() -> dict:
         # 以前「模式第一期之前不算缺席」的例外（給 2026-10-16 才加入的 AIGFS／GFS）已經拿掉：
         # 它們後來補齊到存檔第一期 10/14 18Z，那條例外反而讓真的缺期的模式（Champi 的
         # AIGEFS／GEFS 沒有 10/14 18Z）被當成「還沒加入」，同質樣本各模式的 n 就不一樣了
+        rs = [r for r in rs if r[1] not in OFFICIAL_AGENCIES]      # 官方預報只在全部樣本
         present: dict = {}
         cases: dict = {}
         for r in rs:
@@ -2526,6 +2528,24 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
     return save_path
 
 
+def _archive_official_verif(tid: str, fcs: list) -> None:
+    """官方預報（JTWC／JMA／CWA）也存成校驗檔（{AGENCY}_{tid}_{基準時間}.csv），之後跟模式一起算誤差
+    （只列在「全部」樣本，見 OFFICIAL_AGENCIES）。同一報只存第一份。"""
+    fdir = os.path.join(VERIF_DIR, 'fcst')
+    os.makedirs(fdir, exist_ok=True)
+    for fc in fcs:
+        if fc.get('agency') not in OFFICIAL_AGENCIES or not fc.get('issue'):
+            continue
+        pts = sorted((p for p in fc.get('points') or [] if p.get('lat') is not None and p.get('lon') is not None),
+                     key=lambda p: p['h'])
+        if len(pts) < 2:
+            continue
+        init = pd.Timestamp(fc['issue'])
+        p = os.path.join(fdir, f"{fc['agency']}_{tid}_{init:%Y%m%d%H}.csv")
+        _save_verif_fcst(p, _verif_frame([q['h'] for q in pts], [q['lat'] for q in pts], [q['lon'] % 360 for q in pts],
+                                         [q['kt'] if q.get('kt') is not None else np.nan for q in pts]))
+
+
 def make_official_forecasts(storms: list) -> None:
     """抓 JMA／CWA、與 JTWC 一起掛到各颱風第一個 storm dict 的 'official'（圖檔路徑＋表格資料）。"""
     import official
@@ -2551,6 +2571,10 @@ def make_official_forecasts(storms: list) -> None:
                     nearest[id(f)] = (d, tid)
                 if d <= OFFICIAL_MATCH_KM:
                     fcs.append(f)
+        try:
+            _archive_official_verif(tid, fcs)
+        except Exception as e:
+            print(f"[OFFICIAL] {tid} 官方預報存校驗檔失敗，略過: {e}")
         if len(fcs) < 2:          # 只有 JTWC 一家就不畫（網頁上已有 JTWC 官方圖）
             continue
         path = os.path.join(OUTPUT_DIR, f"{tid}_Official.png")
@@ -2618,7 +2642,7 @@ def plot_ohc_map(date, lat, lon, tchp, storms_now: list, save_path: str, source:
         gl.right_labels = gl.top_labels = False
         gl.xlocator = mticker.FixedLocator(range(100, 181, 10))
         gl.ylocator = mticker.FixedLocator(range(0, 51, 10))
-        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xformatter, gl.yformatter = LongitudeFormatter(), LatitudeFormatter()
         gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_DARK}
     for st in storms_now:
         if st.get('track') and len(st['track']) > 1:
@@ -2690,15 +2714,85 @@ def _jtwc_forecast(head: dict) -> list:
     return [[la, lo, int(tau)] for la, lo, _, tau in jt.get('forecast_track') or [] if tau > 0]
 
 
+OHC_TRACK_SUFFIX = "_OHC_Track.png"
+OHC_BOX_DEG = 0.5                        # 沿路徑取樣：中心 ±0.5° 的平均（約颱風核心範圍）
+
+
+def _ohc_track_series(lat, lon, tchp, st: dict) -> list:
+    """沿 JTWC 預報路徑每 6 h 取樣 TCHP → [(tau, kJ/cm² 或 None), ...]；陸地／沒有資料為 None。"""
+    pts = [(0, float(st['lat']), float(st['lon']))] + [(int(tau), float(la), float(lo)) for la, lo, tau in st.get('forecast') or []]
+    pts.sort(key=lambda p: p[0])
+    if len(pts) < 2:
+        return []
+    taus = np.array([p[0] for p in pts], float)
+    las = np.array([p[1] for p in pts], float)
+    los = np.degrees(np.unwrap(np.radians([p[2] % 360 for p in pts])))      # 跨換日線也連續
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float) % 360
+    out = []
+    for tau in range(0, int(taus.max()) + 1, 6):
+        la, lo = float(np.interp(tau, taus, las)), float(np.interp(tau, taus, los)) % 360
+        m = (np.abs(lat - la) <= OHC_BOX_DEG)[:, None] & (np.abs(((lon - lo + 180) % 360) - 180) <= OHC_BOX_DEG)[None, :]
+        v = tchp[m]
+        v = v[np.isfinite(v)] if v.size else v
+        out.append((tau, round(float(v.mean()), 1) if v.size else None))
+    return out
+
+
+def plot_ohc_track_chart(tid: str, name: str, wt, series: list, date, source: str, save_path: str) -> str:
+    lead = [p[0] for p in series]
+    val = np.array([np.nan if p[1] is None else p[1] for p in series], float)
+    fig, ax = plt.subplots(figsize=(10.5, 4.3), facecolor='white')
+    vmax = np.nanmax(val) if np.isfinite(val).any() else 0.0
+    top = float(max(100.0, np.ceil((vmax + 20) / 25) * 25))
+    for lo, hi, col in zip(OHC_LEVELS[:-1], OHC_LEVELS[1:], OHC_COLORS):      # 背景色帶同地圖色階
+        if lo >= top:
+            break
+        ax.axhspan(lo, min(hi, top), color=col, alpha=0.26, lw=0, zorder=0)
+    ax.axhline(OHC_THRESHOLD, color='#6B7A89', lw=0.9, ls=(0, (4, 3)), zorder=1)
+    ax.text(1.005, OHC_THRESHOLD / top, f'{OHC_THRESHOLD} kJ/cm²', transform=ax.transAxes, fontsize=8,
+            color=TEXT_MUTED, va='center', ha='left')
+    ax.plot(lead, val, color=MEAN_COLOR, lw=2.4, zorder=3, solid_capstyle='round')
+    ax.scatter(lead, val, s=34, color=MEAN_COLOR, edgecolors='white', linewidths=1.2, zorder=4)
+    land = [h for h, v in zip(lead, val) if not np.isfinite(v)]
+    if land:
+        ax.scatter(land, [top * 0.02] * len(land), s=30, marker='s', color='#8A99A8', edgecolors='white', linewidths=0.8, zorder=4)
+    ax.set_xlim(-3, max(lead) + 3)
+    ax.set_ylim(0, top)
+    ax.set_ylabel('Ocean heat content (kJ/cm²)', color=TEXT_DARK, fontsize=10)
+    ticks = [h for h in lead if h % 24 == 0]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"+{h} h\n{pd.Timestamp(wt) + pd.Timedelta(hours=h):%m/%d %HZ}" for h in ticks],
+                       fontsize=8.5, color=TEXT_DARK)
+    ax.tick_params(axis='y', labelsize=8.5, colors=TEXT_DARK)
+    for sp in ax.spines.values():
+        sp.set_color(BOX_EDGE)
+    handles = [mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4, marker='o', ms=6, markeredgecolor='white'),
+               mlines.Line2D([], [], color='#8A99A8', lw=0, marker='s', ms=7, markeredgecolor='white')]
+    labels = [f'Ocean heat content under the forecast centre (±{OHC_BOX_DEG:g}° mean)', 'Land or water colder than 26 °C']
+    leg = ax.legend(handles, labels, loc='upper left', fontsize=8, ncol=2, borderpad=0.6, **LEGEND_KW)
+    _style_legend(leg)
+    ax.set_title(f"{tid} ({name})  Ocean Heat Content along the JTWC Forecast Track", loc='left',
+                 fontsize=13.5, fontweight='bold', color=TEXT_DARK, pad=22)
+    ax.text(0, 1.015, f"JTWC forecast {pd.Timestamp(wt):%Y-%m-%d %HZ}  ·  {source} ocean analysis "
+            f"{pd.Timestamp(date):%Y-%m-%d} (daily snapshot)  ·  Dashed = {OHC_THRESHOLD} kJ/cm² intensification threshold",
+            transform=ax.transAxes, ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
+    _watermark(ax, side='right')
+    plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    return save_path
+
+
 def make_ohc_map(storms: list) -> str | None:
-    """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。"""
+    """下載（或沿用）TCHP，疊上各颱風目前位置畫成 WP_OHC.png；沒有颱風就不畫（網頁只在颱風頁顯示）。
+    另替每顆有 JTWC 預報的颱風畫「沿 JTWC 預報路徑的海洋熱含量」折線圖，掛在 head['ohc_track_path']。"""
     import ohc
-    now = []
+    now, pairs = [], []
     for head in _storm_heads(storms):
         st = _storm_marker(head)
         if st:
             st['forecast'] = _jtwc_forecast(head)
             now.append(st)
+            pairs.append((head, st))
     if not now:
         if os.path.exists(OHC_PATH):
             os.remove(OHC_PATH)
@@ -2706,6 +2800,22 @@ def make_ohc_map(storms: list) -> str | None:
     date, lat, lon, tchp, source = ohc.fetch()
     plot_ohc_map(date, lat, lon, tchp, now, OHC_PATH, source)
     print(f"[OHC] 已畫 {source} {pd.Timestamp(date):%Y-%m-%d} 海洋熱含量圖（{', '.join(n['name'] for n in now)}）")
+    for head, st in pairs:
+        tid = head['track_id']
+        path = os.path.join(OUTPUT_DIR, f"{tid}{OHC_TRACK_SUFFIX}")
+        try:
+            ser = _ohc_track_series(lat, lon, tchp, st) if st.get('forecast') else []
+            if len(ser) >= 2:
+                jt = (head.get('current_info') or {}).get('jtwc') or {}
+                wt = _jtwc_warning_time(jt)
+                head['ohc_track_path'] = plot_ohc_track_chart(
+                    tid, st['name'], wt if wt is not None else pd.Timestamp(date), ser, date, source, path)
+                vals = [v for _, v in ser if v is not None]
+                print(f"[OHC] {tid} 沿 JTWC 路徑 {len(ser)} 點，{min(vals):.0f}–{max(vals):.0f} kJ/cm²" if vals else f"[OHC] {tid} 沿 JTWC 路徑全是陸地／無資料")
+            elif os.path.exists(path):
+                os.remove(path)
+        except Exception as e:
+            print(f"[OHC] {tid} 沿路徑熱含量圖失敗，略過: {e}")
     return OHC_PATH
 
 
@@ -2755,7 +2865,7 @@ def plot_satellite_map(tb, extent, valid, st: dict, style: str, save_path: str) 
         gl = ax.gridlines(draw_labels=True, linewidth=0.5, color='white', alpha=0.35, linestyle=(0, (2, 3)))
         gl.right_labels = gl.top_labels = False
         gl.xlocator = gl.ylocator = mticker.MultipleLocator(2)
-        gl.xformatter, gl.yformatter = LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+        gl.xformatter, gl.yformatter = LongitudeFormatter(), LatitudeFormatter()
         gl.xlabel_style = gl.ylabel_style = {'size': 8, 'color': TEXT_MUTED}
         kw = dict(transform=ccrs.PlateCarree())
     else:
@@ -4521,6 +4631,7 @@ def _cleanup_stale_jtwc(keep_ids: set[str]) -> None:
     jtwc_re = re.compile(r"^jtwc_((?:WP|CP|EP)\d{6})\.gif$|^((?:WP|CP|EP)\d{6})_Model_Comparison\.png$"
                          r"|^((?:WP|CP|EP)\d{6})_Tracks(?:_\d{10})?\.json$"
                          r"|^((?:WP|CP|EP)\d{6})_Shear\.png$"
+                         r"|^((?:WP|CP|EP)\d{6})_OHC_Track\.png$"
                          rf"|^{SAT_DIR_PREFIX}((?:WP|CP|EP)\d{{6}})\.json$"
                          rf"|^{re.escape(WNC2_LE_CONFIG['local_prefix'])}_((?:WP|CP|EP)\d{{6}})_(?:Strike_Probability|Intensity_Plume|Strike_\d+_\w+h|Wind34_Probability)\.png$")
     try:
