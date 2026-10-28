@@ -55,6 +55,11 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
         p = m.group(1)
         if not os.path.exists(os.path.join(docs, p)):
             problems.append(f'引用了不存在的檔案 {p}')
+    for fn in ('site.css', 'site.js', 'status.json', 'robots.txt', 'sitemap.xml', '404.html'):   # 拆出去的樣式／腳本與附屬檔
+        if not os.path.exists(os.path.join(docs, fn)):
+            problems.append(f'缺 {fn}')
+    if 'site.css?v=' not in html or 'site.js?v=' not in html:
+        problems.append('頁面沒有引用 site.css／site.js')
     for m in re.finditer(r'="(None|nan|undefined)"', html):
         problems.append(f'屬性值漏出 {m.group(0)} @{m.start()}')
     tids = sorted({s['track_id'] for s in storms})

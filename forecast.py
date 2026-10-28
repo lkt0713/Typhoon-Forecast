@@ -1703,6 +1703,7 @@ def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> di
     hs = [float(np.nanmax(h)) for _, _, h in tracks if len(h)]
     out['_max_h'] = int(round(max(hs))) if hs else None
     out['_init'] = init.strftime('%m/%d %HZ')   # 表頭顯示起報時間，各模式不一定同一期
+    out['_init_iso'] = pd.Timestamp(init).strftime('%Y-%m-%dT%H:%MZ')   # 給網頁的時區切換用
     return out
 
 

@@ -4,7 +4,7 @@ import html
 import re
 import math
 import pandas as pd  # type: ignore
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
 SITE_VERSION = "7.0.0"
@@ -186,6 +186,34 @@ def _fmt_obs_time(raw: str) -> str:
     if len(s) == 6 and s.isdigit():
         return f"{s[:2]} / {s[2:4]}:{s[4:]} UTC"
     return str(raw)
+
+
+def _obs_iso(raw: str) -> str | None:
+    """JTWC 的 'DDHHMM Z' → ISO（UTC）；月份取不晚於現在、最接近的那個月（與 forecast.py 同一規則）。"""
+    s = str(raw).replace('Z', '').strip()
+    if len(s) != 6 or not s.isdigit():
+        return None
+    day, hh, mm = int(s[:2]), int(s[2:4]), int(s[4:])
+    now = datetime.now(timezone.utc)
+    for back in range(0, 2):
+        y, mo = now.year, now.month - back
+        if mo < 1:
+            y, mo = y - 1, 12
+        try:
+            t = datetime(y, mo, day, hh, mm, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if t <= now + timedelta(hours=6):
+            return t.strftime('%Y-%m-%dT%H:%MZ')
+    return None
+
+
+def _tz(iso, text: str, fmt: str = 'mdh') -> str:
+    """UTC 時間包成 <time class="tz">：前端依「UTC／臺灣時間」設定重排文字；沒有 ISO 就原樣輸出。
+    fmt：mdh＝月/日 時、dhm＝日 / 時:分（JTWC 觀測時間）、ymd／hm／s＝頁首更新時間的三段。"""
+    if not iso:
+        return text
+    return f'<time class="tz" data-utc="{_esc(str(iso))}" data-fmt="{fmt}">{text}</time>'
 
 
 def _figure(src: str, alt: str, onerror_extra: str = "", cls: str = "") -> str:
@@ -654,7 +682,7 @@ def _city_table(cols: list[tuple]) -> str:
             if len(c) > 2 and c[2]:
                 eta = v.get('eta') or ''
                 cells.append((f'<td class="c-det{dc}" title="{_esc(eta)}">✓<span class="eta">'
-                              f'{_esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z") if eta else ""}</span></td>')
+                              f'{_tz(eta, _esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z")) if eta else ""}</span></td>')
                              if (p or 0) >= 50 else f'<td class="c-nil{dc}">—</td>')
                 continue
             if p is None or p < CITY_LEVELS[0]:
@@ -665,7 +693,7 @@ def _city_table(cols: list[tuple]) -> str:
             eta = v.get('eta') or ''
             eta_txt = (f'{eta[5:7]}/{eta[8:10]} {eta[11:13]}Z') if eta else ''
             cells.append(f'<td{cls(i)} style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
-                         f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
+                         f'{p:.0f}%<span class="eta">{_tz(eta, _esc(eta_txt))}</span></td>')
         rows.append((key, f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>'))
     if not rows and not quiet:
         return ''
@@ -691,9 +719,9 @@ def _city_table(cols: list[tuple]) -> str:
                  + _bi(f'{names_en}: under 1% in every model', f'{names}：各模式都低於 1%') + '</td></tr>')
     # 表頭附上預報長度：太短的模式（如 IFS 06Z／18Z 的 144 h）<1% 不代表不會來
     def _th_sub(d):
-        parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
-        parts = [p for p in parts if p]
-        return f'<span class="eta">{_esc(" · ".join(parts))}</span>' if parts else ''
+        parts = ([_tz(d.get('_init_iso'), _esc(d['_init']))] if d.get('_init') else []) + \
+                ([_esc(f'≤{d["_max_h"]} h')] if d.get('_max_h') else [])
+        return f'<span class="eta">{" · ".join(parts)}</span>' if parts else ''
     head = ''.join(f'<th{cls(i)}>{_esc(m)}{_th_sub(d)}</th>' for i, (m, d, *_) in enumerate(cols))
     n_dim = sum(dim)
     toggle = ''
@@ -877,6 +905,20 @@ Page not found, taking you back to the <a href="{_esc(site)}">forecast site</a>.
 ''')
 
 
+def _write_static_assets(docs_dir: str) -> str:
+    """寫出 site.css／site.js，回傳內容雜湊（8 碼）當網址的版本參數。"""
+    import hashlib
+    h = hashlib.sha1()
+    for fn, body in (('site.css', _CSS), ('site.js', _JS)):
+        data = body.encode('utf-8')
+        h.update(data)
+        path = os.path.join(docs_dir, fn)
+        if not (os.path.exists(path) and open(path, 'rb').read() == data):   # 沒變就不重寫，git 不會有多餘變動
+            with open(path, 'wb') as fh:
+                fh.write(data)
+    return h.hexdigest()[:8]
+
+
 TEASER_THUMB = 'genesis_teaser.jpg'
 
 
@@ -983,6 +1025,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     now_local = datetime.now().astimezone()
     update_time = now_local.strftime('%Y-%m-%d %H:%M:%S')
+    updated_iso = now_local.isoformat(timespec='seconds')
 
     # 依 track_id 分組（保留原始出現順序），同一顆颱風的 WNC/GENC 併入同一組
     groups: dict[str, list[dict]] = {}
@@ -1030,6 +1073,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             'pos': (f"{jtwc_data['latitude']}, {jtwc_data['longitude']}"
                     if jtwc_data.get('latitude') and jtwc_data.get('longitude') else 'N/A'),
             'time': _fmt_obs_time(jtwc_update) if jtwc_update else 'N/A',
+            'time_iso': _obs_iso(jtwc_update) if jtwc_update else None,
             'models': [m.get('model', 'WN2-C r2') for m in models if isinstance(m, dict)],
             # 首頁颱風卡片列的模式：多算 1000 成員版（它沒有自己的動畫／路徑圖分頁，
             # 不能放進上面的 models，那份清單颱風頁拿去產生模式分頁）
@@ -1220,7 +1264,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         kt_txt = f"{info['wind']:.0f}" if info['wind'] is not None else ''
         stats = [
-            ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_esc(info["time"])}</span>'),
+            ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_tz(info.get("time_iso"), _esc(info["time"]), "dhm")}</span>'),
             ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["pos"])}</span>'),
         ]
         if info['pressure'] is not None:
@@ -1303,7 +1347,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             run_row = ""
             if history and map_src and m.get('forecast_map_init'):
                 def _run_lbl(iso):
-                    return pd.Timestamp(iso).strftime('%m/%d %HZ')
+                    return _tz(pd.Timestamp(iso).strftime('%Y-%m-%dT%H:%MZ'), pd.Timestamp(iso).strftime('%m/%d %HZ'))
                 run_row = ('<div class="run-picks" role="group" aria-label="Init">'
                            f'<button type="button" class="run-btn active" data-src="{_esc(map_src)}">'
                            f'<span data-i18n="run.latest">Latest</span> {_run_lbl(m["forecast_map_init"])}</button>'
@@ -1382,7 +1426,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
                         f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
-                           f'<span class="eta">{_esc(f["issue"][5:13].replace("-", "/").replace("T", " ")) + ":00" if f.get("issue") else ""}</span></th>'
+                           f'<span class="eta">{_tz(f["issue"], _esc(f["issue"][5:13].replace("-", "/").replace("T", " ")) + ":00") if f.get("issue") else ""}</span></th>'
                            for f in fcs)
             rows = ''.join(f'<tr><td class="c-name">{"<span data-i18n=\"off.now\">Now</span>" if h == 0 else f"+{h} h"}</td>'
                            f'{"".join(_cell(f, h) for f in fcs)}</tr>' for h in hours)
@@ -1397,7 +1441,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <caption class="sr-only" data-i18n="cap.official">Official forecasts by agency and forecast hour</caption>
                     <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
                 </table></div>
-                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
+                <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
             </div>"""
 
         sat_html = ""
@@ -1531,7 +1575,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="tm-map"></div>
                 </div>
                 <p class="map-note" data-i18n="note.tmap">
-                    Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
+                    Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time and wind &nbsp;·&nbsp;
                     Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                 </p>
             </div>"""
@@ -1591,7 +1635,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 {table}
                 <p class="map-note" data-i18n="note.cities">
                     Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp;
-                    Time below = median first arrival among those members (UTC) &nbsp;·&nbsp;
+                    Time below = median first arrival among those members &nbsp;·&nbsp;
                     Taiwan cities always shown; others only when any model reaches 1%
                 </p>
             </div>"""
@@ -1909,7 +1953,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     site_data = {
         'routes': routes,
         'archiveOrder': ARCHIVE_MODEL_ORDER,
-        'updatedIso': now_local.isoformat(timespec='seconds'),
+        'updatedIso': updated_iso,
         'hero': {'rgb': hero_rgb, 'strength': round(hero_strength, 3)},
         'trackIds': joined_ids,
         'scaleMax': SCALE_MAX_KT,
@@ -1930,6 +1974,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     docs_dir = os.path.dirname(output_path) or '.'
     share_time = now_local.strftime('%m/%d %H:%M UTC%z').replace('+0800', '+8')
+    # 樣式與腳本拆成獨立檔案、網址帶內容雜湊：每 10–15 分鐘重新整理時瀏覽器直接用快取，
+    # 只有 HTML 本身重抓；改了產生器雜湊才會變。status.json 給頁面輪詢用：時間沒變就不重新整理。
+    asset_ver = _write_static_assets(docs_dir)
+    with open(os.path.join(docs_dir, 'status.json'), 'w', encoding='utf-8') as fh:
+        json.dump({'updated': updated_iso, 'version': SITE_VERSION, 'storms': list(track_ids)}, fh, ensure_ascii=False)
     try:
         _write_app_assets(docs_dir)
         has_share = _write_share_image(docs_dir, lead, share_time,
@@ -1960,7 +2009,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         d.setAttribute('data-theme', (saved === 'light' || saved === 'dark') ? saved : 'dark');
     }})();
     </script>
-    <style>{_CSS}</style>
+    <link rel="stylesheet" href="site.css?v={asset_ver}">
 </head>
 <body>
     <canvas id="globe" aria-hidden="true"></canvas>
@@ -1977,10 +2026,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <div class="header-actions">
             <div class="update-badge" id="update-badge" data-full="{update_time}">
                 <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="ring-bg" cx="10" cy="10" r="7.5"/><circle class="ring-fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg>
-                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: {update_time[:10]}</span> {update_time[11:16]}<span class="ub-long">{update_time[16:]}</span></span>
+                <span class="ub-text"><span data-i18n="header.updated">Updated</span><span class="ub-long">: {_tz(updated_iso, update_time[:10], "ymd")}</span> {_tz(updated_iso, update_time[11:16], "hm")}<span class="ub-long">{_tz(updated_iso, update_time[16:], "s")}</span></span>
             </div>
             <button class="theme-btn" id="theme-btn">🌙 Dark</button>
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
+            <button class="theme-btn" id="tz-btn" title="UTC / Taiwan time (UTC+8)" aria-pressed="false">🕒 UTC</button>
             <span class="actions-break"></span>
             <span class="version-badge" title="Site version / 網站版本">v{SITE_VERSION}</span>
         </div>
@@ -2040,7 +2090,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     </div>
 
     <script id="site-data" type="application/json">{site_json}</script>
-    <script>{_JS}</script>
+    <script src="site.js?v={asset_ver}" defer></script>
 </body>
 </html>"""
 
@@ -2832,6 +2882,8 @@ footer { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 12p
     .theme-btn .bi:not(:empty) + .bt { display:none; }
     #lang-btn .bt { display:none; }
     #lang-btn .bt-short { display:inline; font-weight: 800; }
+    #tz-btn .bi, #tz-btn .bt { display:none; }
+    #tz-btn .bt-short { display:inline; font-weight: 800; }
     .version-badge { padding: 7px 10px; }
     .hero { min-height: 88vh; }
     .hero-meta { gap: 8px; }
@@ -3105,6 +3157,9 @@ header.compact .theme-btn { padding-left: 11px; padding-right: 11px; }
 header.compact .theme-btn .bi:not(:empty) + .bt { display: none; }
 header.compact #lang-btn .bt { display: none; }
 header.compact #lang-btn .bt-short { display: inline; font-weight: 800; }
+header.compact #tz-btn .bi, header.compact #tz-btn .bt { display: none; }
+header.compact #tz-btn .bt-short { display: inline; font-weight: 800; }
+time.tz { font-variant-numeric: tabular-nums; }
 header.mini .brand-text { display: none; }
 .top-nav.tight .nav-link { padding-left: 9px; padding-right: 9px; }
 .top-nav.tight .nav-link > svg:not(.nd-caret) { display: none; }
@@ -3511,6 +3566,11 @@ const I18N = {
     'btn.light':        '☀️ Light',
     'btn.lang':         '🌐 中文',
     'btn.lang.short':   '中',
+    'btn.tz.utc':       '🕒 UTC',
+    'btn.tz.tw':        '🕒 Taiwan time',
+    'btn.tz.utc.short': 'UTC',
+    'btn.tz.tw.short':  '+8',
+    'btn.tz.title':     'Times shown in {z}. Click to switch between UTC and Taiwan time (UTC+8); map images stay in UTC.',
     'nav.overview':     'Overview',
     'nav.storms':       'Storms',
     'nav.genesis':      'Genesis',
@@ -3588,7 +3648,7 @@ const I18N = {
     'run.latest':       'Latest',
     'tmap.all':         'All',
     'tmap.na':          'not issued yet',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -3613,7 +3673,7 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.hour':         'Hour',
-    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
+    'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
     'tab.now':          'Summary',
     'tab.track':        'Track',
@@ -3664,7 +3724,7 @@ const I18N = {
     'cities.grp.city': 'City strike',
     'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
     'cities.city':    'Model',
-    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members (UTC) &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS = deterministic run: ✓ = hits (with arrival time)',
+    'note.cities':    'Share of members whose track passes within 1° (~111 km) of the city &nbsp;·&nbsp; Time below = median first arrival among those members &nbsp;·&nbsp; Under each model: init time (UTC) · forecast length; a short run can show &lt;1% simply because it ends before the storm arrives &nbsp;·&nbsp; Taiwan cities always shown; others only when any model reaches 1% &nbsp;·&nbsp; AIFS-single / ECMWF HRES / AIGFS / GFS = deterministic run: ✓ = hits (with arrival time)',
     'city.taipei':       'Taipei',
     'city.taichung':     'Taichung',
     'city.kaohsiung':    'Kaohsiung',
@@ -3739,6 +3799,11 @@ const I18N = {
     'btn.light':        '☀️ 淺色',
     'btn.lang':         '🌐 English',
     'btn.lang.short':   'EN',
+    'btn.tz.utc':       '🕒 UTC',
+    'btn.tz.tw':        '🕒 臺灣時間',
+    'btn.tz.utc.short': 'UTC',
+    'btn.tz.tw.short':  '+8',
+    'btn.tz.title':     '目前以{z}顯示時間。點一下在 UTC 與臺灣時間（UTC+8）之間切換；圖片裡的時間仍是 UTC。',
     'nav.overview':     '總覽',
     'nav.storms':       '颱風',
     'nav.genesis':      '生成潛勢',
@@ -3816,7 +3881,7 @@ const I18N = {
     'run.latest':       '最新',
     'tmap.all':         '全部',
     'tmap.na':          '尚未出報',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
     'sub.score':        '校驗',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -3841,7 +3906,7 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.hour':         '時數',
-    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
+    'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間 &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',
     'tab.now':          '概況',
     'tab.track':        '路徑',
@@ -3892,7 +3957,7 @@ const I18N = {
     'cities.grp.city': '城市侵襲',
     'cities.grp.city.sub': '路徑通過城市 1°（約 111 公里）以內',
     'cities.city':    '模式',
-    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數（UTC） &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS＝決定報：✓＝會侵襲（附抵達時間）',
+    'note.cities':    '路徑通過城市 1°（約 111 公里）內的成員比例 &nbsp;·&nbsp; 下方時間＝這些成員最早抵達時間的中位數 &nbsp;·&nbsp; 模式名稱下＝起報時間（UTC）· 預報長度，預報較短的模式可能在颱風抵達前就結束，因此顯示 &lt;1% &nbsp;·&nbsp; 臺灣城市一律列出，其他城市任一模式達 1% 才列出 &nbsp;·&nbsp; AIFS-single／ECMWF HRES／AIGFS／GFS＝決定報：✓＝會侵襲（附抵達時間）',
     'city.taipei':       '臺北',
     'city.taichung':     '臺中',
     'city.kaohsiung':    '高雄',
@@ -3976,6 +4041,52 @@ function t(key, params) {
     return s;
 }
 
+// ── 時區：UTC／臺灣時間（UTC+8，無夏令時間）。頁面上的 <time class="tz"> 依設定重排 ──
+let tzMode = (function () {
+    try { const v = localStorage.getItem('tz'); if (v === 'utc' || v === 'tw') return v; } catch (e) {}
+    return currentLang === 'zh' ? 'tw' : 'utc';
+})();
+function tzDate(iso) {
+    let s = String(iso || '');
+    if (!/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z';       // 沒寫時區的一律當 UTC，不要被當成本地時間
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+}
+function fmtTz(iso, fmt) {
+    const d = tzDate(iso);
+    if (!d) return null;
+    const tw = tzMode === 'tw';
+    const u = new Date(d.getTime() + (tw ? 8 * 3600e3 : 0));
+    const p = n => String(n).padStart(2, '0');
+    const Y = u.getUTCFullYear(), M = p(u.getUTCMonth() + 1), D = p(u.getUTCDate()), H = p(u.getUTCHours()), m = p(u.getUTCMinutes()), s = p(u.getUTCSeconds());
+    switch (fmt) {
+        case 'mdh':  return tw ? `${M}/${D} ${H}:00` : `${M}/${D} ${H}Z`;
+        case 'dhm':  return tw ? `${D} / ${H}:${m} UTC+8` : `${D} / ${H}:${m} UTC`;
+        case 'ymd':  return `${Y}-${M}-${D}`;
+        case 'hm':   return `${H}:${m}`;
+        case 's':    return `:${s}`;
+        case 'full': return `${Y}-${M}-${D} ${H}:${m}:${s} ${tw ? 'UTC+8' : 'UTC'}`;
+    }
+    return null;
+}
+function applyTz(mode, save = true) {
+    tzMode = mode === 'tw' ? 'tw' : 'utc';
+    root.setAttribute('data-tz', tzMode);
+    $$('time.tz').forEach(el => {
+        const txt = fmtTz(el.dataset.utc, el.dataset.fmt || 'mdh');
+        if (txt !== null) el.textContent = txt;
+    });
+    const b = $('#tz-btn');
+    if (b) {
+        const k = tzMode === 'tw' ? 'btn.tz.tw' : 'btn.tz.utc';
+        b.innerHTML = btnHTML(t(k), t(k + '.short'));
+        b.setAttribute('aria-pressed', tzMode === 'tw' ? 'true' : 'false');
+        b.title = t('btn.tz.title', { z: t(k).replace(/^\S+\s/, '') });
+    }
+    if (save) { try { localStorage.setItem('tz', tzMode); } catch (e) {} }
+    document.dispatchEvent(new CustomEvent('tzchange'));
+}
+
 function i18nParams(el) {
     const p = {};
     for (const k in el.dataset) {
@@ -3996,6 +4107,7 @@ function applyLang(lang, save = true) {
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
+    applyTz(tzMode, false);                    // 時區按鈕文字跟著語言換；<time> 文字也重排
     applyTheme(root.getAttribute('data-theme') || 'light', false);
     $$('.split').forEach(splitText);
     $$('.words').forEach(splitWords);
@@ -4406,10 +4518,7 @@ async function initTrackMap(box) {
         const showD = box.querySelector('.tm-det');
         Object.keys(data.models).forEach(m => sel.add(new Option(m, m)));
         const pad = n => String(n).padStart(2, '0');
-        const fmtAt = (iso, h) => {
-            const d = new Date(new Date(iso).getTime() + h * 3600e3);
-            return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
-        };
+        const fmtAt = (iso, h) => { const d = tzDate(iso); return d ? fmtTz(new Date(d.getTime() + h * 3600e3).toISOString(), 'mdh') : '–'; };
         // cur＝目前畫的資料：「最新」是 data（各模式各自最新一期），選了某期就換成那期的檔（所有模式同一期）
         let cur = data, run = null;
         const fmt = (m, h) => fmtAt((cur.inits || {})[m] || cur.init, h);
@@ -4603,10 +4712,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
     const pad = n => String(n).padStart(2, '0');
-    const fmt = (iso, h = 0) => {
-        const d = new Date(new Date(iso).getTime() + h * 3600e3);
-        return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`;
-    };
+    const fmt = (iso, h = 0) => { const d = tzDate(iso); return d ? fmtTz(new Date(d.getTime() + h * 3600e3).toISOString(), 'mdh') : '–'; };
     const isoOf = st => `${st.slice(0, 4)}-${st.slice(4, 6)}-${st.slice(6, 8)}T${st.slice(8, 10)}:00:00Z`;
     const mix = f => `rgb(${OLD.map((a, i) => Math.round(a + (NEW[i] - a) * f)).join(',')})`;
     const unwrap = pts => { let prev = null; return pts.map(p => {
@@ -5752,7 +5858,8 @@ function nextRefresh(now) {
     next.setMinutes(slot, 0, 0);    // slot 超過 59 時 Date 會自動進位到下一小時
     return next;
 }
-const REFRESH_AT = nextRefresh(new Date());
+let REFRESH_AT = nextRefresh(new Date());
+let REFRESH_SPAN = REFRESH_AT - Date.now();
 function fmtRemain(ms) {
     const s = Math.max(0, Math.round(ms / 1000));
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -5763,21 +5870,54 @@ function tickClock() {
     const clk = $('#hero-clock');
     if (clk) clk.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
     const ring = $('.ring-fg');
-    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / (REFRESH_MIN * 60000))) * 100).toFixed(2);
+    if (ring) ring.style.strokeDashoffset = (100 - Math.max(0, Math.min(1, remain / Math.max(1, REFRESH_SPAN))) * 100).toFixed(2);
     const mins = Math.floor((now - UPDATED) / 60000);
     const rel = isNaN(mins) ? '' : mins < 1 ? t('rel.now') : mins < 60 ? t('rel.min', { n: mins }) : t('rel.hr', { n: Math.floor(mins / 60) });
     const badge = $('#update-badge');
     if (badge) {
         const stale = mins > 40;      // 10 分鐘一輪，有新資料時一輪約 15 分鐘，40 分鐘沒更新就算過時
         badge.classList.toggle('stale', stale);
-        badge.title = t('header.updated') + ': ' + badge.dataset.full + ' · ' +
+        badge.title = t('header.updated') + ': ' + (fmtTz(SITE.updatedIso, 'full') || badge.dataset.full) + ' · ' +
             (stale ? t('status.stale', { t: rel }) : t('status.next', { t: fmtRemain(remain) }));
     }
 }
-setTimeout(() => {
+// 到點先抓 status.json（百來個位元組），資料時間變了才整頁重新整理；沒變就 2 分鐘後再看。
+// 抓不到（離線、file://）連續兩次就退回原本的做法：到點直接重新整理。
+let statusFails = 0, checking = false;
+function reloadPage() {
     try { sessionStorage.setItem('scroll:' + location.hash, String(scrollY)); } catch (e) {}
     location.reload();
-}, REFRESH_AT - new Date());
+}
+async function checkUpdate() {
+    if (checking) return;
+    checking = true;
+    try {
+        const r = await fetch('status.json?_=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        const j = await r.json();
+        statusFails = 0;
+        if (j.updated && j.updated !== SITE.updatedIso) { reloadPage(); return; }
+        REFRESH_AT = new Date(Date.now() + 2 * 60000);
+    } catch (e) {
+        statusFails++;
+        if (statusFails >= 2 && location.protocol.startsWith('http')) { reloadPage(); return; }
+        REFRESH_AT = nextRefresh(new Date());
+    } finally {
+        checking = false;
+    }
+    REFRESH_SPAN = REFRESH_AT - Date.now();
+    scheduleCheck();
+}
+function scheduleCheck() {
+    setTimeout(() => {
+        if (document.hidden) { REFRESH_AT = new Date(Date.now() + 60000); scheduleCheck(); return; }   // 背景分頁不抓，回前景時再看
+        checkUpdate();
+    }, Math.max(1000, REFRESH_AT - Date.now()));
+}
+scheduleCheck();
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - UPDATED > 12 * 60000) checkUpdate();   // 回到前景：上次資料超過一輪就立刻看一眼
+});
 
 // ── Keyboard shortcuts ─────────────────────────────────────────────
 document.addEventListener('keydown', e => {
@@ -5816,6 +5956,7 @@ document.addEventListener('keydown', e => {
 // ── Init ───────────────────────────────────────────────────────────
 $('#theme-btn').addEventListener('click', toggleTheme);
 $('#lang-btn').addEventListener('click', switchLang);
+$('#tz-btn').addEventListener('click', () => applyTz(tzMode === 'tw' ? 'utc' : 'tw'));
 
 $$('.gauge').forEach(buildGauge);
 if (!reduced()) $$('[data-count]').forEach(el => { if (!el.closest('.gauge')) el.textContent = '0'; });
