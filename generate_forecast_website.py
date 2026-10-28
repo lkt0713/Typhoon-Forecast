@@ -4,7 +4,7 @@ import html
 import re
 import math
 import pandas as pd  # type: ignore
-from datetime import datetime
+from datetime import datetime, timezone
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
 SITE_VERSION = "7.0.0"
@@ -204,7 +204,7 @@ def _figure(src: str, alt: str, onerror_extra: str = "", cls: str = "") -> str:
 
 def _model_tabs(track: str, labels: list[str], extra_cls: str = "") -> str:
     buttons = "".join(
-        f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
         f'data-track="{_esc(track)}" data-model="{_esc(lbl)}">{_esc(lbl)}</button>'
         for i, lbl in enumerate(labels))
     return f'<div class="seg model-tabs {extra_cls}" role="tablist"><span class="seg-ind"></span>{buttons}</div>'
@@ -442,6 +442,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
             rows.append(f'<tr><td class="{name_cls}">{_esc(m)}</td>{"".join(cells)}</tr>')
     head = ''.join(f'<th>{ld} h<span class="eta">{unit}</span></th>' for ld in SCORE_LEADS)
     return (f'<div class="city-table-wrap"><table class="city-table score-table">'
+            f'<caption class="sr-only" data-i18n="cap.score">Mean forecast error by lead time for each model</caption>'
             f'<thead><tr><th data-i18n="score.model">Model</th>{head}</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
@@ -510,7 +511,7 @@ def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set
     tabs, panels = [], []
     for i, (mk, lkey, ltxt, _, _) in enumerate(m for m in SCORE_METRICS if m[0] != 'track'):
         c = cards.get(mk) or {}
-        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
                     f'data-track="{_esc(key)}-m" data-model="{mk}"><span data-i18n="{lkey}">{ltxt}</span></button>')
         nkey, ntxt = SCORE_METRIC_TEXT[mk][2:]
         note = f'<p class="map-note" style="margin:0 0 10px;" data-i18n="{nkey}">{ntxt}</p>' if nkey else ''
@@ -551,7 +552,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
     tabs, panels = [], []
     for i, (scope, sample, c) in enumerate(items):
         key = f'{scope}-{sample}'
-        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" '
+        tabs.append(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
                     f'data-track="{_esc(track_key)}" data-model="{key}">'
                     f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
         hide = '' if i == 0 else ' style="display:none;"'
@@ -628,6 +629,14 @@ def _city_table(cols: list[tuple]) -> str:
     決定報只有一條路徑，機率不是 0 就是 100，改顯示 ✓（附抵達時間）或 —。
     """
     keys = list(dict.fromkeys(k for c in cols for k in c[1] if not k.startswith('_')))
+    # 整欄都 <1%（決定報：沒有 ✓）的模式預設收起，表格才不會十幾欄全是 <1%；按鈕可展開
+    def _col_has(c):
+        det = len(c) > 2 and c[2]
+        return any(((c[1].get(k) or {}).get('p') or 0) >= (50 if det else CITY_LEVELS[0]) for k in keys)
+    dim = [not _col_has(c) for c in cols]
+    if all(dim):
+        dim = [False] * len(cols)                  # 全部都 <1% 時沒有可留的欄，就全列出
+    cls = lambda i: ' class="col-dim"' if dim[i] else ''
     rows = []
     quiet = []          # 臺灣城市裡每個模式都 <1% 的：不逐列列出一整排 <1%，合成一行
     for key in keys:
@@ -639,22 +648,23 @@ def _city_table(cols: list[tuple]) -> str:
             quiet.append(key)
             continue
         cells = []
-        for c, v in zip(cols, vals):
+        for i, (c, v) in enumerate(zip(cols, vals)):
             p = v.get('p')
+            dc = ' col-dim' if dim[i] else ''
             if len(c) > 2 and c[2]:
                 eta = v.get('eta') or ''
-                cells.append((f'<td class="c-det" title="{_esc(eta)}">✓<span class="eta">'
+                cells.append((f'<td class="c-det{dc}" title="{_esc(eta)}">✓<span class="eta">'
                               f'{_esc(eta[5:7] + "/" + eta[8:10] + " " + eta[11:13] + "Z") if eta else ""}</span></td>')
-                             if (p or 0) >= 50 else '<td class="c-nil">—</td>')
+                             if (p or 0) >= 50 else f'<td class="c-nil{dc}">—</td>')
                 continue
             if p is None or p < CITY_LEVELS[0]:
-                cells.append('<td class="c-nil">&lt;1%</td>')
+                cells.append(f'<td class="c-nil{dc}">&lt;1%</td>')
                 continue
             idx = sum(p >= lv for lv in CITY_LEVELS) - 1
             fg = '#16324F' if idx in CITY_DARK_TEXT else '#fff'
             eta = v.get('eta') or ''
             eta_txt = (f'{eta[5:7]}/{eta[8:10]} {eta[11:13]}Z') if eta else ''
-            cells.append(f'<td style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
+            cells.append(f'<td{cls(i)} style="background:{CITY_COLORS[idx]};color:{fg};" title="{_esc(eta)}">'
                          f'{p:.0f}%<span class="eta">{_esc(eta_txt)}</span></td>')
         rows.append((key, f'<tr><td class="c-name" data-i18n="city.{key}">{key}</td>{"".join(cells)}</tr>'))
     if not rows and not quiet:
@@ -684,10 +694,17 @@ def _city_table(cols: list[tuple]) -> str:
         parts = [d.get('_init')] + ([f'≤{d["_max_h"]} h'] if d.get('_max_h') else [])
         parts = [p for p in parts if p]
         return f'<span class="eta">{_esc(" · ".join(parts))}</span>' if parts else ''
-    head = ''.join(f'<th>{_esc(m)}{_th_sub(d)}</th>' for m, d, *_ in cols)
-    return (f'<div class="city-table-wrap"><table class="city-table">'
+    head = ''.join(f'<th{cls(i)}>{_esc(m)}{_th_sub(d)}</th>' for i, (m, d, *_) in enumerate(cols))
+    n_dim = sum(dim)
+    toggle = ''
+    if n_dim:
+        toggle = (f'<button type="button" class="city-toggle" aria-expanded="false">'
+                  f'<span class="ct-more">{_bi(f"Show all {len(cols)} models ({n_dim} under 1% everywhere)", f"顯示全部 {len(cols)} 個模式（{n_dim} 個各地都低於 1%）")}</span>'
+                  f'<span class="ct-less">{_bi(f"Hide the {n_dim} models under 1% everywhere", f"收起 {n_dim} 個各地都低於 1% 的模式")}</span></button>')
+    return (f'<div class="city-table-wrap{" compact" if n_dim else ""}"><table class="city-table">'
+            f'<caption class="sr-only" data-i18n="cap.cities">Taiwan landfall and city strike probability by model</caption>'
             f'<thead><tr><th data-i18n="cities.city">Model</th>{head}</tr></thead>'
-            f'<tbody>{body}</tbody></table></div>')
+            f'<tbody>{body}</tbody></table></div>{toggle}')
 
 
 # 線條圖示（導覽列與行動版底部分頁列共用）
@@ -837,6 +854,27 @@ def _write_app_assets(docs_dir: str) -> None:
     }
     with open(os.path.join(docs_dir, 'manifest.webmanifest'), 'w', encoding='utf-8') as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=1)
+    # 搜尋引擎：robots.txt／sitemap.xml（單頁站，分頁都是 #/ 路由，只有一個網址）；
+    # 404.html：GitHub Pages 找不到路徑時（舊連結、打錯）導回首頁，#/ 後面的分頁保留
+    site = _site_url()
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    with open(os.path.join(docs_dir, 'robots.txt'), 'w', encoding='utf-8') as fh:
+        fh.write(f'User-agent: *\nAllow: /\nDisallow: /verification/\n\nSitemap: {site}sitemap.xml\n')
+    with open(os.path.join(docs_dir, 'sitemap.xml'), 'w', encoding='utf-8') as fh:
+        fh.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                 f'  <url><loc>{_esc(site)}</loc><lastmod>{today}</lastmod><changefreq>hourly</changefreq></url>\n'
+                 '</urlset>\n')
+    with open(os.path.join(docs_dir, '404.html'), 'w', encoding='utf-8') as fh:
+        fh.write(f'''<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>{_esc(SITE_NAME)}</title>
+<script>location.replace({json.dumps(site)} + location.hash);</script>
+<noscript><meta http-equiv="refresh" content="0;url={_esc(site)}"></noscript>
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;background:{APP_BG};color:#eaf0f5;text-align:center;padding:24px}}a{{color:#8ec5ff}}</style>
+</head><body><p>找不到這個頁面，正在帶你回到首頁… <a href="{_esc(site)}">回到颱風預報網站</a><br>
+Page not found, taking you back to the <a href="{_esc(site)}">forecast site</a>.</p></body></html>
+''')
 
 
 TEASER_THUMB = 'genesis_teaser.jpg'
@@ -1063,7 +1101,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         _wind = lambda i: f"{i['wind']:.0f} kt" if i['wind'] is not None else "— kt"
         hero_sub = (f'<p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"\n'
                     f'                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · '
-                    f'ensemble guidance from {len(active_models)} models, refreshed every 10 minutes.</p>')
+                    f'ensemble guidance from {len(active_models)} models, refreshed every 10–15 minutes.</p>')
         genesis_btn = ('<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>'
                        if _genesis_entries else '')
         if len(infos) == 1:
@@ -1119,9 +1157,6 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="hero-eye" aria-hidden="true"></div>
             <div class="hero-inner">
                 {hero_inner}
-                <div class="hero-meta">
-                    <div class="hero-chip"><span class="chip-k" data-i18n="hero.updated">Data updated</span><span class="chip-v mono"><span class="chip-date">{update_time[5:10]}</span> {update_time[11:16]}</span></div>
-                </div>
             </div>
             <div class="scroll-cue" aria-hidden="true"><span></span></div>
         </div>"""
@@ -1359,6 +1394,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_figure(os.path.basename(_off['path']), f"{track_id} Official Forecasts")}
                 <div class="city-table-wrap"><table class="city-table off-table">
+                    <caption class="sr-only" data-i18n="cap.official">Official forecasts by agency and forecast hour</caption>
                     <thead><tr><th data-i18n="off.hour">Hour</th>{head}</tr></thead><tbody>{rows}</tbody>
                 </table></div>
                 <p class="map-note" data-i18n="note.official">JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)</p>
@@ -1580,7 +1616,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                           html, flags=re.S)
 
         tab_btns = "".join(
-            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" '
+            f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
             f'data-track="{key_prefix}-tabs" data-model="{pid}" data-i18n="{k}">{txt}</button>'
             for i, (pid, k, txt, _) in enumerate(panes))
         hide = ' style="display:none;"'
@@ -1768,7 +1804,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="about.kicker">About</div>
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
-                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
+                <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
             <div class="about-grid">
                 <div class="panel reveal about-scale">
@@ -2039,7 +2075,7 @@ _CSS = r"""
     --accent-rgb: 27,92,148;
     --text:      #16324f;
     --text-2:    #4a6076;
-    --text-3:    #72869b;
+    --text-3:    #5c6e81;
     --border:    #d2dde9;
     --danger:    #dc3a4e;
     --ok:        #1fa97e;
@@ -2856,6 +2892,9 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 [data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
 .lightbox img { filter: none; }
 
+/* 只給螢幕閱讀器的文字（表格標題） */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* 颱風頁頂端的白話摘要 */
 .i-zh { display: none; }
 html[lang^="zh"] .i-zh { display: inline; }
@@ -2889,6 +2928,16 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
 }
 .city-table th:first-child, .city-table td.c-name { position: sticky; left: 0; z-index: 1; background: var(--surface); }
 .city-table tr.c-quiet td { text-align: left; color: var(--text-2); font-weight: 500; padding-top: 10px; }
+/* 整欄 <1% 的模式預設收起，按鈕展開 */
+.city-table-wrap.compact .col-dim { display: none; }
+.city-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 10px; padding: 6px 2px; border: 0; background: none;
+    font: inherit; font-size: .84em; font-weight: 650; color: var(--accent); cursor: pointer; }
+.city-toggle::before { content: ''; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .25s var(--ease-out); }
+.city-toggle[aria-expanded="true"]::before { transform: translateY(1px) rotate(-135deg); }
+.city-toggle .ct-less, .city-toggle[aria-expanded="true"] .ct-more { display: none; }
+.city-toggle[aria-expanded="true"] .ct-less { display: inline; }
+.city-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
 /* 上方小標（Live、Outlook…）沒有提供資訊，拿掉 */
 .kicker { display: none; }
@@ -2918,7 +2967,7 @@ details.sec-group > summary:focus-visible { outline: 2px solid var(--text); outl
     --accent-rgb:  10,111,220;
     --text:        #0c1c2d;
     --text-2:      #3f5266;
-    --text-3:      #6b7d90;
+    --text-3:      #5c6e81;   /* 白底對比 4.7:1（WCAG AA） */
     --border:      rgba(20,45,75,.10);
     --btn-bg:      #0a6fdc;
     --glass:       rgba(255,255,255,.50);
@@ -3482,13 +3531,15 @@ const I18N = {
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
-    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10 minutes.',
+    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
-    'hero.updated':     'Data updated',
+    'cap.score':        'Mean forecast error by lead time for each model',
+    'cap.cities':       'Taiwan landfall and city strike probability by model',
+    'cap.official':     'Official forecasts by agency and forecast hour',
     'hero.active':      'Active systems',
-    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 10 minutes, side by side with the official forecast.',
+    'statement':        'We track tropical cyclones at the intersection between <strong>artificial intelligence</strong> and <strong>physics</strong> — every ensemble member, every 10–15 minutes, side by side with the official forecast.',
     'sec.active.kicker':'Live',
     'sec.active':       'Active systems',
     'sec.genesis.kicker':'Outlook',
@@ -3504,7 +3555,7 @@ const I18N = {
     'empty.title':      'No Active Systems',
     'empty.status':     'Status',
     'empty.await':      'Awaiting data…',
-    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 10 minutes.',
+    'empty.desc':       'Nothing is spinning up right now. This page refreshes automatically every 10–15 minutes.',
     'storm.subtitle':   'Western Pacific Tropical Cyclone',
     'badge.live':       'LIVE',
     'catname.TD':       'Tropical Depression',
@@ -3647,7 +3698,7 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -3708,13 +3759,15 @@ const I18N = {
     'hero.eyebrow.quiet': '西北太平洋 · 監測中',
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
-    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10 分鐘更新。',
+    'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
-    'hero.updated':     '資料更新',
+    'cap.score':        '各模式隨預報時數的平均誤差',
+    'cap.cities':       '各模式的登陸臺灣與城市侵襲機率',
+    'cap.official':     '各單位、各預報時數的官方預報',
     'hero.active':      '活躍系統',
-    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 10 分鐘更新，與官方預報並列呈現。',
+    'statement':        '我們在<strong>人工智慧</strong>與<strong>物理模式</strong>的交會點追蹤熱帶氣旋——每一個系集成員、每 10–15 分鐘更新，與官方預報並列呈現。',
     'sec.active.kicker':'即時',
     'sec.active':       '活躍系統',
     'sec.genesis.kicker':'展望',
@@ -3730,7 +3783,7 @@ const I18N = {
     'empty.title':      '目前無活躍系統',
     'empty.status':     '狀態',
     'empty.await':      '等待資料中…',
-    'empty.desc':       '目前沒有發展中的系統，每 10 分鐘自動更新',
+    'empty.desc':       '目前沒有發展中的系統，每 10–15 分鐘自動更新',
     'storm.subtitle':   '西北太平洋熱帶氣旋',
     'badge.live':       '即時',
     'catname.TD':       '熱帶性低氣壓',
@@ -3873,7 +3926,7 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切、500 hPa 駛流場、JTWC 預報、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「校驗」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10–15 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切、500 hPa 駛流場、JTWC 預報、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「校驗」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -4194,7 +4247,12 @@ function switchModelTab(trackId, model) {
         if (!isActive) pausePlayersIn(el);
     });
     $$('.model-tab-btn').filter(b => b.dataset.track === trackId)
-        .forEach(b => { b.classList.toggle('active', b.dataset.model === model); if (b.dataset.model === model && b.offsetParent) revealTab(b); });
+        .forEach(b => {
+            const on = b.dataset.model === model;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+            if (on && b.offsetParent) revealTab(b);
+        });
     requestAnimationFrame(updateIndicators);
 }
 
@@ -4956,6 +5014,14 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 }, { threshold: 0.35 }) : null;
 
 document.addEventListener('click', e => {
+    const ct = e.target.closest('.city-toggle');
+    if (ct) {
+        const open = ct.getAttribute('aria-expanded') !== 'true';
+        ct.setAttribute('aria-expanded', open ? 'true' : 'false');
+        const wrap = ct.previousElementSibling;
+        if (wrap && wrap.classList.contains('city-table-wrap')) wrap.classList.toggle('compact', !open);
+        return;
+    }
     const tab = e.target.closest('.model-tab-btn');
     if (tab) {
         switchModelTab(tab.dataset.track, tab.dataset.model);
@@ -5579,10 +5645,11 @@ const Globe = (function () {
                 T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
                 T.extra += .2 * e1 + .2 * e2;     // 捲動只微轉（合計約 23°），西北太平洋始終朝前
                 T.tiltX = .25 * e2;
-                if (dark) T.op = 1 - .3 * e1 - .12 * e2;
+                const dim = (portrait && W < 600) ? .62 : 1;   // 手機直式：地球疊在封面文字底下，淡一些才讀得清
+                if (dark) T.op = dim * (1 - .3 * e1 - .12 * e2);
                 else {
                     // 淺色主題：只畫在深色的 hero 卡片裡（連圓角一起裁），捲出去就淡掉
-                    T.op = 1 - hp;
+                    T.op = dim * (1 - hp);
                     const rad = hero ? parseFloat(getComputedStyle(hero).borderTopLeftRadius) || 0 : 0;
                     T.clip = `inset(${hr.top.toFixed(0)}px ${Math.max(0, W - hr.right).toFixed(0)}px ${(H - hr.bottom).toFixed(0)}px ${Math.max(0, hr.left).toFixed(0)}px round ${rad}px)`;
                 }
@@ -5717,6 +5784,19 @@ document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    // 分頁列（role=tablist）：左右鍵／Home／End 在同一列的分頁間移動並切換（WAI-ARIA tabs 的鍵盤操作）
+    const tab = e.target.closest ? e.target.closest('.model-tab-btn[role="tab"]') : null;
+    if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+        const tabs = $$('.model-tab-btn', tab.parentElement);
+        let i = tabs.indexOf(tab);
+        if (e.key === 'ArrowLeft') i = (i - 1 + tabs.length) % tabs.length;
+        else if (e.key === 'ArrowRight') i = (i + 1) % tabs.length;
+        else i = e.key === 'Home' ? 0 : tabs.length - 1;
+        e.preventDefault();
+        tabs[i].focus();
+        tabs[i].click();
+        return;
+    }
     if (lightbox.classList.contains('open')) {
         if (e.key === 'Escape') { closeLightbox(); e.preventDefault(); }
         return;

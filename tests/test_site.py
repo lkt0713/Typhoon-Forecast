@@ -62,7 +62,7 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
         if f'data-view="storm/{tid}"' not in html:
             problems.append(f'{tid} 沒有颱風頁'); continue
         v = html[html.index(f'data-view="storm/{tid}"'):]
-        tabs = re.findall(rf'class="model-tab-btn storm-tab[^"]*" role="tab" data-track="{tid}-tabs" data-model="([^"]+)"', v)
+        tabs = re.findall(rf'class="model-tab-btn storm-tab[^"]*" role="tab" aria-selected="(?:true|false)" data-track="{tid}-tabs" data-model="([^"]+)"', v)
         if tabs != ['now', 'track', 'strike', 'intensity', 'score'][:len(tabs)] or len(tabs) < 3:
             problems.append(f'{tid} 分頁不對：{tabs}')
         if 'class="storm-summary"' not in v:
