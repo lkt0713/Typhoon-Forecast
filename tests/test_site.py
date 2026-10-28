@@ -119,7 +119,7 @@ def rebuild_from_docs(src_docs: str, out_docs: str) -> list[dict]:
             'strike_1000_path': L('Strike_Probability.png'), 'plume_1000_path': L('Intensity_Plume.png'),
             'strike_1000_extra': [(lbl, L(n)) for lbl, n in (('0–72 h', 'Strike_0_72h.png'), ('72–120 h', 'Strike_72_120h.png'),
                                                              ('120 h+', 'Strike_120_endh.png'), ('34 kt', 'Wind34_Probability.png'))],
-            'ohc_path': os.path.join(D, 'WP_OHC.png'), 'shear_path': os.path.join(D, f'{tid}_Shear.png'),
+            'ohc_path': os.path.join(D, 'WP_OHC.png'), 'shear_path': os.path.join(D, f'{tid}_Shear.png'), 'ohc_track_path': os.path.join(D, f'{tid}_OHC_Track.png'),
             'steering_maps': [(f"+{int(re.search(r'_(\d+)h', p).group(1))} h", p) for p in sorted(glob.glob(os.path.join(D, 'WP_Steering_*h.png')))],
             'satellite_maps': [('Enhanced IR', os.path.join(D, f'satellite_frames_{tid}_IR')),
                                ('Grayscale IR', os.path.join(D, f'satellite_frames_{tid}_Gray'))],

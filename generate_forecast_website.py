@@ -576,7 +576,10 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
     if not items:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
-                'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.'}
+                'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.'}
+    if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
+        notes.append('score.official')
     tabs, panels = [], []
     for i, (scope, sample, c) in enumerate(items):
         key = f'{scope}-{sample}'
@@ -918,6 +921,9 @@ def _write_static_assets(docs_dir: str) -> str:
                 fh.write(data)
     return h.hexdigest()[:8]
 
+
+NOTE_OHCTRACK = "Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
+CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm."
 
 TEASER_THUMB = 'genesis_teaser.jpg'
 
@@ -1476,6 +1482,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
         ohc_html = ""
         _ohc = next((m.get('ohc_path') for m in models if isinstance(m, dict) and m.get('ohc_path')), None)
+        _ohc_tr = next((m.get('ohc_track_path') for m in models if isinstance(m, dict) and m.get('ohc_track_path')), None)
+        _ohc_tr_html = ''
+        if _ohc_tr and os.path.exists(_ohc_tr):
+            _ohc_tr_html = (f'<h4 class="sub-head" data-i18n="panel.ohctrack">Ocean Heat Content along the JTWC Track</h4>'
+                            + _figure(os.path.basename(_ohc_tr), f"{track_id} Ocean Heat Content along the JTWC Track")
+                            + f'<p class="map-note" data-i18n="note.ohctrack">{NOTE_OHCTRACK}</p>')
         if _ohc and os.path.exists(_ohc):
             sec_id = f"sec-{key_prefix}-ohc"
             sections.append((sec_id, 'sub.ohc', 'Ocean heat'))
@@ -1487,6 +1499,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_figure(os.path.basename(_ohc), f"{track_id} Ocean Heat Content")}
                 <p class="map-note" data-i18n="note.ohc">Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)</p>
+                {_ohc_tr_html}
             </div>"""
 
         shear_html = ""
@@ -1600,9 +1613,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 f"{track_id} Track Trend")
         plume_items = _model_images(models, 'plume_path', 'plume_1000_path')
         if plume_items:
+            plume_html = (f'<div class="callout"><span class="callout-icon" aria-hidden="true">⚠️</span>'
+                          f'<p data-i18n="caveat.intensity">{CAVEAT_INTENSITY}</p></div>')
             sec_id = f"sec-{key_prefix}-plume"
             sections.append((sec_id, 'sub.plume', 'Intensity'))
-            plume_html = _tabbed_image_panel(
+            plume_html += _tabbed_image_panel(
                 sec_id, f"{key_prefix}-plume", '📈', 'panel.plume', 'Intensity Forecast',
                 plume_items, 'note.plume',
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
@@ -1860,6 +1875,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="read-list">
                         <div><h4 data-i18n="panel.sat">Satellite Loop (last 3 hours)</h4><p class="map-note" data-i18n="note.sat"></p></div>
                         <div><h4 data-i18n="panel.ohc">Ocean Heat Content</h4><p class="map-note" data-i18n="note.ohc"></p></div>
+                        <div><h4 data-i18n="panel.ohctrack">Ocean Heat Content along the JTWC Track</h4><p class="map-note" data-i18n="note.ohctrack"></p></div>
                         <div><h4 data-i18n="panel.shear">Vertical Wind Shear along the AIFS Track</h4><p class="map-note" data-i18n="note.shear"></p></div>
                         <div><h4 data-i18n="panel.steer">Steering Flow (500 hPa)</h4><p class="map-note" data-i18n="note.steer"></p></div>
                                                 <div><h4 data-i18n="panel.jtwc">JTWC Official Forecast</h4><p class="map-note" data-i18n="note.jtwc"></p></div>
@@ -2944,6 +2960,13 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 [data-theme="dark"] .zoomable.broken { filter: none; background: var(--surface-2); }
 .lightbox img { filter: none; }
 
+/* 提醒框（強度分頁：AI 模式強度偏弱） */
+.callout { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 16px; padding: 14px 16px; border-radius: 18px;
+    background: rgba(238,122,34,.10); border: 1px solid rgba(238,122,34,.32); }
+.callout-icon { font-size: 1.05em; line-height: 1.5; flex: 0 0 auto; }
+.callout p { margin: 0; font-size: .92em; line-height: 1.6; color: var(--text); }
+.sub-head { margin: 18px 0 10px; font-size: 1em; font-weight: 700; color: var(--text); }
+
 /* 只給螢幕閱讀器的文字（表格標題） */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
@@ -3691,6 +3714,10 @@ const I18N = {
     'note.shear':       'Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm\'s upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm\'s heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
+    'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
+    'note.ohctrack':    'Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
+    'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -3924,6 +3951,10 @@ const I18N = {
     'note.shear':       '200 hPa 與 850 hPa 風的向量差，取颱風中心外 200–800 km 的平均，沿 AIFS-single（決定報）的預報路徑每 6 小時一點；風場與路徑來自同一期 AIFS &nbsp;·&nbsp; 風切大時颱風上下層環流被吹得錯開，通常難以增強：10 kt 以下為弱、10–20 kt 中等、20 kt 以上為強 &nbsp;·&nbsp; 箭頭＝風切指向的方向（由低層風指向高層風），颱風最強的對流與降雨常偏在順風切方向的左側 &nbsp;·&nbsp; 資料：ECMWF Open Data',
     'sub.ohc':          '海洋熱含量',
     'panel.ohc':        '海洋熱含量',
+    'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
+    'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
+    'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，用同一套方法校驗；它們的存檔比模式晚開始，只列在「全部」樣本，不進同質樣本。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
