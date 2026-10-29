@@ -560,7 +560,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .arch-card.active { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
 .arch-top { display:flex; align-items:center; justify-content:space-between; gap: 8px; }
 .arch-name { font-size: 1.35em; font-weight: 800; letter-spacing: -.01em; }
-.arch-meta { color: var(--text-2); font-size: .82em; display:flex; align-items:center; gap: 6px; flex-wrap: wrap; }
+/* baseline：中英數字混排時各段字型的上下高度不同，置中會讓「130 kt」和「289 筆預報」高低不一 */
+.arch-meta { color: var(--text-2); font-size: .82em; display:flex; align-items:baseline; gap: 6px; flex-wrap: wrap; }
 .arch-meta .badge-cat { padding: 3px 8px; font-size: .9em; }
 .arch-live { font-size: .7em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--bg); background: var(--accent); padding: 3px 7px; border-radius: 6px; }
 .arch-detail { scroll-margin-top: calc(var(--header-h) + 20px); }
