@@ -905,6 +905,146 @@ def _write_static_assets(docs_dir: str) -> str:
 NOTE_OHCTRACK = "Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
 CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm."
 
+# ── 更新內容（說明頁的「更新內容」與頁首版本號連結）────────────────────────────
+# 新版本加在最前面；第一筆的版本號必須等於 SITE_VERSION（tests/test_site.py 會檢查）。
+# 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
+CHANGELOG = [
+    ('7.1.0', '2026-10-28', [
+        ('頁首新增 UTC／臺灣時間切換鈕，更新時間可以直接看臺灣時間',
+         'A header button shows the update time in UTC or Taiwan time'),
+        ('概況新增「沿 JTWC 路徑的海洋熱含量」，看颱風接下來會經過多暖的海',
+         'New in Summary: ocean heat content along the JTWC forecast track, showing how warm the water ahead is'),
+        ('強度分頁加上提醒：AI 模式的強度通常偏弱，請看增強或減弱的趨勢',
+         'The Intensity tab now explains that AI-model intensities run low and are best read as a trend'),
+        ('校驗開始收錄 JTWC、日本氣象廳與中央氣象署的官方預報，可以和模式比一比',
+         'Verification now also scores the JTWC, JMA and CWA official forecasts next to the models'),
+        ('城市侵襲表預設只列有機率的模式，一鍵展開全部',
+         'The city strike table lists only models with any chance, with a button to show them all'),
+        ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
+         'Faster: the first visit loads about 0.7 MB instead of 3.2 MB, and the page reloads only when new data arrives'),
+        ('更好讀：淺色主題的灰字更清楚，分頁可用方向鍵切換，表格支援螢幕閱讀器',
+         'Easier to read: clearer grey text in the light theme, arrow keys switch tabs, tables work with screen readers'),
+        ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
+         'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
+    ]),
+    ('7.0.0', '2026-10-26', [
+        ('概況新增沿 AIFS 預報路徑的垂直風切（200–850 hPa，颱風中心外 200–800 km 平均）',
+         'New in Summary: vertical wind shear along the AIFS track (200–850 hPa, averaged 200–800 km from the centre)'),
+        ('駛流場改用 AIFS-single，與風切同一個模式',
+         'The steering flow now comes from AIFS-single, the same model as the shear'),
+        ('海洋熱含量移到概況並畫上 JTWC 預報路徑；衛星雲圖放大到颱風本身，只標名字',
+         'Ocean heat content moved to Summary with the JTWC forecast track; the satellite loop zooms in on the storm and shows only its name'),
+        ('概況依序排成：衛星雲圖、海洋熱含量、風切、駛流場、JTWC 預報、各國官方預報、登陸與城市',
+         'Summary order: satellite, ocean heat, shear, steering, JTWC forecast, official forecasts, landfall and cities'),
+        ('「成績」改名「校驗」，「這個颱風」排在「所有颱風」前面',
+         '"Scores" is now "Verification", with this storm shown before all storms'),
+        ('歷史頁保留每顆颱風的預報趨勢圖，颱風消散後還看得到',
+         'The archive keeps each storm’s track trend charts after it is gone'),
+        ('所有下拉選單改成與模式選單相同的玻璃樣式',
+         'Every dropdown now matches the glass model menu'),
+        ('修正：寬螢幕與手機的封面版面、地球位置，以及按「強度誤差」會跳到強度分頁的問題',
+         'Fixes: cover layout on wide screens and phones, globe placement, and the intensity-error button jumping to the Intensity tab'),
+    ]),
+    ('6.9.0', '2026-10-26', [
+        ('全新毛玻璃介面，風格類似 iOS 26',
+         'A new frosted-glass design in the style of iOS 26'),
+        ('颱風頁分成五個分頁：概況、路徑、侵襲、強度、成績',
+         'Storm pages now have five tabs: Summary, Track, Strike, Intensity and Scores'),
+        ('頁面上方一個模式選單，所有圖一起切換到同一個模式',
+         'One model menu at the top switches every chart to the same model'),
+        ('分頁列維持一行、可左右滑動；往下捲動時頁首固定在上方',
+         'Tab rows stay on one swipeable line, and the header stays at the top while scrolling'),
+        ('新的 logo 與手機主畫面圖示',
+         'A new logo and home-screen icon'),
+    ]),
+    ('6.8.0', '2026-10-25', [
+        ('颱風頁頂端新增白話摘要：往哪走、會不會增強、登陸臺灣的機率',
+         'A plain-language summary at the top of each storm page: where it is heading, whether it strengthens, and the chance of a Taiwan landfall'),
+        ('在任一張圖選了模式，頁面其他圖會跟著切換',
+         'Picking a model on one chart switches the others on the page too'),
+        ('城市侵襲表：都低於 1% 的臺灣城市合成一行，第一欄左右捲動時固定',
+         'City strike table: Taiwan cities under 1% everywhere share one line, and the first column stays put when scrolling'),
+        ('淺色主題改用與圖片一致的配色，首頁更精簡',
+         'The light theme uses the charts’ own colours, and the home page is simpler'),
+        ('修正：同質樣本各模式的樣本數不一致；日本氣象廳 0 kt 改顯示「—」',
+         'Fixes: equal homogeneous samples across models again; JMA’s 0 kt points now show as "—"'),
+    ]),
+    ('6.7.0', '2026-10-22', [
+        ('新增最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫，彩色與黑白兩種',
+         'New: a 3-hour Himawari-9 infrared satellite loop, in enhanced colour and greyscale'),
+        ('首頁同時有多個颱風時，全部列出',
+         'The home page lists every active storm when there is more than one'),
+        ('說明頁與 README 介紹目前所有功能',
+         'The About page and README describe every current feature'),
+        ('修正：日本氣象廳的預報基準時間；中央氣象署某一報漏掉颱風時沿用上一報',
+         'Fixes: JMA forecast base times; a storm missing from one CWA update keeps its last forecast'),
+    ]),
+    ('6.6.3', '2026-10-22', [
+        ('海洋熱含量的配色與 CMEMS 官方產品一致',
+         'Ocean heat content colours now match the official CMEMS product'),
+        ('頁尾列出日本氣象廳、中央氣象署、CMEMS 與 HYCOM 資料來源',
+         'The footer credits JMA, CWA, CMEMS and HYCOM'),
+        ('修正：中央氣象署資料讀取、日本氣象廳 12Z 預報時間，網站部署卡住時不再耽誤下一輪更新',
+         'Fixes: reading CWA data, JMA 12Z times, and a stuck deploy no longer delays the next update'),
+    ]),
+    ('6.6.2', '2026-10-22', [
+        ('官方預報圖的標籤改成預報的實際時間，日本氣象廳第一天每 12 小時一點',
+         'Official forecast map labels show the valid time, with JMA points every 12 h on the first day'),
+    ]),
+    ('6.6.1', '2026-10-22', [
+        ('主畫面圖示改成北半球的颱風符號',
+         'The home-screen icon now uses the Northern Hemisphere typhoon symbol'),
+    ]),
+    ('6.6.0', '2026-10-22', [
+        ('分享到 LINE、Facebook、X 時顯示預覽卡：最新路徑圖、颱風名稱、強度與更新時間',
+         'Links shared on LINE, Facebook or X show a preview card with the latest map, storm name, intensity and update time'),
+        ('可以加到手機主畫面，像 app 一樣全螢幕開啟',
+         'Add the site to your home screen to open it full screen like an app'),
+    ]),
+    ('6.5.1', '2026-10-22', [
+        ('強度誤差改顯示正負：＋偏強、－偏弱',
+         'Intensity error now shows its sign: + too strong, − too weak'),
+        ('官方預報表的時間對齊整點',
+         'Official forecast times are shown on the hour'),
+    ]),
+    ('6.5.0', '2026-10-22', [
+        ('成績新增沿路徑、跨路徑與強度誤差',
+         'Scores add along-track, cross-track and intensity errors'),
+        ('新的「歷史」頁：颱風消散後保留實際路徑、各期預報與成績',
+         'A new Archive page keeps each storm’s real track, every forecast and its scores after it is gone'),
+        ('新增 500 hPa 駛流場',
+         'New: the 500 hPa steering flow'),
+        ('新增海洋熱含量圖（CMEMS，備援 HYCOM）',
+         'New: an ocean heat content map (CMEMS, with HYCOM as a backup)'),
+        ('新增日本氣象廳與中央氣象署的官方預報，與 JTWC 並列比較',
+         'New: JMA and CWA official forecasts side by side with JTWC'),
+    ]),
+    ('6.4.2', '2026-09-26', [
+        ('改在 GitHub Actions 上自動更新，電腦不用開著',
+         'Updates now run on GitHub Actions, so no computer has to stay on'),
+        ('每輪結束後自動接下一輪，排程當備援；卡住的執行會自動取消',
+         'Each update starts the next one, with a schedule as backup, and stuck runs are cancelled automatically'),
+    ]),
+]
+
+
+def _changelog_html() -> str:
+    """說明頁的「更新內容」：最新版本展開，其餘收在「版本紀錄」裡（App Store 的寫法）。"""
+    def _ver(v, d, items):
+        li = ''.join(f'<li>{_bi(_esc(en), _esc(zh))}</li>' for zh, en in items)
+        return (f'<div class="cl-ver"><div class="cl-head"><span class="cl-num">'
+                f'<span data-i18n="cl.version">Version</span> {v}</span>'
+                f'<span class="cl-date mono">{d[:4]}/{d[5:7]}/{d[8:10]}</span></div><ul class="cl-list">{li}</ul></div>')
+    latest, older = CHANGELOG[0], CHANGELOG[1:]
+    hist = ''
+    if older:
+        hist = (f'<details class="cl-history"><summary><span data-i18n="cl.history">Version history</span>'
+                f'<span class="cl-count">{len(older)}</span></summary>{"".join(_ver(*c) for c in older)}</details>')
+    return (f'<div class="panel reveal changelog" id="changelog">'
+            f'<div class="panel-header"><span class="panel-icon">📝</span><span data-i18n="cl.title">What’s new</span></div>'
+            f'{_ver(*latest)}{hist}</div>')
+
+
 TEASER_THUMB = 'genesis_teaser.jpg'
 
 
@@ -1844,6 +1984,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <h2 class="page-title" data-i18n="about.title">How to read this site</h2>
                 <p class="page-lead" data-i18n="about.intro">This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.</p>
             </div>
+            {_changelog_html()}
             <div class="about-grid">
                 <div class="panel reveal about-scale">
                     <div class="panel-header"><span class="panel-icon">🎨</span><span data-i18n="about.scale">Intensity categories</span></div>
@@ -2027,7 +2168,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <button class="theme-btn" id="lang-btn" title="Switch language / 切換語言">🌐 中文</button>
             <button class="theme-btn" id="tz-btn" title="UTC / Taiwan time (UTC+8)" aria-pressed="false">🕒 UTC</button>
             <span class="actions-break"></span>
-            <span class="version-badge" title="Site version / 網站版本">v{SITE_VERSION}</span>
+            <a class="version-badge" href="#/about" data-goto="changelog" title="What’s new / 更新內容">v{SITE_VERSION}</a>
         </div>
         <div class="scroll-progress" aria-hidden="true"></div>
     </header>
@@ -2947,6 +3088,28 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 .callout p { margin: 0; font-size: .92em; line-height: 1.6; color: var(--text); }
 .sub-head { margin: 18px 0 10px; font-size: 1em; font-weight: 700; color: var(--text); }
 
+/* 說明頁「更新內容」（App Store 式：最新版本展開，舊版收在版本紀錄） */
+.changelog { margin-bottom: 20px; scroll-margin-top: calc(var(--header-h) + 40px); }
+.cl-ver + .cl-ver { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.cl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.cl-num { font-weight: 750; font-size: 1.02em; color: var(--text); }
+.cl-date { color: var(--text-3); font-size: .84em; }
+.cl-list { margin: 0; padding-left: 1.15em; display: grid; gap: 5px; }
+.cl-list li { line-height: 1.6; color: var(--text-2); font-size: .94em; }
+.cl-list li::marker { color: var(--accent); }
+.cl-history { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.cl-history > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 650; font-size: .92em; color: var(--accent); padding: 4px 0; }
+.cl-history > summary::-webkit-details-marker { display: none; }
+.cl-history > summary::after { content: ''; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .25s var(--ease-out); }
+.cl-history[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.cl-history > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.cl-count { font-size: .8em; font-weight: 700; color: var(--text-3); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; }
+.cl-history[open] > summary { margin-bottom: 14px; }
+a.version-badge { text-decoration: none; cursor: pointer; }
+a.version-badge:hover { color: var(--accent); }
+
 /* 只給螢幕閱讀器的文字（表格標題） */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
@@ -3608,6 +3771,9 @@ const I18N = {
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
     'cap.score':        'Mean forecast error by lead time for each model',
+    'cl.title':         'What’s new',
+    'cl.version':       'Version',
+    'cl.history':       'Version history',
     'cap.cities':       'Taiwan landfall and city strike probability by model',
     'cap.official':     'Official forecasts by agency and forecast hour',
     'hero.active':      'Active systems',
@@ -3845,6 +4011,9 @@ const I18N = {
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
     'cap.score':        '各模式隨預報時數的平均誤差',
+    'cl.title':         '更新內容',
+    'cl.version':       '版本',
+    'cl.history':       '版本紀錄',
     'cap.cities':       '各模式的登陸臺灣與城市侵襲機率',
     'cap.official':     '各單位、各預報時數的官方預報',
     'hero.active':      '活躍系統',
@@ -5151,6 +5320,15 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 }, { threshold: 0.35 }) : null;
 
 document.addEventListener('click', e => {
+    // 頁首版本號 → 說明頁的「更新內容」：先換頁（連結本身處理），換好再捲過去
+    const go = e.target.closest('[data-goto]');
+    if (go) {
+        const id = go.dataset.goto, wait = currentRoute === 'about' ? 0 : 380;
+        setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+        }, wait);
+    }
     const ct = e.target.closest('.city-toggle');
     if (ct) {
         const open = ct.getAttribute('aria-expanded') !== 'true';

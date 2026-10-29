@@ -142,6 +142,8 @@ def rebuild_from_docs(src_docs: str, out_docs: str) -> list[dict]:
 
 def main() -> int:
     bad = []
+    if g.CHANGELOG[0][0] != g.SITE_VERSION:                     # 改版號時記得補更新內容
+        bad.append(f'更新內容最新一版 {g.CHANGELOG[0][0]} 與 SITE_VERSION {g.SITE_VERSION} 不一致')
     with tempfile.TemporaryDirectory() as tmp:
         # 1. 沒有颱風
         empty = os.path.join(tmp, 'empty'); os.makedirs(empty)
