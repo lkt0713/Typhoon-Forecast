@@ -840,6 +840,28 @@ html.has-globe .hero-canvas, html.has-globe .hero-eye { display: none; }
 .callout p { margin: 0; font-size: .92em; line-height: 1.6; color: var(--text); }
 .sub-head { margin: 18px 0 10px; font-size: 1em; font-weight: 700; color: var(--text); }
 
+/* 說明頁「更新內容」（App Store 式：最新版本展開，舊版收在版本紀錄） */
+.changelog { margin-bottom: 20px; scroll-margin-top: calc(var(--header-h) + 40px); }
+.cl-ver + .cl-ver { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.cl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.cl-num { font-weight: 750; font-size: 1.02em; color: var(--text); }
+.cl-date { color: var(--text-3); font-size: .84em; }
+.cl-list { margin: 0; padding-left: 1.15em; display: grid; gap: 5px; }
+.cl-list li { line-height: 1.6; color: var(--text-2); font-size: .94em; }
+.cl-list li::marker { color: var(--accent); }
+.cl-history { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.cl-history > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 650; font-size: .92em; color: var(--accent); padding: 4px 0; }
+.cl-history > summary::-webkit-details-marker { display: none; }
+.cl-history > summary::after { content: ''; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .25s var(--ease-out); }
+.cl-history[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.cl-history > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.cl-count { font-size: .8em; font-weight: 700; color: var(--text-3); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; }
+.cl-history[open] > summary { margin-bottom: 14px; }
+a.version-badge { text-decoration: none; cursor: pointer; }
+a.version-badge:hover { color: var(--accent); }
+
 /* 只給螢幕閱讀器的文字（表格標題） */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 

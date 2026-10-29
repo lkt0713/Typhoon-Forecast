@@ -110,6 +110,9 @@ const I18N = {
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
     'cap.score':        'Mean forecast error by lead time for each model',
+    'cl.title':         'What’s new',
+    'cl.version':       'Version',
+    'cl.history':       'Version history',
     'cap.cities':       'Taiwan landfall and city strike probability by model',
     'cap.official':     'Official forecasts by agency and forecast hour',
     'hero.active':      'Active systems',
@@ -347,6 +350,9 @@ const I18N = {
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
     'cap.score':        '各模式隨預報時數的平均誤差',
+    'cl.title':         '更新內容',
+    'cl.version':       '版本',
+    'cl.history':       '版本紀錄',
     'cap.cities':       '各模式的登陸臺灣與城市侵襲機率',
     'cap.official':     '各單位、各預報時數的官方預報',
     'hero.active':      '活躍系統',
@@ -1653,6 +1659,15 @@ const playerIO = ('IntersectionObserver' in window) ? new IntersectionObserver(e
 }, { threshold: 0.35 }) : null;
 
 document.addEventListener('click', e => {
+    // 頁首版本號 → 說明頁的「更新內容」：先換頁（連結本身處理），換好再捲過去
+    const go = e.target.closest('[data-goto]');
+    if (go) {
+        const id = go.dataset.goto, wait = currentRoute === 'about' ? 0 : 380;
+        setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+        }, wait);
+    }
     const ct = e.target.closest('.city-toggle');
     if (ct) {
         const open = ct.getAttribute('aria-expanded') !== 'true';
