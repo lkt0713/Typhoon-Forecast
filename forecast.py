@@ -2331,6 +2331,7 @@ def compute_scorecard() -> dict:
       card['ct'][樣本]              跨路徑誤差    [平均 km（+ 偏實際路徑右側、− 左側）, n, 平均絕對值]
       card['int'][樣本]             強度誤差      [平均絕對誤差 kt, n, 平均偏差 kt（+ 預報太強）]
     沿／跨路徑只在實況移動方向明確時才算（見 _obs_motion）；強度只算有存風速的預報。
+    模式一律以 JTWC 警報位置為實況；官方預報（JTWC／JMA／CWA）各自以自己的定位為實況。
     """
     fdir, odir = os.path.join(VERIF_DIR, 'fcst'), os.path.join(VERIF_DIR, 'obs')
     if not os.path.isdir(fdir) or not os.path.isdir(odir):
@@ -2343,6 +2344,29 @@ def compute_scorecard() -> dict:
             o = o.sort_values('t').reset_index(drop=True)
             obs[name[:-4]] = o
             motion[name[:-4]] = {i: _obs_motion(o, i) for i in o.index}
+    # 官方預報各自以自己的定位校驗：JTWC 用 JTWC 警報（obs/），JMA／CWA 用自己每一報的 0 h 分析位置
+    # （存在校驗檔的 lead_h = 0 那一列），強度也是各自的 10 分鐘平均風對自己的分析，不拿 JTWC 的 1 分鐘風比
+    own: dict = {}
+    for name in os.listdir(fdir):
+        mo = re.match(r"(JMA|CWA)_((?:WP|CP|EP)\d{6})_(\d{10})\.csv$", name)
+        if not mo:
+            continue
+        try:
+            r0 = pd.read_csv(os.path.join(fdir, name))
+        except Exception:
+            continue
+        r0 = r0[r0['lead_h'] == 0].dropna(subset=['lat', 'lon'])
+        if r0.empty:
+            continue
+        r = r0.iloc[0]
+        own.setdefault((mo.group(1), mo.group(2)), []).append(
+            (pd.Timestamp(datetime.strptime(mo.group(3), '%Y%m%d%H'), tz='UTC'), float(r['lat']), float(r['lon']),
+             float(r['wind']) if 'wind' in r0.columns and pd.notna(r['wind']) else np.nan))
+    own_obs, own_motion = {}, {}
+    for k, rows in own.items():
+        o = (pd.DataFrame(rows, columns=['t', 'lat', 'lon', 'wind'])
+             .sort_values('t').drop_duplicates('t').reset_index(drop=True))
+        own_obs[k], own_motion[k] = o, {i: _obs_motion(o, i) for i in o.index}
     # (track_id, model, 起報 YYYYmmddHH, 預報時數, 路徑誤差 km, 沿路徑 km|None, 跨路徑 km|None, 強度誤差 kt|None)
     recs = []
     seen: set = set()
@@ -2361,7 +2385,12 @@ def compute_scorecard() -> dict:
         if len(f) < 2:
             continue
         fw = (f.dropna(subset=['wind']) if 'wind' in f.columns else f.iloc[0:0])
-        o = obs[tid]
+        if model in ('JMA', 'CWA'):
+            o, mot = own_obs.get((model, tid)), own_motion.get((model, tid), {})
+            if o is None:
+                continue
+        else:
+            o, mot = obs[tid], motion[tid]
         for lead in VERIF_LEADS:
             if lead > f['lead_h'].max():
                 continue
@@ -2376,7 +2405,7 @@ def compute_scorecard() -> dict:
             flon = float(np.interp(lead, f['lead_h'], np.unwrap(np.radians(f['lon'])) * 180 / np.pi))
             e = float(_haversine_km(ob['lat'], ob['lon'] % 360, flat, flon % 360))
             at = ct = None
-            u = motion[tid].get(i)
+            u = mot.get(i)
             if u is not None:
                 x, y = _local_xy(float(ob['lat']), float(ob['lon']), flat, flon)
                 x, y = float(x), float(y)

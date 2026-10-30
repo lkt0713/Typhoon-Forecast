@@ -331,8 +331,10 @@ SCORE_COLORS = {
     'WN3-C': '#4C9BE8', 'WN2-C r2': '#2DB7A3', 'WN2-C r1': '#7FB5D9', 'GENC': '#63C26B',
     'AIFS-ENS': '#A06CD5', 'AIFS-single': '#C98BD9', 'ECMWF-ENS': '#E0465E',
     'ECMWF HRES': '#F08A3C', 'AIGEFS': '#22A3C4', 'AIGFS': '#7FD3E6',
-    'GEFS': '#8A9A1E', 'GFS': '#C2B44A', 'JTWC': '#9AA6B2',
+    'GEFS': '#8A9A1E', 'GFS': '#C2B44A', 'JTWC': '#9AA6B2', 'JMA': '#6F86D6', 'CWA': '#3FA98C',
 }
+# 官方預報：各自以自己的定位校驗（數字偏有利），自成一組、不參與排名，折線用點線
+OFFICIAL_MODELS = ('JTWC', 'JMA', 'CWA')
 
 
 def _score_get(card: dict, m: str, ld: int):
@@ -353,15 +355,15 @@ def _score_heat(rel: float) -> str:
 
 def _score_groups(models: list, det_names: set) -> list:
     """(群組鍵, 預設標題, 副標鍵, 預設副標, [模式]) —— 系集平均／決定報／官方預報。"""
-    ens = [m for m in models if m not in det_names and m != 'JTWC']
+    ens = [m for m in models if m not in det_names and m not in OFFICIAL_MODELS]
     det = [m for m in models if m in det_names]
-    off = [m for m in models if m == 'JTWC']
+    off = [m for m in OFFICIAL_MODELS if m in models]
     return [g for g in (
         ('score.grp.ens', 'Ensemble mean', None, '', ens),
         ('score.grp.det', 'Deterministic', 'score.grp.det.sub',
          'single run — usually less accurate than an ensemble mean', det),
-        ('score.grp.jtwc', 'Official (JTWC)', 'score.grp.jtwc.sub',
-         'verified against its own warning positions, which flatters JTWC — not ranked', off)) if g[4]]
+        ('score.grp.off', 'Official forecasts', 'score.grp.off.sub',
+         'each verified against its own positions, which flatters them — not ranked', off)) if g[4]]
 
 
 # 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
@@ -405,8 +407,8 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
     mag = (lambda v: abs(v[0])) if signed else (lambda v: v[0])
     rank = {}
     for ld in SCORE_LEADS:
-        # JTWC 用自己的警報位置當實況、數字偏有利，不跟模式一起排名
-        vals = [mag(v) for m in models if m != 'JTWC' and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
+        # 官方預報用自己的定位當實況、數字偏有利，不跟模式一起排名
+        vals = [mag(v) for m in models if m not in OFFICIAL_MODELS and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
         rank[ld] = (min(vals), max(vals)) if vals else None
     fmt = (lambda x: f'{x:+.0f}'.replace('-', '−')) if signed else (lambda x: f'{x:.0f}')
 
@@ -428,7 +430,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
                     cells.append('<td class="c-nil">—</td>')
                     continue
                 n = v[1]
-                if m == 'JTWC' and n >= SCORE_MIN_N:
+                if m in OFFICIAL_MODELS and n >= SCORE_MIN_N:
                     cells.append(f'<td class="c-ref">{fmt(v[0])}<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
                 if n < SCORE_MIN_N or rank[ld] is None:
@@ -483,7 +485,7 @@ def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'tr
         g.append(f'<text x="{x(ld):.1f}" y="{H - 12}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{ld} h</text>')
     for m, p in pts.items():
         c = SCORE_COLORS.get(m, '#9AA6B2')
-        dash = ' stroke-dasharray="6 4"' if m in det_names else (' stroke-dasharray="2 4"' if m == 'JTWC' else '')
+        dash = ' stroke-dasharray="6 4"' if m in det_names else (' stroke-dasharray="2 4"' if m in OFFICIAL_MODELS else '')
         path = ' '.join(f'{x(ld):.1f},{y(e):.1f}' for ld, e, _ in p)
         g.append(f'<polyline points="{path}" fill="none" stroke="{c}" stroke-width="2.2"{dash}/>')
         for ld, e, n in p:
@@ -493,7 +495,7 @@ def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'tr
                      f'<title>{_esc(m)} · {ld} h · {val} {unit} · n={n}</title></circle>')
     legend = ''.join(
         f'<span><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
-        f'{";opacity:.55" if m in det_names or m == "JTWC" else ""}"></i>{_esc(m)}</span>' for m in pts)
+        f'{";opacity:.55" if m in det_names or m in OFFICIAL_MODELS else ""}"></i>{_esc(m)}</span>' for m in pts)
     return (f'<div class="score-chart"><div class="sc-axis" data-i18n="{ykey}">{ytxt}</div>'
             f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{_esc(ytxt)}">{"".join(g)}</svg>'
             f'<div class="sc-legend">{legend}</div></div>')
@@ -557,7 +559,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
                 'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
-                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.'}
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.'}
     if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
         notes.append('score.official')
     tabs, panels = [], []
@@ -916,8 +918,8 @@ CHANGELOG = [
          'New in Summary: ocean heat content along the JTWC forecast track, showing how warm the water ahead is'),
         ('強度分頁加上提醒：AI 模式的強度通常偏弱，請看增強或減弱的趨勢',
          'The Intensity tab now explains that AI-model intensities run low and are best read as a trend'),
-        ('校驗開始收錄 JTWC、日本氣象廳與中央氣象署的官方預報，可以和模式比一比',
-         'Verification now also scores the JTWC, JMA and CWA official forecasts next to the models'),
+        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗',
+         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions'),
         ('城市侵襲表預設只列有機率的模式，一鍵展開全部',
          'The city strike table lists only models with any chance, with a button to show them all'),
         ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
@@ -3844,8 +3846,8 @@ const I18N = {
     'score.grp.ens': 'Ensemble mean',
     'score.grp.det': 'Deterministic',
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
-    'score.grp.jtwc': 'Official (JTWC)',
-    'score.grp.jtwc.sub': 'verified against its own warning positions, which flatters JTWC — not ranked',
+    'score.grp.off':  'Official forecasts',
+    'score.grp.off.sub': 'each verified against its own positions, which flatters them — not ranked',
     'score.chart.y': 'Mean track error (km)',
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
@@ -3872,7 +3874,7 @@ const I18N = {
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
     'note.ohctrack':    'Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
-    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, verified the same way; they appear only in the all-forecasts sample because their archive starts later than the models’ and does not enter the homogeneous sample.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -4084,8 +4086,8 @@ const I18N = {
     'score.grp.ens': '系集平均',
     'score.grp.det': '決定報',
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
-    'score.grp.jtwc': '官方預報（JTWC）',
-    'score.grp.jtwc.sub': '以 JTWC 自己的警報位置為實況，數字會偏有利，不參與排名',
+    'score.grp.off':  '官方預報',
+    'score.grp.off.sub': '各自以自己的定位為實況，數字會偏有利，不參與排名',
     'score.chart.y': '平均路徑誤差（公里）',
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
@@ -4112,7 +4114,7 @@ const I18N = {
     'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
     'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
     'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
-    'score.official':   'JTWC／JMA／CWA 列是官方預報，用同一套方法校驗；它們的存檔比模式晚開始，只列在「全部」樣本，不進同質樣本。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名；它們的存檔比模式晚開始，只列在「全部」樣本。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
