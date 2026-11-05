@@ -3643,7 +3643,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 
 # ── 暴風圈預報圖（仿 JTWC 警報圖）──────────────────────────────────────────
 # WeatherNext 系列的成員有四象限 34／50／64 kt 暴風半徑（有幾種就畫幾種）。
-# 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），每 6 小時在
+# 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），每 24 小時在
 # 系集平均位置畫一組四象限暴風圈外框（像 JTWC 警報圖），現在的那組加粗並填色。
 WIND_RADII_LEVELS = [            # (kt, 填色, 透明度, 外框色)
     (34, '#F2C14E', 0.40, '#B8860B'),
@@ -3651,7 +3651,7 @@ WIND_RADII_LEVELS = [            # (kt, 填色, 透明度, 外框色)
     (64, '#D9463A', 0.55, '#8E2318'),
 ]
 WIND_RADII_MAX_H = 120
-WIND_RADII_STEP_H = 6            # 每幾小時畫一組暴風圈
+WIND_RADII_STEP_H = 24           # 每幾小時畫一組暴風圈（6 h 太擠，與 24 h 標籤同一點）
 _RADII_QUAD = ('ne', 'se', 'sw', 'nw')
 
 
@@ -3710,7 +3710,7 @@ def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, trac
     norm = lambda x: _normalize_lon_values(np.asarray(x, float), use_360=use_360)
     lon_i = norm(lon_i)
 
-    # 每 6 小時一組暴風圈（JTWC 警報圖那樣逐點畫外框，不畫連續的掃過範圍）
+    # 每 WIND_RADII_STEP_H 小時一組暴風圈（JTWC 警報圖那樣逐點畫外框，不畫連續的掃過範圍）
     steps = [k for k in range(hh.size) if round(hh[k]) % WIND_RADII_STEP_H == 0]
     rings = {kt: [(hh[k], _quadrant_ring(lon_i[k], lat_i[k], *(rad[c][k] for c in cols))) for k in steps]
              for kt, cols, *_ in levels}
