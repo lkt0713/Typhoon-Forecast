@@ -693,7 +693,7 @@ def _city_table(cols: list[tuple]) -> str:
     body = ''
     if land:
         body += _grp('cities.grp.land', 'Taiwan landfall', 'cities.grp.land.sub',
-                     'storm centre moves onto Taiwan\'s main island (outlying islands excluded)') + ''.join(land)
+                     'storm center moves onto Taiwan\'s main island (outlying islands excluded)') + ''.join(land)
     if city or quiet:
         body += _grp('cities.grp.city', 'City strike', 'cities.grp.city.sub',
                      'track passes within 1° (~111 km) of the city') + ''.join(city)
@@ -904,7 +904,7 @@ def _write_static_assets(docs_dir: str) -> str:
     return h.hexdigest()[:8]
 
 
-NOTE_OHCTRACK = "Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
+NOTE_OHCTRACK = "Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
 CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm."
 
 # ── 更新內容（說明頁的「更新內容」與頁首版本號連結）────────────────────────────
@@ -925,7 +925,7 @@ CHANGELOG = [
         ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
          'Faster: the first visit loads about 0.7 MB instead of 3.2 MB, and the page reloads only when new data arrives'),
         ('更好讀：淺色主題的灰字更清楚，分頁可用方向鍵切換，表格支援螢幕閱讀器',
-         'Easier to read: clearer grey text in the light theme, arrow keys switch tabs, tables work with screen readers'),
+         'Easier to read: clearer gray text in the light theme, arrow keys switch tabs, tables work with screen readers'),
         ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
          'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
         ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
@@ -937,7 +937,7 @@ CHANGELOG = [
     ]),
     ('7.0.0', '2026-10-26', [
         ('概況新增沿 AIFS 預報路徑的垂直風切（200–850 hPa，颱風中心外 200–800 km 平均）',
-         'New in Summary: vertical wind shear along the AIFS track (200–850 hPa, averaged 200–800 km from the centre)'),
+         'New in Summary: vertical wind shear along the AIFS track (200–850 hPa, averaged 200–800 km from the center)'),
         ('駛流場改用 AIFS-single，與風切同一個模式',
          'The steering flow now comes from AIFS-single, the same model as the shear'),
         ('海洋熱含量移到概況並畫上 JTWC 預報路徑；衛星雲圖放大到颱風本身，只標名字',
@@ -973,13 +973,13 @@ CHANGELOG = [
         ('城市侵襲表：都低於 1% 的臺灣城市合成一行，第一欄左右捲動時固定',
          'City strike table: Taiwan cities under 1% everywhere share one line, and the first column stays put when scrolling'),
         ('淺色主題改用與圖片一致的配色，首頁更精簡',
-         'The light theme uses the charts’ own colours, and the home page is simpler'),
+         'The light theme uses the charts’ own colors, and the home page is simpler'),
         ('修正：同質樣本各模式的樣本數不一致；日本氣象廳 0 kt 改顯示「—」',
          'Fixes: equal homogeneous samples across models again; JMA’s 0 kt points now show as "—"'),
     ]),
     ('6.7.0', '2026-10-22', [
         ('新增最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫，彩色與黑白兩種',
-         'New: a 3-hour Himawari-9 infrared satellite loop, in enhanced colour and greyscale'),
+         'New: a 3-hour Himawari-9 infrared satellite loop, in enhanced color and grayscale'),
         ('首頁同時有多個颱風時，全部列出',
          'The home page lists every active storm when there is more than one'),
         ('說明頁與 README 介紹目前所有功能',
@@ -989,7 +989,7 @@ CHANGELOG = [
     ]),
     ('6.6.3', '2026-10-22', [
         ('海洋熱含量的配色與 CMEMS 官方產品一致',
-         'Ocean heat content colours now match the official CMEMS product'),
+         'Ocean heat content colors now match the official CMEMS product'),
         ('頁尾列出日本氣象廳、中央氣象署、CMEMS 與 HYCOM 資料來源',
          'The footer credits JMA, CWA, CMEMS and HYCOM'),
         ('修正：中央氣象署資料讀取、日本氣象廳 12Z 預報時間，網站部署卡住時不再耽誤下一輪更新',
@@ -1031,7 +1031,7 @@ CHANGELOG = [
         ('改在 GitHub Actions 上自動更新，電腦不用開著',
          'Updates now run on GitHub Actions, so no computer has to stay on'),
         ('每輪結束後自動接下一輪，排程當備援；卡住的執行會自動取消',
-         'Each update starts the next one, with a schedule as backup, and stuck runs are cancelled automatically'),
+         'Each update starts the next one, with a schedule as backup, and stuck runs are canceled automatically'),
     ]),
 ]
 
@@ -1627,7 +1627,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </div>
                 {_model_tabs(f"{key_prefix}-sat", sat_labels) if len(sat_labels) > 1 else f'<div class="model-label">{_esc(sat_labels[0])}</div>'}
                 {"".join(sat_panels)}
-                <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
+                <p class="map-note" data-i18n="note.sat">Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centered on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame</p>
             </div>"""
 
         ohc_html = ""
@@ -1664,7 +1664,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <span data-i18n="panel.shear">Vertical Wind Shear along the AIFS Track</span>
                 </div>
                 {_figure(os.path.basename(_shear), f"{track_id} Vertical Wind Shear")}
-                <p class="map-note" data-i18n="note.shear">Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm's upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm's heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data</p>
+                <p class="map-note" data-i18n="note.shear">Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the center, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm's upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm's heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data</p>
             </div>"""
 
         steer_html = ""
@@ -3903,14 +3903,14 @@ const I18N = {
     'note.how':         'How to read this',
     'tmap.fail':        'The map could not load. Reload the page to try again.',
     'panel.sat':        'Satellite Loop (last 3 hours)',
-    'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centred on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
+    'note.sat':         'Himawari-9 infrared (band 13, 10.4 µm) for the last 3 hours, one frame every 10 minutes, centered on the storm; it opens on the latest frame &nbsp;·&nbsp; Colors show cloud-top temperature: the colder the top, the taller the cloud and the stronger the convection; a warm dot ringed by the coldest colors is the eye and eyewall &nbsp;·&nbsp; Centered on the latest JTWC position (warnings come every 6 h, so the storm may have moved a little since); the track and JTWC forecast are on the ocean heat content map below &nbsp;·&nbsp; Raw data from the NOAA/JMA copy on AWS, observation time in the title of each frame',
     'sub.shear':        'Shear',
     'panel.shear':      'Vertical Wind Shear along the AIFS Track',
-    'note.shear':       'Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the centre, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm\'s upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm\'s heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data',
+    'note.shear':       'Difference between the 200 hPa and 850 hPa winds, averaged 200–800 km from the center, every 6 h along the AIFS-single (deterministic) forecast track — winds and track come from the same AIFS run &nbsp;·&nbsp; Strong shear tilts the storm\'s upper and lower circulation apart and usually stops it strengthening: below 10 kt is low, 10–20 kt moderate, above 20 kt high &nbsp;·&nbsp; Arrows = direction the shear points (from the low-level wind toward the upper-level wind); the storm\'s heaviest rain and convection tend to sit downshear-left &nbsp;·&nbsp; Data: ECMWF Open Data',
     'sub.ohc':          'Ocean heat',
     'panel.ohc':        'Ocean Heat Content',
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
-    'note.ohctrack':    'Ocean heat content under the forecast centre, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the centre) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Grey squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
+    'note.ohctrack':    'Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
     'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
@@ -3942,7 +3942,7 @@ const I18N = {
     'sub.cities':     'Landfall & Cities',
     'panel.cities':   'Taiwan Landfall &amp; City Strike Probability',
     'cities.grp.land': 'Taiwan landfall',
-    'cities.grp.land.sub': 'storm centre moves onto Taiwan\'s main island (outlying islands excluded)',
+    'cities.grp.land.sub': 'storm center moves onto Taiwan\'s main island (outlying islands excluded)',
     'cities.grp.city': 'City strike',
     'cities.grp.city.sub': 'track passes within 1° (~111 km) of the city',
     'cities.city':    'Model',

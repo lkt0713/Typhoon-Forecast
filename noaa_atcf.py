@@ -178,7 +178,7 @@ def _write_csv(df: pd.DataFrame, path: str, source: str) -> None:
     tmp = path + ".part"
     with open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write(f"# Source: NOAA NCEP ens_tracker ({source})\n")
-        f.write("# Licence: U.S. Government work, public domain\n")
+        f.write("# License: U.S. Government work, public domain\n")
         df.to_csv(f, index=False)
     os.replace(tmp, path)
     print(f"[NOAA] 已寫出 {os.path.basename(path)}（{len(df)} 列）")
