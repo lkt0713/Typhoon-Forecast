@@ -64,9 +64,13 @@ def fetch_jma() -> list[dict]:
                 continue
             wind = ((p.get("maximumWind") or {}).get("sustained") or {}).get("kt")
             # JMA 對轉為溫帶氣旋或消散的時刻把最大風速寫成 0，當成沒有資料，網頁顯示「—」而不是「0 kt」
+            # 該點的種類（台風／熱帯低気圧／温帯低気圧）寫在點的資料裡；提到「温帯」或英文 LOW／Extratropical
+            # 就標成 'ext'，地圖畫到轉溫帶之前為止（forecast._official_et_index，另有緯度規則備援）
+            blob = json.dumps(p, ensure_ascii=False)
+            ext = bool(re.search(r'温帯|Extratropical|"LOW"', blob))
             pts.append({'h': int(p["advancedHours"]), 'lat': float(pos[0]), 'lon': float(pos[1]),
                         'kt': _num(wind) or None, 'hpa': _num(p.get("pressure")),
-                        'r70_km': _num((p.get("probabilityCircleRadius") or {}).get("km"))})
+                        'r70_km': _num((p.get("probabilityCircleRadius") or {}).get("km")), 'ext': ext})
         if pts:
             issue, shift = _jma_base((title.get("issue") or {}).get("UTC"), [q['h'] for q in pts])
             for q in pts:
