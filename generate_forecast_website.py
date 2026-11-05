@@ -926,6 +926,12 @@ CHANGELOG = [
          'Faster: the first visit loads about 0.7 MB instead of 3.2 MB, and the page reloads only when new data arrives'),
         ('更好讀：淺色主題的灰字更清楚，分頁可用方向鍵切換，表格支援螢幕閱讀器',
          'Easier to read: clearer grey text in the light theme, arrow keys switch tabs, tables work with screen readers'),
+        ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
+         'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
+        ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext 系列），畫出 34、50、64 kt 風速掃過的範圍',
+         'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext models) showing where 34-, 50- and 64-kt winds reach'),
+        ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
+         'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
         ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
          'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
     ]),
@@ -1046,6 +1052,9 @@ def _changelog_html() -> str:
             f'<div class="panel-header"><span class="panel-icon">📝</span><span data-i18n="cl.title">What’s new</span></div>'
             f'{_ver(*latest)}{hist}</div>')
 
+
+NOTE_ENS120 = "Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position"
+NOTE_RADII = "In the style of the JTWC warning graphic &nbsp;·&nbsp; Navy line = ensemble-mean track (dots every 12 h, time and mean wind every 24 h) &nbsp;·&nbsp; Shaded = area swept by 34-, 50- and 64-kt winds over the next 120 h, from the median wind radii of all members in each quadrant (members that never reach that wind count as 0) &nbsp;·&nbsp; Bold outlines = wind radii now &nbsp;·&nbsp; Only models whose tracks include wind radii (the WeatherNext family); their winds run low, so the 50- and 64-kt areas are usually smaller than in the official warning"
 
 TEASER_THUMB = 'genesis_teaser.jpg'
 
@@ -1491,6 +1500,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     </p>
                 </div>""")
 
+        map120_html = ""
+        map120_items = _model_images(models, 'forecast_map_120_path', '_none_')
+        if map120_items:
+            sec_id = f"sec-{key_prefix}-maps120"
+            sections.append((sec_id, 'sub.maps120', '0–120 h'))
+            map120_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-m120", '🗺', 'panel.ensemble120', 'Ensemble Track Forecast (0–120 h)',
+                map120_items, 'note.ensemble120', NOTE_ENS120, f"{track_id} Ensemble Track Forecast 0–120 h")
+
         sec_id = f"sec-{key_prefix}-maps"
         sections.append((sec_id, 'sub.maps', 'Ensemble & JTWC'))
         maps_html = f"""
@@ -1511,6 +1529,16 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     {_figure(f"jtwc_{track_id}.gif", "JTWC Forecast", "this.closest('.panel').style.display='none';")}
                     <p class="jtwc-src" data-i18n="note.jtwc">Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force</p>
             </div>"""
+
+        # ── 暴風圈預報（只有成員帶暴風半徑的 WeatherNext 系列）
+        radii_html = ""
+        radii_items = _model_images(models, 'wind_radii_path', '_none_')
+        if radii_items:
+            sec_id = f"sec-{key_prefix}-radii"
+            sections.append((sec_id, 'sub.radii', 'Wind radii'))
+            radii_html = _tabbed_image_panel(
+                sec_id, f"{key_prefix}-radii", '🌀', 'panel.radii', 'Wind Radii Forecast',
+                radii_items, 'note.radii', NOTE_RADII, f"{track_id} Wind Radii Forecast")
 
         # ── 侵襲機率、強度預報（每模式一張，另加 1000 成員）
         strike_html = plume_html = ""
@@ -1549,7 +1577,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 p = next((q for q in f['points'] if q['h'] == h), None)
                 if not p:
                     return '<td class="c-nil">—</td>'
-                kt = f"{p['kt']:.0f} kt" if p.get('kt') else '–'
+                kt = (f"{p['kt']:.0f} kt" if p.get('kt') else '–') if not p.get('et') else \
+                    '<span data-i18n="off.et">Extratropical</span>'
                 return (f'<td class="c-off">{abs(p["lat"]):.1f}°{"N" if p["lat"] >= 0 else "S"} '
                         f'{p["lon"] % 360:.1f}°E<span class="eta">{kt}</span></td>')
             head = ''.join(f'<th style="color:{OFFICIAL_COLORS.get(f["agency"], "inherit")}">{f["agency"]}'
@@ -1782,8 +1811,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         panes = [
             ('now', 'tab.now', 'Summary',
              f"{sat_html}{ohc_html}{shear_html}{steer_html}{jtwc_html}{official_html}{cities_html}"),
-            ('track', 'tab.track', 'Track', f"{cmp_html}{maps_html}{anim_html}{tmap_html}{trend_html}"),
-            ('strike', 'tab.strike', 'Strike', f"{strike_html}{extra_html}"),
+            ('track', 'tab.track', 'Track', f"{cmp_html}{map120_html}{maps_html}{anim_html}{tmap_html}{trend_html}"),
+            ('strike', 'tab.strike', 'Strike', f"{radii_html}{strike_html}{extra_html}"),
             ('intensity', 'tab.int', 'Intensity', plume_html),
             ('score', 'tab.score', 'Verification', score_html),
         ]
@@ -2004,10 +2033,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <div><h4 data-i18n="panel.official">Official Forecasts Compared</h4><p class="map-note" data-i18n="note.official"></p></div>
                         <div><h4 data-i18n="panel.cities">Taiwan Landfall &amp; City Strike Probability</h4><p class="map-note" data-i18n="note.cities"></p></div>
                         <div><h4 data-i18n="panel.comparison">Multi-Model Comparison</h4><p class="map-note" data-i18n="note.comparison"></p></div>
+                        <div><h4 data-i18n="panel.ensemble120">Ensemble Track Forecast (0–120 h)</h4><p class="map-note" data-i18n="note.ensemble120"></p></div>
                         <div><h4 data-i18n="panel.ensemble">Ensemble Track Forecast</h4><p class="map-note" data-i18n="note.ensemble" data-i18n-model="WN3-C / GENC / AIFS / ECMWF / AIGFS / GFS"></p></div>
                         <div><h4 data-i18n="panel.anim.generic">Track Evolution Animation</h4><p class="map-note" data-i18n="note.anim"></p></div>
                         <div><h4 data-i18n="panel.tmap">Interactive Track Map</h4><p class="map-note" data-i18n="note.tmap"></p></div>
                         <div><h4 data-i18n="panel.trend">Track Trend</h4><p class="map-note" data-i18n="note.trend"></p></div>
+                        <div><h4 data-i18n="panel.radii">Wind Radii Forecast</h4><p class="map-note" data-i18n="note.radii"></p></div>
                         <div><h4 data-i18n="panel.strike">Strike Probability</h4><p class="map-note" data-i18n="note.strike"></p></div>
                         <div><h4 data-i18n="panel.strikex">Strike Probability by Period</h4><p class="map-note" data-i18n="note.strikex"></p></div>
                         <div><h4 data-i18n="panel.plume">Intensity Forecast</h4><p class="map-note" data-i18n="note.plume"></p></div>
@@ -3852,6 +3883,13 @@ const I18N = {
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
+    'off.et':           'Extratropical',
+    'sub.maps120':      '0–120 h',
+    'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
+    'note.ensemble120': 'Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
+    'sub.radii':        'Wind radii',
+    'panel.radii':      'Wind Radii Forecast',
+    'note.radii':       'In the style of the JTWC warning graphic &nbsp;·&nbsp; Navy line = ensemble-mean track (dots every 12 h, time and mean wind every 24 h) &nbsp;·&nbsp; Shaded = area swept by 34-, 50- and 64-kt winds over the next 120 h, from the median wind radii of all members in each quadrant (members that never reach that wind count as 0) &nbsp;·&nbsp; Bold outlines = wind radii now &nbsp;·&nbsp; Only models whose tracks include wind radii (the WeatherNext family); their winds run low, so the 50- and 64-kt areas are usually smaller than in the official warning',
     'off.hour':         'Hour',
     'note.official':    'JTWC (US), JMA (Japan) and CWA (Taiwan) official tracks &nbsp;·&nbsp; JTWC reports 1-minute winds, JMA and CWA 10-minute winds, so JTWC numbers run higher for the same storm &nbsp;·&nbsp; Time under each agency = forecast base time (UTC) &nbsp;·&nbsp; Map labels = valid time, day/hour UTC (e.g. 23/12Z = 23rd 12:00 UTC = 20:00 Taiwan time)',
     'sub.sat':          'Satellite',
@@ -4092,6 +4130,13 @@ const I18N = {
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
+    'off.et':           '溫帶氣旋',
+    'sub.maps120':      '0～120 小時',
+    'panel.ensemble120': '系集路徑預報（0～120 小時）',
+    'note.ensemble120': '與下方完整路徑圖相同的成員、系集平均與決定報，只畫到 120 小時（5 天），近幾天的路徑放大看得更清楚 &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
+    'sub.radii':        '暴風圈',
+    'panel.radii':      '暴風圈預報',
+    'note.radii':       '仿 JTWC 警報圖 &nbsp;·&nbsp; 深藍線＝系集平均路徑（每 12 小時一點，每 24 小時標時間與平均風速） &nbsp;·&nbsp; 色塊＝未來 120 小時內 34、50、64 kt 風速掃過的範圍，取所有成員在四個象限的暴風半徑中位數（沒達到該風速的成員算 0） &nbsp;·&nbsp; 粗外框＝目前的暴風圈 &nbsp;·&nbsp; 只有路徑資料附暴風半徑的模式（WeatherNext 系列）才有；這些模式強度偏弱，50、64 kt 的範圍通常比官方警報小',
     'off.hour':         '時數',
     'note.official':    'JTWC（美國）、JMA（日本氣象廳）與 CWA（中央氣象署）的官方路徑 &nbsp;·&nbsp; JTWC 用 1 分鐘平均風速，JMA 與 CWA 用 10 分鐘平均，同一颱風 JTWC 的數字通常較大 &nbsp;·&nbsp; 各單位下方時間＝預報基準時間（UTC） &nbsp;·&nbsp; 地圖標籤＝預報的實際時間，日/時 UTC（例如 23/12Z＝23 日 12:00 UTC＝臺灣時間 20:00）',
     'sub.sat':          '衛星雲圖',

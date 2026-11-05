@@ -2501,9 +2501,41 @@ def _jtwc_official(s: dict) -> dict | None:
             'points': pts}
 
 
+def _official_et_index(fc: dict) -> int | None:
+    """官方預報第一個轉為溫帶的預報點索引；沒有回 None。
+
+    JMA 在資料裡標明是溫帶低氣壓時（official.py 存成 'ext'）直接採用；其餘一律套用與模式相同的
+    緯度規則（過 ET_CUTOFF_LAT，起點本來就在以北時改為起點以北 5 度）。"""
+    pts = fc.get('points') or []
+    if not pts:
+        return None
+    lim = max(ET_CUTOFF_LAT, abs(pts[0]['lat']) + 5)
+    for i, p in enumerate(pts):
+        if i and (p.get('ext') or abs(p['lat']) > lim):
+            return i
+    return None
+
+
+def _mark_official_et(fcs: list) -> None:
+    """每個預報點加上 'et'（之後已轉為溫帶）：地圖只畫到轉溫帶之前，表格標「溫帶氣旋」。"""
+    for fc in fcs:
+        k = _official_et_index(fc)
+        for i, p in enumerate(fc.get('points') or []):
+            p['et'] = k is not None and i >= k
+
+
 def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
-    lats = [p['lat'] for f in fcs for p in f['points']]
-    lons = [p['lon'] for f in fcs for p in f['points']]
+    # 轉溫帶之後的點不畫（與模式路徑同一規則），地圖範圍只算畫出來的點，路徑與標籤才不會跑到框外
+    cut = []
+    for fc in fcs:
+        k = _official_et_index(fc)
+        pts = fc['points'][:k] if k is not None else fc['points']
+        et_t = None
+        if k is not None and fc.get('issue'):
+            et_t = pd.Timestamp(fc['issue']).floor('h') + pd.Timedelta(hours=fc['points'][k]['h'])
+        cut.append((fc, pts, et_t))
+    lats = [p['lat'] for _, pts, _ in cut for p in pts]
+    lons = [p['lon'] for _, pts, _ in cut for p in pts]
     if len(lats) < 2:
         return None
     extent, use_360 = _auto_extent(np.array(lats), np.array(lons), pad_deg=4)
@@ -2521,10 +2553,11 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
     handles, labels = [], []
     # 各單位標籤放不同側（右上／左上／右下），路徑貼在一起時字才不會疊在一起
     label_pos = [(0.35, 0.25, 'left'), (-0.35, 0.25, 'right'), (0.35, -0.75, 'left')]
-    for i, f in enumerate(fcs):
+    for i, (f, pts, et_t) in enumerate(cut):
         c = OFFICIAL_COLORS.get(f['agency'], MEAN_COLOR)
         dx, dy, ha = label_pos[i % len(label_pos)]
-        pts = f['points']
+        if not pts:
+            continue
         plon = _normalize_lon_values(np.array([p['lon'] for p in pts]), use_360=use_360)
         plat = np.array([p['lat'] for p in pts])
         ax.plot(plon, plat, color='white', lw=4.6, alpha=0.8, zorder=3, **kw)
@@ -2540,16 +2573,17 @@ def plot_official_map(tid: str, fcs: list, save_path: str) -> str | None:
             if base is not None and p['h'] > 0 and (p['h'] % 24 == 0 or (p['h'] > 24 and p['h'] % 12)):
                 t = base + pd.Timedelta(hours=p['h'])
                 ax.text(x + dx, y + dy, f"{t:%d/%H}Z", fontsize=7.5, color=c, fontweight='bold', zorder=6, ha=ha,
-                        path_effects=[mpe.withStroke(linewidth=2.4, foreground='white')], **kw)
+                        path_effects=[mpe.withStroke(linewidth=2.4, foreground='white')], clip_on=True, **kw)
         issue = base.strftime('%m/%d %HZ') if base is not None else ''
         handles.append(mlines.Line2D([], [], color=c, lw=2.4, marker='o', ms=5, markerfacecolor='white', markeredgecolor=c))
-        labels.append(f"{f['agency']}  {issue}")
+        labels.append(f"{f['agency']}  {issue}" + (f"  → ET by {et_t:%d/%H}Z" if et_t is not None else ''))
     leg = ax.legend(handles, labels, loc='upper left', fontsize=9, borderpad=0.7, labelspacing=0.42, **LEGEND_KW)
     _style_legend(leg)
     name = next((f['name'] for f in fcs if f.get('name')), None)
     ax.set_title(f"Official Forecasts  ·  {tid}" + (f" ({str(name).upper()})" if name else ''), loc='left',
                  fontsize=15, fontweight='bold', color=TEXT_DARK, pad=24)
-    ax.text(0, 1.012, "JTWC 1-min winds  ·  JMA / CWA 10-min winds  ·  Labels = valid time (day/hour UTC)",
+    ax.text(0, 1.012, "JTWC 1-min winds  ·  JMA / CWA 10-min winds  ·  Labels = valid time (day/hour UTC)  ·  "
+            "ET = becomes extratropical, not drawn after that",
             transform=ax.transAxes, ha='left', va='bottom', fontsize=9.5, color=TEXT_MUTED)
     _watermark(ax, side='right')
     plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
@@ -2600,6 +2634,7 @@ def make_official_forecasts(storms: list) -> None:
                     nearest[id(f)] = (d, tid)
                 if d <= OFFICIAL_MATCH_KM:
                     fcs.append(f)
+        _mark_official_et(fcs)
         try:
             _archive_official_verif(tid, fcs)
         except Exception as e:
@@ -3477,11 +3512,20 @@ def write_tracks_json(storms: list) -> None:
         next(s for s in storms if s['track_id'] == tid)['tracks_json'] = path
 
 
-def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None, mean_name: str | None = None):
+def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Timestamp, track_id: str, save_path: str, model_name: str = "WN2-C r2", det_df: pd.DataFrame | None = None, det_label: str | None = None, mean_name: str | None = None, max_h: int | None = None):
     """將各 Ensemble member 的預報路徑畫在地圖上，並標示 Ensemble 平均路徑。
 
     det_df 有值時（ECMWF／AIFS）再疊一條決定報路徑；det_label 是圖例文字。
+    max_h 有值時只畫起報後 max_h 小時內（網頁「0～120 小時」那張），範圍跟著縮小。
     """
+    if max_h is not None:
+        t_end = pd.Timestamp(init_time) + pd.Timedelta(hours=max_h)
+        df = df[df['valid_time'] <= t_end]
+        mean_df = mean_df[mean_df['valid_time'] <= t_end]
+        if det_df is not None and not det_df.empty:
+            det_df = det_df[det_df['valid_time'] <= t_end]
+        if df.empty or mean_df.empty:
+            return None
     has_det = det_df is not None and not det_df.empty
     # 計算範圍（處理國際換日線）；決定報可能比系集跑得更遠，一併納入
     all_lons = list(df['lon']) + list(mean_df['lon'])
@@ -3586,7 +3630,7 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     n_members = int(df['sample'].nunique()) if 'sample' in df.columns else 0
     init_str = pd.to_datetime(init_time).strftime('%Y-%m-%d %H:%M UTC')
     _set_map_titles(ax,
-                    f"{model_name}  ·  {track_id}  Ensemble Track Forecast",
+                    f"{model_name}  ·  {track_id}  Ensemble Track Forecast" + (f"  ·  0–{max_h} h" if max_h else ""),
                     f"Init {init_str}" + (f"  ·  {n_members} members" if n_members else ""),
                     main_size=15, right_size=9)
     _watermark(ax, side='right')
@@ -3594,6 +3638,167 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
     plt.savefig(save_path, dpi=FIG_DPI, bbox_inches='tight', facecolor='white', pad_inches=0.12)
     plt.close(fig)
     print(f"[INFO] 已儲存地圖：{save_path}")
+    return save_path
+
+
+# ── 暴風圈預報圖（仿 JTWC 警報圖）──────────────────────────────────────────
+# WeatherNext 系列的成員有四象限 34／50／64 kt 暴風半徑（有幾種就畫幾種）。
+# 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），沿路徑逐小時
+# 內插後把四象限的範圍聯集起來，就是未來 120 小時暴風圈掃過的區域。
+WIND_RADII_LEVELS = [            # (kt, 填色, 透明度, 外框色)
+    (34, '#F2C14E', 0.40, '#B8860B'),
+    (50, '#F08A3C', 0.50, '#B4501A'),
+    (64, '#D9463A', 0.55, '#8E2318'),
+]
+WIND_RADII_MAX_H = 120
+_RADII_QUAD = ('ne', 'se', 'sw', 'nw')
+
+
+def _radii_cols(df: pd.DataFrame, kt: int) -> list | None:
+    cols = [f'radius_{kt}_knot_winds_{q}_km' for q in _RADII_QUAD]
+    if all(c in df.columns for c in cols) and (df[cols].fillna(0) > 0).any().any():
+        return cols
+    return None
+
+
+def _quadrant_ring(lon: float, lat: float, r_ne: float, r_se: float, r_sw: float, r_nw: float, n: int = 10):
+    """四象限半徑（km）→ 外圈頂點 (lons, lats)；四個都是 0 回 None。
+
+    角度以東為 0°、逆時針：NE 0–90、NW 90–180、SW 180–270、SE 270–360，相鄰象限半徑不同處
+    沿徑向接起來（JTWC 警報圖上那種有稜角的暴風圈）。"""
+    if max(r_ne, r_se, r_sw, r_nw) <= 0:
+        return None
+    coslat = max(np.cos(np.radians(lat)), 0.2)
+    xs, ys = [], []
+    for a0, a1, r in ((0, 90, r_ne), (90, 180, r_nw), (180, 270, r_sw), (270, 360, r_se)):
+        a = np.radians(np.linspace(a0, a1, n))
+        xs.append(lon + r * np.cos(a) / (111.0 * coslat))
+        ys.append(lat + r * np.sin(a) / 111.0)
+    return np.concatenate(xs), np.concatenate(ys)
+
+
+def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, track_id: str, save_path: str,
+                        model_name: str, mean_name: str | None = None, max_h: int = WIND_RADII_MAX_H) -> str | None:
+    """暴風圈預報圖；成員資料沒有暴風半徑時回 None（只有 WeatherNext 系列有）。"""
+    if not HAS_CARTOPY or df is None or df.empty or mean_df is None or mean_df.empty:
+        return None
+    levels = [(kt, cols, *sty) for kt, *sty in WIND_RADII_LEVELS if (cols := _radii_cols(df, kt))]
+    if not levels or levels[0][0] != 34:
+        return None
+    from matplotlib.patches import Patch
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    init_time = pd.Timestamp(init_time)
+    t_end = init_time + pd.Timedelta(hours=max_h)
+    m = mean_df[mean_df['valid_time'] <= t_end].dropna(subset=['lat', 'lon']).sort_values('valid_time')
+    if len(m) < 2:
+        return None
+    mh = ((m['valid_time'] - init_time).dt.total_seconds() / 3600).to_numpy()
+    all_cols = [c for _, cols, *_ in levels for c in cols]
+    sub = df[df['valid_time'] <= t_end].copy()
+    sub[all_cols] = sub[all_cols].fillna(0).clip(lower=0)
+    med = sub.groupby('valid_time')[all_cols].median().sort_index()
+    rh = ((med.index - init_time).total_seconds() / 3600).to_numpy()
+    n_members = int(sub['sample'].nunique()) if 'sample' in sub.columns else 0
+
+    # 逐小時內插路徑與半徑；經度先展開，跨換日線也連續
+    hh = np.arange(0, mh.max() + 1e-6, 1.0)
+    lon_u = np.degrees(np.unwrap(np.radians(m['lon'].to_numpy(float) % 360)))
+    lat_i = np.interp(hh, mh, m['lat'].to_numpy(float))
+    lon_i = np.interp(hh, mh, lon_u)
+    rad = {c: np.interp(hh, rh, med[c].to_numpy(float), left=0.0, right=0.0) for c in all_cols}
+
+    _, use_360 = _auto_extent(lat_i, lon_i % 360, pad_deg=0)     # 與其他地圖同一套換日線判斷
+    norm = lambda x: _normalize_lon_values(np.asarray(x, float), use_360=use_360)
+    lon_i = norm(lon_i)
+
+    swaths, now_rings = {}, {}
+    for kt, cols, *_ in levels:
+        rings = [_quadrant_ring(lon_i[k], lat_i[k], *(rad[c][k] for c in cols)) for k in range(hh.size)]
+        rings = [Polygon(np.column_stack(r)).buffer(0) if r is not None else None for r in rings]
+        # 相鄰兩小時的暴風圈取凸包再聯集：象限交界的稜角掃過去不會留下鋸齒，邊緣跟 JTWC 圖一樣平滑
+        polys = [a.union(b).convex_hull for a, b in zip(rings, rings[1:]) if a is not None and b is not None]
+        polys += [r for r in rings if r is not None]
+        if polys:
+            swaths[kt] = unary_union(polys).buffer(0.06).buffer(-0.06)
+        ring0 = _quadrant_ring(lon_i[0], lat_i[0], *(rad[c][0] for c in cols))
+        if ring0 is not None:
+            now_rings[kt] = ring0
+    if 34 not in swaths:
+        return None
+
+    # 範圍：34 kt 掃過區域＋路徑
+    bx0, by0, bx1, by1 = swaths[34].bounds
+    xs = np.concatenate([lon_i, [bx0, bx1]])
+    ys = np.concatenate([lat_i, [by0, by1]])
+    pad = 1.5
+    extent = (float(xs.min() - pad), float(xs.max() + pad), float(ys.min() - pad), float(ys.max() + pad))
+    extent = _fit_extent_to_aspect(extent, FIG_AR, use_360)
+
+    fig = plt.figure(figsize=(10, 7), facecolor='white')
+    proj = ccrs.PlateCarree(central_longitude=180) if use_360 else ccrs.PlateCarree()
+    ax = plt.axes(projection=proj)
+    _setup_basemap(ax, extent)
+    kw = dict(transform=ccrs.PlateCarree())
+
+    def _fill(geom, color, alpha, edge, z):
+        for g in getattr(geom, 'geoms', [geom]):
+            if g.is_empty:
+                continue
+            x, y = g.exterior.xy
+            ax.fill(x, y, facecolor=color, alpha=alpha, edgecolor='none', zorder=z, **kw)
+            ax.plot(x, y, color=edge, lw=0.8, alpha=0.8, zorder=z + 0.01, **kw)
+
+    handles, labels = [], []
+    for j, (kt, _cols, color, alpha, edge) in enumerate(levels):
+        if kt in swaths:
+            _fill(swaths[kt], color, alpha, edge, 1.2 + j * 0.1)
+            handles.append(Patch(facecolor=color, alpha=alpha + 0.15, edgecolor=edge, lw=0.8))
+            labels.append(f'{kt}-kt winds within {max_h} h')
+    # 現在的暴風圈：粗外框
+    for kt, _cols, color, alpha, edge in levels:
+        if kt in now_rings:
+            x, y = now_rings[kt]
+            ax.plot(np.append(x, x[0]), np.append(y, y[0]), color=edge, lw=2.0, zorder=3.0, **kw)
+    if now_rings:
+        handles.append(mlines.Line2D([], [], color='#5A4636', lw=2.0))
+        labels.append('Wind radii now')
+
+    # 系集平均路徑：12 h 一點、24 h 標時間與風速
+    for seg_lon, seg_lat in _split_track_segments(lon_i, lat_i):
+        ax.plot(seg_lon, seg_lat, color='white', lw=4.6, alpha=0.75, solid_capstyle='round', zorder=3.4, **kw)
+        ax.plot(seg_lon, seg_lat, color=MEAN_COLOR, lw=2.4, solid_capstyle='round', zorder=3.5, **kw)
+    mlon = norm(lon_u)
+    mw = m['wind'].to_numpy(float) if 'wind' in m.columns else np.full(len(m), np.nan)
+    for x, y, h, w in zip(mlon, m['lat'].to_numpy(float), mh, mw):
+        if h <= 0 or round(h) % 12:
+            continue
+        ax.scatter([x], [y], s=34, facecolors='white', edgecolors=MEAN_COLOR, linewidths=1.4, zorder=4, **kw)
+        if round(h) % 24 == 0:
+            t = init_time + pd.Timedelta(hours=float(h))
+            wtxt = f"{w:.0f} kt" if np.isfinite(w) else ''
+            ax.text(x + 0.45, y + 0.35, f"{t:%d/%H}Z\n{wtxt}".strip(), fontsize=6.5, color=TEXT_DARK,
+                    fontweight='bold', zorder=6, bbox=_label_box(), clip_on=True, **kw)
+    _draw_init_marker(ax, mlon[0], float(m['lat'].iloc[0]), kw, scale=1.0)
+    handles.insert(0, mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4, marker='o', ms=5,
+                                    markerfacecolor='white', markeredgecolor=MEAN_COLOR))
+    labels.insert(0, f"{mean_name or model_name} mean track")
+    leg = ax.legend(handles, labels, loc='upper left', fontsize=8.5, borderpad=0.7, labelspacing=0.45, **LEGEND_KW)
+    _style_legend(leg)
+
+    init_str = init_time.strftime('%Y-%m-%d %H:%M UTC')
+    kts = '/'.join(str(kt) for kt in swaths)
+    _set_map_titles(ax, f"{model_name}  ·  {track_id}  Wind Radii Forecast",
+                    f"Init {init_str}  ·  median {kts}-kt radii of {n_members} members along the mean track  ·  0–{max_h} h",
+                    main_size=15, right_size=9)
+    _watermark(ax, side='right')
+    plt.tight_layout(pad=0.6)
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white', pad_inches=0.12)
+    plt.close(fig)
+    r34 = max(float(rad[c].max()) for c in levels[0][1])
+    print(f"[RADII] 已儲存暴風圈圖：{save_path}（{kts} kt，34 kt 最大半徑 {r34:.0f} km）")
+    return save_path
 
 
 # 模式比較圖的線條配色。同一家族用相近色系、決定報用虛線，
@@ -4625,7 +4830,7 @@ def _cleanup_stale_outputs(prefix: str, keep_ids: list[str], display: str) -> No
     keep = set(keep_ids)
     p = re.escape(prefix)
     file_re = re.compile(rf"^{p}((?:WP|CP|EP)\d{{6}})_"
-                         rf"(?:Forecast_(?:Map(?:_\d{{10}})?\.png|Animation\.gif)|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png|Det_Track_Trend\.png)$")
+                         rf"(?:Forecast_(?:Map(?:_\d{{10}}|_120h)?\.png|Animation\.gif)|Wind_Radii\.png|Strike_Probability\.png|Intensity_Plume\.png|Track_Trend\.png|Det_Track_Trend\.png)$")
     dir_re = re.compile(rf"^animation_frames_{p}((?:WP|CP|EP)\d{{6}})$")
 
     # 清理是輔助性的：排程無人值守，任何失敗都只警告，不可中斷預報產出
@@ -4869,6 +5074,22 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                               det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg))
             _backfill_history(cfg, tid, save_path, init_time)
             map_history = _archive_forecast_map(save_path, init_time)
+            # 0～120 小時的系集路徑圖（網頁放在完整路徑圖上面）。加分項，失敗只略過
+            map120_path = None
+            try:
+                map120_path = plot_forecast_map(
+                    df, mean_df, init_time, tid, os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Forecast_Map_120h.png"),
+                    model_name=display, det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg), max_h=120)
+            except Exception as e:
+                print(f"[{display}-MAP120] 0–120 h 路徑圖失敗，略過: {e}")
+            # 暴風圈圖：只有成員帶暴風半徑的模式（WeatherNext 系列）才畫
+            wind_radii_path = None
+            try:
+                wind_radii_path = plot_wind_radii_map(
+                    df, mean_df, init_time, tid, os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Wind_Radii.png"),
+                    model_name=display, mean_name=_ens_name(cfg))
+            except Exception as e:
+                print(f"[{display}-RADII] 暴風圈圖失敗，略過: {e}")
 
             # 侵襲機率圖：加分項，失敗只略過這張
             strike_path, city_strike = None, None
@@ -4954,6 +5175,8 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'forecast_map_path': save_path,
                 'forecast_map_init': pd.Timestamp(init_time).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 'forecast_map_history': map_history,
+                'forecast_map_120_path': map120_path,
+                'wind_radii_path': wind_radii_path,
                 'strike_map_path': strike_path,
                 'city_strike': city_strike,
                 'plume_path': plume_path,

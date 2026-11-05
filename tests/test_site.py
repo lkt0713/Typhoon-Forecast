@@ -29,7 +29,8 @@ import forecast as f  # noqa: E402
 import generate_forecast_website as g  # noqa: E402
 
 PANE_NOW = ['sat', 'ohc', 'shear', 'steer', 'jtwc', 'official', 'cities']
-PANE_TRACK = ['cmp', 'maps', 'anim', 'tmap', 'trend']
+PANE_STRIKE = ['radii', 'strike', 'strikex']
+PANE_TRACK = ['cmp', 'maps120', 'maps', 'anim', 'tmap', 'trend']
 
 
 def _i18n_dicts() -> tuple[set, set]:
@@ -72,7 +73,7 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
             problems.append(f'{tid} 分頁不對：{tabs}')
         if 'class="storm-summary"' not in v:
             problems.append(f'{tid} 沒有白話摘要')
-        for pid, want in (('now', PANE_NOW), ('track', PANE_TRACK)):
+        for pid, want in (('now', PANE_NOW), ('track', PANE_TRACK), ('strike', PANE_STRIKE)):
             m = re.search(rf'class="model-panel tab-pane" data-track="{tid}-tabs" data-model="{pid}"', v)
             if not m:
                 continue
@@ -105,7 +106,7 @@ def rebuild_from_docs(src_docs: str, out_docs: str) -> list[dict]:
                 continue
             ens, det = f._ens_name(cfg), cfg.get('det_name')
             group.append({'track_id': tid, 'model': cfg['display'], 'ens_name': ens,
-                          'forecast_map_path': P('Forecast_Map.png'), 'forecast_map_history': [],
+                          'forecast_map_path': P('Forecast_Map.png'), 'forecast_map_120_path': P('Forecast_Map_120h.png'), 'wind_radii_path': P('Wind_Radii.png'), 'forecast_map_history': [],
                           'strike_map_path': P('Strike_Probability.png'), 'plume_path': P('Intensity_Plume.png'),
                           'trend_path': P('Track_Trend.png'), 'det_trend_path': P('Det_Track_Trend.png'),
                           'det_name': det if P('Det_Track_Trend.png') else None,
