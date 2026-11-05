@@ -3643,14 +3643,15 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 
 # ── 暴風圈預報圖（仿 JTWC 警報圖）──────────────────────────────────────────
 # WeatherNext 系列的成員有四象限 34／50／64 kt 暴風半徑（有幾種就畫幾種）。
-# 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），沿路徑逐小時
-# 內插後把四象限的範圍聯集起來，就是未來 120 小時暴風圈掃過的區域。
+# 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），每 6 小時在
+# 系集平均位置畫一組四象限暴風圈外框（像 JTWC 警報圖），現在的那組加粗並填色。
 WIND_RADII_LEVELS = [            # (kt, 填色, 透明度, 外框色)
     (34, '#F2C14E', 0.40, '#B8860B'),
     (50, '#F08A3C', 0.50, '#B4501A'),
     (64, '#D9463A', 0.55, '#8E2318'),
 ]
 WIND_RADII_MAX_H = 120
+WIND_RADII_STEP_H = 6            # 每幾小時畫一組暴風圈
 _RADII_QUAD = ('ne', 'se', 'sw', 'nw')
 
 
@@ -3685,10 +3686,6 @@ def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, trac
     levels = [(kt, cols, *sty) for kt, *sty in WIND_RADII_LEVELS if (cols := _radii_cols(df, kt))]
     if not levels or levels[0][0] != 34:
         return None
-    from matplotlib.patches import Patch
-    from shapely.geometry import Polygon
-    from shapely.ops import unary_union
-
     init_time = pd.Timestamp(init_time)
     t_end = init_time + pd.Timedelta(hours=max_h)
     m = mean_df[mean_df['valid_time'] <= t_end].dropna(subset=['lat', 'lon']).sort_values('valid_time')
@@ -3713,25 +3710,18 @@ def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, trac
     norm = lambda x: _normalize_lon_values(np.asarray(x, float), use_360=use_360)
     lon_i = norm(lon_i)
 
-    swaths, now_rings = {}, {}
-    for kt, cols, *_ in levels:
-        rings = [_quadrant_ring(lon_i[k], lat_i[k], *(rad[c][k] for c in cols)) for k in range(hh.size)]
-        rings = [Polygon(np.column_stack(r)).buffer(0) if r is not None else None for r in rings]
-        # 相鄰兩小時的暴風圈取凸包再聯集：象限交界的稜角掃過去不會留下鋸齒，邊緣跟 JTWC 圖一樣平滑
-        polys = [a.union(b).convex_hull for a, b in zip(rings, rings[1:]) if a is not None and b is not None]
-        polys += [r for r in rings if r is not None]
-        if polys:
-            swaths[kt] = unary_union(polys).buffer(0.06).buffer(-0.06)
-        ring0 = _quadrant_ring(lon_i[0], lat_i[0], *(rad[c][0] for c in cols))
-        if ring0 is not None:
-            now_rings[kt] = ring0
-    if 34 not in swaths:
+    # 每 6 小時一組暴風圈（JTWC 警報圖那樣逐點畫外框，不畫連續的掃過範圍）
+    steps = [k for k in range(hh.size) if round(hh[k]) % WIND_RADII_STEP_H == 0]
+    rings = {kt: [(hh[k], _quadrant_ring(lon_i[k], lat_i[k], *(rad[c][k] for c in cols))) for k in steps]
+             for kt, cols, *_ in levels}
+    rings = {kt: [(h, r) for h, r in v if r is not None] for kt, v in rings.items()}
+    rings = {kt: v for kt, v in rings.items() if v}
+    if 34 not in rings:
         return None
 
-    # 範圍：34 kt 掃過區域＋路徑
-    bx0, by0, bx1, by1 = swaths[34].bounds
-    xs = np.concatenate([lon_i, [bx0, bx1]])
-    ys = np.concatenate([lat_i, [by0, by1]])
+    # 範圍：所有暴風圈＋路徑
+    xs = np.concatenate([lon_i] + [r[0] for v in rings.values() for _, r in v])
+    ys = np.concatenate([lat_i] + [r[1] for v in rings.values() for _, r in v])
     pad = 1.5
     extent = (float(xs.min() - pad), float(xs.max() + pad), float(ys.min() - pad), float(ys.max() + pad))
     extent = _fit_extent_to_aspect(extent, FIG_AR, use_360)
@@ -3742,28 +3732,21 @@ def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, trac
     _setup_basemap(ax, extent)
     kw = dict(transform=ccrs.PlateCarree())
 
-    def _fill(geom, color, alpha, edge, z):
-        for g in getattr(geom, 'geoms', [geom]):
-            if g.is_empty:
-                continue
-            x, y = g.exterior.xy
-            ax.fill(x, y, facecolor=color, alpha=alpha, edgecolor='none', zorder=z, **kw)
-            ax.plot(x, y, color=edge, lw=0.8, alpha=0.8, zorder=z + 0.01, **kw)
-
     handles, labels = [], []
     for j, (kt, _cols, color, alpha, edge) in enumerate(levels):
-        if kt in swaths:
-            _fill(swaths[kt], color, alpha, edge, 1.2 + j * 0.1)
-            handles.append(Patch(facecolor=color, alpha=alpha + 0.15, edgecolor=edge, lw=0.8))
-            labels.append(f'{kt}-kt winds within {max_h} h')
-    # 現在的暴風圈：粗外框
-    for kt, _cols, color, alpha, edge in levels:
-        if kt in now_rings:
-            x, y = now_rings[kt]
-            ax.plot(np.append(x, x[0]), np.append(y, y[0]), color=edge, lw=2.0, zorder=3.0, **kw)
-    if now_rings:
-        handles.append(mlines.Line2D([], [], color='#5A4636', lw=2.0))
-        labels.append('Wind radii now')
+        if kt not in rings:
+            continue
+        for h, (x, y) in rings[kt]:
+            x, y = np.append(x, x[0]), np.append(y, y[0])
+            if h == 0:      # 現在的暴風圈：淡色填滿＋粗外框
+                ax.fill(x, y, facecolor=color, alpha=alpha * 0.6, edgecolor='none', zorder=1.2 + j * 0.1, **kw)
+                ax.plot(x, y, color=edge, lw=2.0, zorder=3.0 + j * 0.01, **kw)
+            else:
+                ax.plot(x, y, color=edge, lw=0.9, alpha=0.85, zorder=2.0 + j * 0.01, **kw)
+        handles.append(mlines.Line2D([], [], color=edge, lw=1.4))
+        labels.append(f'{kt}-kt wind radii, every {WIND_RADII_STEP_H} h')
+    handles.append(mlines.Line2D([], [], color='#5A4636', lw=2.4))
+    labels.append('Wind radii now (bold)')
 
     # 系集平均路徑：12 h 一點、24 h 標時間與風速
     for seg_lon, seg_lat in _split_track_segments(lon_i, lat_i):
@@ -3788,9 +3771,9 @@ def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, trac
     _style_legend(leg)
 
     init_str = init_time.strftime('%Y-%m-%d %H:%M UTC')
-    kts = '/'.join(str(kt) for kt in swaths)
+    kts = '/'.join(str(kt) for kt in rings)
     _set_map_titles(ax, f"{model_name}  ·  {track_id}  Wind Radii Forecast",
-                    f"Init {init_str}  ·  median {kts}-kt radii of {n_members} members along the mean track  ·  0–{max_h} h",
+                    f"Init {init_str}  ·  median {kts}-kt radii of {n_members} members on the mean track, every {WIND_RADII_STEP_H} h  ·  0–{max_h} h",
                     main_size=15, right_size=9)
     _watermark(ax, side='right')
     plt.tight_layout(pad=0.6)
