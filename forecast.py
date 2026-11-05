@@ -2832,7 +2832,7 @@ def plot_ohc_track_chart(tid: str, name: str, wt, series: list, date, source: st
         sp.set_color(BOX_EDGE)
     handles = [mlines.Line2D([], [], color=MEAN_COLOR, lw=2.4, marker='o', ms=6, markeredgecolor='white'),
                mlines.Line2D([], [], color='#8A99A8', lw=0, marker='s', ms=7, markeredgecolor='white')]
-    labels = [f'Ocean heat content under the forecast centre (±{OHC_BOX_DEG:g}° mean)', 'Land or water colder than 26 °C']
+    labels = [f'Ocean heat content under the forecast center (±{OHC_BOX_DEG:g}° mean)', 'Land or water colder than 26 °C']
     leg = ax.legend(handles, labels, loc='upper left', fontsize=8, ncol=2, borderpad=0.6, **LEGEND_KW)
     _style_legend(leg)
     ax.set_title(f"{tid} ({name})  Ocean Heat Content along the JTWC Forecast Track", loc='left',
@@ -3162,7 +3162,7 @@ def make_steering_maps(storms: list) -> list:
 SHEAR_MARK = os.path.join(OUTPUT_DIR, "WP_Shear.json")
 SHEAR_RAW = os.path.join("__pycache__", "aifs_shear.grib2")
 SHEAR_SUFFIX = "_Shear.png"
-SHEAR_STYLE_VERSION = 2            # 改了圖的樣式就加 1：同一期會用存著的數值重畫，不用重新下載
+SHEAR_STYLE_VERSION = 3            # 改了圖的樣式就加 1：同一期會用存著的數值重畫，不用重新下載
 SHEAR_BANDS = [(0, 10, '#E3F4E8', 'Low'), (10, 20, '#FCF3D6', 'Moderate'), (20, 999, '#FBE1DE', 'High')]
 
 
@@ -3244,7 +3244,7 @@ def plot_shear_chart(tid: str, name: str, cycle, series: list, save_path: str) -
     ax.set_title(f"AIFS-single  ·  {tid} ({name})  Vertical Wind Shear along the AIFS Track", loc='left',
                  fontsize=13.5, fontweight='bold', color=TEXT_DARK, pad=22)
     ax.text(0, 1.015, f"Init {pd.Timestamp(cycle):%Y-%m-%d %HZ}  ·  200–850 hPa, mean over 200–800 km from the "
-            "centre  ·  Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
+            "center  ·  Data: ECMWF Open Data (CC BY 4.0)", transform=ax.transAxes,
             ha='left', va='bottom', fontsize=8.5, color=TEXT_MUTED)
     _watermark(ax, side='right', top=True)   # 右下是箭頭列，署名改放右上
     plt.savefig(save_path, dpi=140, bbox_inches='tight', facecolor='white', pad_inches=0.12)

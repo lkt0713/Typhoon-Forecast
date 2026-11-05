@@ -13,7 +13,7 @@ Weather Lab 的下載端點只提供 DeepMind 自家的模式（實測 ENS／ECM
     AIFS ens  aifs-ens/0p25/enfo    52 成員
     AIFS det  aifs-single/0p25/oper 1 條
 
-資料授權為 ECMWF general licence（CC-BY 性質），與 WeatherNext 的 terms-of-use
+資料授權為 ECMWF general license（CC-BY 性質），與 WeatherNext 的 terms-of-use
 不同，網頁端須另外標示來源。
 """
 
@@ -376,7 +376,7 @@ def _write_csv(df: pd.DataFrame, path: str, source: str,
     tmp = path + ".part"
     with open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write(f"# Source: ECMWF Open Data ({source})\n")
-        f.write("# Licence: https://apps.ecmwf.int/datasets/licences/general (CC BY 4.0)\n")
+        f.write("# License: https://apps.ecmwf.int/datasets/licences/general (CC BY 4.0)\n")
         if ref_ids is not None:
             f.write(_REF_IDS_TAG + " ".join(sorted(ref_ids)) + "\n")
         df.to_csv(f, index=False)
