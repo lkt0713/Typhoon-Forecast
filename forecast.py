@@ -3642,7 +3642,8 @@ def plot_forecast_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time: pd.Tim
 
 
 # ── 暴風圈預報圖（仿 JTWC 警報圖）──────────────────────────────────────────
-# WeatherNext 系列的成員有四象限 34／50／64 kt 暴風半徑（有幾種就畫幾種）。
+# 成員帶四象限 34／50／64 kt 暴風半徑的模式都畫（有幾種就畫幾種）：WeatherNext 的 CSV 本來就有，
+# ECMWF（BUFR，ecmwf_bufr.py）與 NOAA（ATCF，noaa_atcf.py）讀檔時也存成同樣的欄名。
 # 路徑用系集平均；半徑取各時刻成員的中位數（未達該風速的成員算 0），每 12 小時在
 # 系集平均位置畫一組四象限暴風圈外框（像 JTWC 警報圖），現在的那組加粗並填色。
 WIND_RADII_LEVELS = [            # (kt, 填色, 透明度, 外框色)
@@ -3680,7 +3681,7 @@ def _quadrant_ring(lon: float, lat: float, r_ne: float, r_se: float, r_sw: float
 
 def plot_wind_radii_map(df: pd.DataFrame, mean_df: pd.DataFrame, init_time, track_id: str, save_path: str,
                         model_name: str, mean_name: str | None = None, max_h: int = WIND_RADII_MAX_H) -> str | None:
-    """暴風圈預報圖；成員資料沒有暴風半徑時回 None（只有 WeatherNext 系列有）。"""
+    """暴風圈預報圖；成員資料沒有暴風半徑時回 None。"""
     if not HAS_CARTOPY or df is None or df.empty or mean_df is None or mean_df.empty:
         return None
     levels = [(kt, cols, *sty) for kt, *sty in WIND_RADII_LEVELS if (cols := _radii_cols(df, kt))]
@@ -5065,7 +5066,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                     model_name=display, det_df=det_df, det_label=det_label, mean_name=_ens_name(cfg), max_h=120)
             except Exception as e:
                 print(f"[{display}-MAP120] 0–120 h 路徑圖失敗，略過: {e}")
-            # 暴風圈圖：只有成員帶暴風半徑的模式（WeatherNext 系列）才畫
+            # 暴風圈圖：成員帶暴風半徑的模式才畫（WeatherNext、ECMWF、NOAA）
             wind_radii_path = None
             try:
                 wind_radii_path = plot_wind_radii_map(

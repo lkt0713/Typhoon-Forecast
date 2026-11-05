@@ -112,6 +112,11 @@ def _decode(bufr_path: str) -> pd.DataFrame:
                    （#2#、#3# 是分析的 sig 4／sig 3，之後每個時距各佔 2 個序號）
       mslp/wind    只在各自的顯著點上報，所以自成一條序號：第 k 個時距是 #{k+1}#
       timePeriod   第 k 個序號即 6k 小時
+      暴風半徑     與 mslp/wind 同一條時間序號 v（分析 = 1）：每個時刻 3 個門檻
+                   （windSpeedThreshold 18／26／33 m/s ≈ 34／50／64 kt，序號 3(v-1)+t+1）×
+                   4 個象限（方位 0–90／90–180／180–270／270–360 = NE／SE／SW／NW，
+                   effectiveRadius… 序號 12(v-1)+4t+q+1），單位 m，未達門檻為 0。
+                   實測 2026-11-04 00Z 的 IFS／AIFS 系集與決定報四個檔都有。
     """
     import pdbufr  # 延後匯入：沒裝 pdbufr 的環境仍能載入 forecast.py 的其餘部分
 
@@ -146,6 +151,15 @@ def _decode(bufr_path: str) -> pd.DataFrame:
                 continue
             mslp = r.get(f"#{val_i}#pressureReducedToMeanSeaLevel")
             wind = r.get(f"#{val_i}#windSpeedAt10M")
+            radii = {}
+            for t in range(3):
+                thr = r.get(f"#{3 * (val_i - 1) + t + 1}#windSpeedThreshold")
+                kt = _THRESHOLD_KT.get(int(round(thr))) if pd.notna(thr) else None
+                if kt is None:
+                    continue
+                for q, quad in enumerate(RADII_QUADS):
+                    v = r.get(f"#{12 * (val_i - 1) + 4 * t + q + 1}#effectiveRadiusWithRespectToWindSpeedsAboveThreshold")
+                    radii[f"radius_{kt}_knot_winds_{quad}_km"] = np.nan if pd.isna(v) else float(v) / 1000.0
             rows.append({
                 "storm_id": storm,
                 "name": name,
@@ -157,6 +171,7 @@ def _decode(bufr_path: str) -> pd.DataFrame:
                 # BUFR 的 MSLP 是 Pa、風速是 m/s，專案內一律 hPa 與 kt
                 "mslp_hpa": np.nan if pd.isna(mslp) else float(mslp) / 100.0,
                 "wind_kt": np.nan if pd.isna(wind) else float(wind) * 1.9438444924406,
+                **radii,
             })
 
     return pd.DataFrame(rows)
@@ -272,6 +287,12 @@ def _match_track_ids(ec_df: pd.DataFrame,
 _CSV_COLUMNS = ["init_time", "track_id", "sample", "valid_time", "lead_time",
                 "lead_time_hours", "lat", "lon", "minimum_sea_level_pressure_hpa",
                 "maximum_sustained_wind_speed_knots"]
+# 四象限暴風半徑（km），欄名與 WeatherNext 的 CSV 相同，下游（暴風圈圖）不必分來源。
+# ECMWF 的門檻是 18／26／33 m/s（35.0／50.5／64.1 kt），視同 34／50／64 kt
+RADII_QUADS = ("ne", "se", "sw", "nw")
+RADII_KT = (34, 50, 64)
+RADII_COLS = [f"radius_{kt}_knot_winds_{q}_km" for kt in RADII_KT for q in RADII_QUADS]
+_THRESHOLD_KT = {18: 34, 26: 50, 33: 64}
 
 
 def _to_paired(tracks: pd.DataFrame, cycle: datetime) -> pd.DataFrame:
@@ -292,7 +313,11 @@ def _to_paired(tracks: pd.DataFrame, cycle: datetime) -> pd.DataFrame:
         "minimum_sea_level_pressure_hpa": tracks["mslp_hpa"].to_numpy(),
         "maximum_sustained_wind_speed_knots": tracks["wind_kt"].to_numpy(),
     })
-    return out[_CSV_COLUMNS].sort_values(["track_id", "sample", "lead_time_hours"])
+    # 暴風半徑：來源有就帶上（系集平均那份沒有，照舊只有基本欄位）
+    radii = [c for c in RADII_COLS if c in tracks.columns]
+    for c in radii:
+        out[c] = tracks[c].to_numpy()
+    return out[_CSV_COLUMNS + radii].sort_values(["track_id", "sample", "lead_time_hours"])
 
 
 def _ensemble_mean(tracks: pd.DataFrame) -> pd.DataFrame:

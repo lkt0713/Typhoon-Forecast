@@ -29,8 +29,8 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from ecmwf_bufr import (FETCH_NO_STORMS, FETCH_OK, FETCH_UNAVAILABLE,
-                        _ensemble_mean, _to_paired)
+from ecmwf_bufr import (FETCH_NO_STORMS, FETCH_OK, FETCH_UNAVAILABLE, RADII_COLS,
+                        RADII_KT, RADII_QUADS, _ensemble_mean, _to_paired)
 
 BASE_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/ens_tracker/prod"
 
@@ -111,12 +111,39 @@ def _latlon(s: str) -> float:
     return -v if s[-1] in "SW" else v
 
 
-def parse_atcf(text: str, member: int, year: int) -> pd.DataFrame:
-    """ATCF a-deck → long format（track_id, member, step, lat, lon, mslp_hpa, wind_kt）。
+NM_TO_KM = 1.852
 
-    同一時距會因 34／50／64 kt 風圈重複出現好幾列，位置與強度都一樣，取第一列。
+
+def _atcf_radii(f: list[str]) -> dict:
+    """一列 ATCF 的暴風半徑 → {radius_{kt}_knot_winds_{象限}_km: km}。
+
+    欄位 11 = 門檻（34／50／64 kt）、12 = 象限代碼（NEQ：依序 NE／SE／SW／NW；AAA：全圓）、
+    13–16 = 半徑（海里）。沒有風圈資料的列回空 dict。"""
+    if len(f) < 17:
+        return {}
+    try:
+        kt = int(f[11])
+        r = [float(x) if x.lstrip("-").isdigit() else float("nan") for x in f[13:17]]
+    except ValueError:
+        return {}
+    if kt not in RADII_KT:
+        return {}
+    code = f[12].upper()
+    if code == "AAA":
+        r = [r[0]] * 4
+    elif code != "NEQ":
+        return {}
+    return {f"radius_{kt}_knot_winds_{q}_km": (v * NM_TO_KM if v >= 0 else float("nan"))
+            for q, v in zip(RADII_QUADS, r)}
+
+
+def parse_atcf(text: str, member: int, year: int) -> pd.DataFrame:
+    """ATCF a-deck → long format（track_id, member, step, lat, lon, mslp_hpa, wind_kt, 暴風半徑）。
+
+    同一時距會因 34／50／64 kt 風圈重複出現好幾列，位置與強度都一樣：位置取第一列，
+    各列的四象限暴風半徑（海里 → km）併進同一筆。
     """
-    rows, seen = [], set()
+    rows, seen = [], {}
     for line in text.splitlines():
         f = [x.strip() for x in line.split(",")]
         if len(f) < 10 or f[0] not in _BASINS:
@@ -129,8 +156,8 @@ def parse_atcf(text: str, member: int, year: int) -> pd.DataFrame:
             continue
         tid = f"{f[0]}{num:02d}{year}"
         if (tid, tau) in seen:
+            seen[(tid, tau)].update(_atcf_radii(f))
             continue
-        seen.add((tid, tau))
         try:
             lat, lon = _latlon(f[6]), _latlon(f[7])
         except (ValueError, IndexError):
@@ -138,10 +165,12 @@ def parse_atcf(text: str, member: int, year: int) -> pd.DataFrame:
         lon = ((lon + 180.0) % 360.0) - 180.0
         wind = float(f[8]) if f[8].lstrip("-").isdigit() and int(f[8]) > 0 else float("nan")
         mslp = float(f[9]) if f[9].lstrip("-").isdigit() and int(f[9]) > 0 else float("nan")
-        rows.append({"track_id": tid, "name": tid, "member": member, "step": tau,
-                     "lat": lat, "lon": lon, "mslp_hpa": mslp, "wind_kt": wind})
+        row = {"track_id": tid, "name": tid, "member": member, "step": tau,
+               "lat": lat, "lon": lon, "mslp_hpa": mslp, "wind_kt": wind, **_atcf_radii(f)}
+        seen[(tid, tau)] = row
+        rows.append(row)
     return pd.DataFrame(rows, columns=["track_id", "name", "member", "step",
-                                       "lat", "lon", "mslp_hpa", "wind_kt"])
+                                       "lat", "lon", "mslp_hpa", "wind_kt", *RADII_COLS])
 
 
 def _write_csv(df: pd.DataFrame, path: str, source: str) -> None:
