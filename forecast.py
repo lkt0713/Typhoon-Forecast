@@ -3372,10 +3372,7 @@ def _archive_trends(storms: list) -> dict:
 # 模式多出幾 %」，再對 24–120 h 取平均，長時距誤差大不會一個人說了算。
 # 官方預報（各自用自己的定位校驗、只在全部樣本）另列一區，不參與排名。
 SHOWDOWN_LEADS = [24, 48, 72, 96, 120]
-SHOWDOWN_STYLE = 2                    # 改了圖的樣式就加 1，已結束的颱風會重畫
-# 列的順序跟網頁校驗表一樣（系集平均在前、決定報在後，各自照這個順序），名次另外標在左邊
-SHOWDOWN_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'WN2-C 1000', 'GENC', 'AIFS-ENS', 'AIFS-single',
-                  'ECMWF-ENS', 'ECMWF HRES', 'AIGEFS', 'AIGFS', 'GEFS', 'GFS']
+SHOWDOWN_STYLE = 1                    # 改了圖的樣式就加 1，已結束的颱風會重畫
 SHOWDOWN_OFFICIAL = ('JTWC', 'JMA', 'CWA')
 SHOWDOWN_MIN_N = 3
 _SD_MEDAL = {1: '#E0B33A', 2: '#AEB8C2', 3: '#C58A5A'}
@@ -3414,16 +3411,7 @@ def _sd_rank(track: dict, intd: dict, models: list) -> list:
         rows.append({'m': m, 'score': float(np.mean(rel)) - 1.0,
                      'int': float(np.mean([v[0] for v in iv])) if iv else None,
                      'bias': float(np.mean(bs)) if bs else None})
-    rows.sort(key=lambda r: r['score'])
-    for k, r in enumerate(rows, start=1):
-        r['rank'] = k
-    return rows
-
-
-def _sd_display_order(rows: list, det: set) -> list:
-    """照網頁校驗表的順序排列：系集平均、決定報各依 SHOWDOWN_ORDER，官方依 JTWC／JMA／CWA。"""
-    pos = {m: i for i, m in enumerate(SHOWDOWN_ORDER + list(SHOWDOWN_OFFICIAL))}
-    return sorted(rows, key=lambda r: (r['m'] in SHOWDOWN_OFFICIAL, r['m'] in det, pos.get(r['m'], 99), r['m']))
+    return sorted(rows, key=lambda r: r['score'])
 
 
 def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
@@ -3439,15 +3427,11 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     rows = _sd_rank(hom, inth, [m for m in hom if m not in SHOWDOWN_OFFICIAL])
     if len(rows) < 3:
         return None
-    winner = rows[0]['m']
-    rows = _sd_display_order(rows, det)
     off = card.get('off') or {}
     off_rows = _sd_rank(off.get('track') or {}, off.get('int') or {}, list(off.get('track') or {})) if off else []
     off_ranked = len(off_rows) >= 2
     if off_ranked:
         off_track = off.get('track') or {}
-        off_winner = off_rows[0]['m']
-        off_rows = _sd_display_order(off_rows, set())
     else:
         off_track = card.get('all') or {}
         inta = (card.get('int') or {}).get('all') or {}
@@ -3475,7 +3459,7 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     name = data.get('name') or tid
     first, last = data.get('first'), data.get('last')
     dates = (f"{pd.Timestamp(first):%Y-%m-%d} – {pd.Timestamp(last):%m-%d}" if first and last else '')
-    n24 = (_sd_get(hom, winner, 24) or [None, None])[1]
+    n24 = (_sd_get(hom, rows[0]['m'], 24) or [None, None])[1]
     ax.text(0.45, 0.62, f"{name}  ({tid})", fontsize=22, fontweight='bold', color=TEXT_DARK, va='baseline')
     ax.text(11.55, 0.62, 'Forecast Showdown', fontsize=22, fontweight='bold', color='#B8860B', va='baseline', ha='right')
     sub = '  ·  '.join(x for x in (dates, f"peak {data['peak']} kt" if data.get('peak') else '',
@@ -3489,7 +3473,7 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     ax.text(X_RANK, y, 'Rank', ha='center', **hdr)
     ax.text(X_NAME, y, 'Model', ha='left', **hdr)
     for i, ld in enumerate(SHOWDOWN_LEADS):
-        n = (_sd_get(hom, winner, ld) or [None, None])[1]
+        n = (_sd_get(hom, rows[0]['m'], ld) or [None, None])[1]
         ax.text(X_C0 + CW * (i + 0.5), y - 0.06, f"{ld} h", ha='center', **hdr)
         if n:
             ax.text(X_C0 + CW * (i + 0.5), y + 0.16, f"n={n}", ha='center', fontsize=7.5, color=TEXT_MUTED, va='center')
@@ -3526,14 +3510,13 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
         span = lambda lo, hi: max(hi - lo, 0.5 * lo, 1e-9)
         ints = [r['int'] for r in group if r['int'] is not None]
         ilo, ihi = (min(ints), max(ints)) if ints else (0, 1)
-        for r in group:
-            k = r.get('rank')
+        for k, r in enumerate(group, start=1):
             if ranked and k == 1:
                 ax.add_patch(Rectangle((0.45, y - RH / 2), 11.1, RH, fc='#FFF6DC', ec='none', zorder=0))
             if ranked and k in _SD_MEDAL:
                 ax.add_patch(Circle((X_RANK, y), 0.17, fc=_SD_MEDAL[k], ec='white', lw=1.5, zorder=2))
                 ax.text(X_RANK, y, str(k), ha='center', va='center', fontsize=10.5, fontweight='bold', color='white', zorder=3)
-            elif ranked and k:
+            elif ranked:
                 ax.text(X_RANK, y, str(k), ha='center', va='center', fontsize=10.5, color=TEXT_MUTED)
             ax.text(X_NAME, y - (0.06 if r['m'] in det else 0), r['m'], ha='left', va='center', fontsize=11.5,
                     fontweight='bold', color=TEXT_DARK)
@@ -3586,8 +3569,8 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     ax.text(11.55, H - 0.18, 'By Pillar', fontsize=7.5, style='italic', color=TEXT_MUTED, ha='right', va='center')
     plt.savefig(save_path, dpi=200, facecolor='white')
     plt.close(fig)
-    off_win = f"，官方第一名 {off_winner}" if off_ranked else ''
-    print(f"[SHOWDOWN] 已儲存誤差大 PK：{save_path}（第一名 {winner}，{len(rows)} 個模式{off_win}）")
+    off_win = f"，官方第一名 {off_rows[0]['m']}" if off_ranked else ''
+    print(f"[SHOWDOWN] 已儲存誤差大 PK：{save_path}（第一名 {rows[0]['m']}，{len(rows)} 個模式{off_win}）")
     return save_path
 
 
