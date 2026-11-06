@@ -945,8 +945,8 @@ CHANGELOG = [
          'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
         ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
          'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
-        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差',
-         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside'),
+        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
+         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
         ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
          'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
     ]),
@@ -1071,7 +1071,7 @@ def _changelog_html() -> str:
 NOTE_ENS120 = "Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position"
 NOTE_RADII = "In the style of the JTWC warning graphic &nbsp;·&nbsp; Navy line = ensemble-mean track (dots every 12 h, time and mean wind every 24 h) &nbsp;·&nbsp; Outlines = 34-, 50- and 64-kt wind radii every 12 h out to 120 h, from the median radius of all members in each quadrant (members that never reach that wind count as 0) &nbsp;·&nbsp; Bold, filled = wind radii now &nbsp;·&nbsp; Radii come from each model’s own tracker: WeatherNext, ECMWF (IFS / AIFS, thresholds 18 / 26 / 33 m/s) and NOAA (GEFS / AIGEFS) &nbsp;·&nbsp; Model winds run low, AI models especially, so the 50- and 64-kt outlines are often smaller than in the official warning or missing"
 
-NOTE_SHOWDOWN = "Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are checked against their own positions and not ranked"
+NOTE_SHOWDOWN = "Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued"
 
 TEASER_THUMB = 'genesis_teaser.jpg'
 
@@ -3903,7 +3903,7 @@ const I18N = {
     'off.now':          'Now',
     'off.et':           'Extratropical',
     'panel.showdown':   'Forecast Showdown',
-    'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are checked against their own positions and not ranked',
+    'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued',
     'sub.maps120':      '0–120 h',
     'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
     'note.ensemble120': 'Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
@@ -4152,7 +4152,7 @@ const I18N = {
     'off.now':          '現在',
     'off.et':           '溫帶氣旋',
     'panel.showdown':   '誤差大 PK',
-    'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報各自以自己的定位校驗，不參與排名',
+    'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報只在彼此之間排名，各自以自己的定位校驗，比的是三家都有發布的那些預報',
     'sub.maps120':      '0～120 小時',
     'panel.ensemble120': '系集路徑預報（0～120 小時）',
     'note.ensemble120': '與下方完整路徑圖相同的成員、系集平均與決定報，只畫到 120 小時（5 天），近幾天的路徑放大看得更清楚 &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
