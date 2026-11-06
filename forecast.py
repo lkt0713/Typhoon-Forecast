@@ -2473,7 +2473,7 @@ def compute_scorecard() -> dict:
                        'at': {'all': _signed(rx, 5), 'homog': _signed(hx, 5)},
                        'ct': {'all': _signed(rx, 6), 'homog': _signed(hx, 6)},
                        'int': {'all': _intensity(ri), 'homog': _intensity(hi)}}
-        # 官方預報彼此比的同質樣本（誤差大 PK 的官方區與校驗表的官方列用）：至少兩家才有比的意義
+        # 官方預報彼此比的同質樣本（成績單的官方區與校驗表的同質分頁用）：至少兩家才有比的意義
         if len({r[1] for r in rs if r[1] in OFFICIAL_AGENCIES}) >= 2:
             ox = _homog(rx, True)
             card[scope]['off'] = {'track': _track(_homog(rs, True)), 'at': _signed(ox, 5), 'ct': _signed(ox, 6),
@@ -3374,13 +3374,13 @@ def _archive_trends(storms: list) -> dict:
     return out
 
 
-# ── 誤差大 PK（颱風結束後的成績總表，PNG）──────────────────────────────────────
+# ── 成績單（颱風結束後的成績總表，PNG）──────────────────────────────────────
 # 颱風消散後替它畫一張「誰最準」的總表，放在歷史頁該颱風最上面，也方便分享。
 # 排名用同質樣本（每個模式比的是同一批預報）的路徑誤差：各預報時數先算「比當時最好的
 # 模式多出幾 %」，再對 24–120 h 取平均，長時距誤差大不會一個人說了算。
-# 官方預報（各自用自己的定位校驗、只在全部樣本）另列一區，不參與排名。
+# 官方預報（各自用自己的定位校驗）另列一區，不跟模式一起排名，只在彼此之間比。
 SHOWDOWN_LEADS = [24, 48, 72, 96, 120]
-SHOWDOWN_STYLE = 1                    # 改了圖的樣式就加 1，已結束的颱風會重畫
+SHOWDOWN_STYLE = 2                    # 改了圖的樣式就加 1，已結束的颱風會重畫
 SHOWDOWN_OFFICIAL = ('JTWC', 'JMA', 'CWA')
 SHOWDOWN_MIN_N = 3
 _SD_MEDAL = {1: '#E0B33A', 2: '#AEB8C2', 3: '#C58A5A'}
@@ -3423,7 +3423,7 @@ def _sd_rank(track: dict, intd: dict, models: list) -> list:
 
 
 def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
-    """畫誤差大 PK；同質樣本裡能排名的模式少於 3 個時回 None。
+    """畫成績單；同質樣本裡能排名的模式少於 3 個時回 None。
 
     官方預報（JTWC／JMA／CWA）在下方另一區，彼此比（官方同質樣本 card['off']，至少兩家）；
     沒有那份樣本的舊存檔照列全部樣本的數字、不排名。"""
@@ -3469,7 +3469,7 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     dates = (f"{pd.Timestamp(first):%Y-%m-%d} – {pd.Timestamp(last):%m-%d}" if first and last else '')
     n24 = (_sd_get(hom, rows[0]['m'], 24) or [None, None])[1]
     ax.text(0.45, 0.62, f"{name}  ({tid})", fontsize=22, fontweight='bold', color=TEXT_DARK, va='baseline')
-    ax.text(11.55, 0.62, 'Forecast Showdown', fontsize=22, fontweight='bold', color='#B8860B', va='baseline', ha='right')
+    ax.text(11.55, 0.62, 'Report Card', fontsize=22, fontweight='bold', color='#B8860B', va='baseline', ha='right')
     sub = '  ·  '.join(x for x in (dates, f"peak {data['peak']} kt" if data.get('peak') else '',
                                    'mean track error vs JTWC warning positions',
                                    f"homogeneous sample: every model on the same {n24} forecasts at 24 h" if n24 else '') if x)
@@ -3578,7 +3578,7 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     plt.savefig(save_path, dpi=200, facecolor='white')
     plt.close(fig)
     off_win = f"，官方第一名 {off_rows[0]['m']}" if off_ranked else ''
-    print(f"[SHOWDOWN] 已儲存誤差大 PK：{save_path}（第一名 {rows[0]['m']}，{len(rows)} 個模式{off_win}）")
+    print(f"[SHOWDOWN] 已儲存成績單：{save_path}（第一名 {rows[0]['m']}，{len(rows)} 個模式{off_win}）")
     return save_path
 
 
@@ -3647,7 +3647,7 @@ def update_storm_archive(storms: list, card: dict) -> None:
         data['peak'] = max(winds) if winds else None
         data['first'], data['last'] = (data['obs'][0][0], data['obs'][-1][0]) if data['obs'] else (None, None)
         data['active'] = tid in active
-        # 颱風結束後畫誤差大 PK；成績或樣式變了才重畫（已結束的颱風成績幾乎不再變）
+        # 颱風結束後畫成績單；成績或樣式變了才重畫（已結束的颱風成績幾乎不再變）
         if not data['active'] and data.get('card'):
             import hashlib
             sig = hashlib.sha1(json.dumps([data['card'], data.get('name'), data.get('peak'), sorted(data.get('det', [])),
@@ -3658,7 +3658,7 @@ def update_storm_archive(storms: list, card: dict) -> None:
                     if plot_error_showdown(tid, data, os.path.join(ARCHIVE_DIR, rel)):
                         data['showdown'], data['showdown_sig'] = rel, sig
                 except Exception as e:
-                    print(f"[SHOWDOWN] {tid} 誤差大 PK 失敗，略過: {e}")
+                    print(f"[SHOWDOWN] {tid} 成績單失敗，略過: {e}")
         try:
             with open(path, 'w', encoding='utf-8') as fh:
                 json.dump(data, fh, separators=(',', ':'), ensure_ascii=False)

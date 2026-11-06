@@ -802,12 +802,12 @@ def _load_archive(docs_dir: str) -> list[dict]:
                 fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
         except OSError:
             pass
-        # 誤差大 PK（颱風結束後 forecast.py 畫的總表）：沒有就寫空片段，網頁那一塊就不顯示
+        # 成績單（颱風結束後 forecast.py 畫的總表）：沒有就寫空片段，網頁那一塊就不顯示
         sd = d.get('showdown')
         sd_html = ''
         if sd and os.path.exists(os.path.join(adir, sd)):
-            sd_html = (f'<h4 class="arch-sub" data-i18n="panel.showdown">Forecast Showdown</h4>'
-                       + _figure('archive/' + sd, f"{tid} Forecast Showdown")
+            sd_html = (f'<h4 class="arch-sub" data-i18n="panel.showdown">Report Card</h4>'
+                       + _figure('archive/' + sd, f"{tid} Report Card")
                        + '<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>'
                        + f'<p class="map-note" data-i18n="note.showdown">{NOTE_SHOWDOWN}</p></details>')
         try:
@@ -953,8 +953,8 @@ CHANGELOG = [
          'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
         ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
          'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
-        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
-         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
+        ('歷史頁新增「成績單」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
+         'The Archive adds a Report Card: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
         ('校驗的官方預報自成一組：JTWC、日本氣象廳、中央氣象署各自以自己的定位校驗，並在三家之間排名；同質樣本與全部樣本分頁都會列出',
          'Verification puts the official forecasts in their own group, in both the homogeneous and all-forecasts tabs: JTWC, JMA and CWA are each checked against their own positions and ranked among themselves'),
         ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
@@ -3936,7 +3936,7 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.et':           'Extratropical',
-    'panel.showdown':   'Forecast Showdown',
+    'panel.showdown':   'Report Card',
     'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued',
     'sub.maps120':      '0–120 h',
     'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
@@ -4186,7 +4186,7 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.et':           '溫帶氣旋',
-    'panel.showdown':   '誤差大 PK',
+    'panel.showdown':   '成績單',
     'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報只在彼此之間排名，各自以自己的定位校驗，比的是三家都有發布的那些預報',
     'sub.maps120':      '0～120 小時',
     'panel.ensemble120': '系集路徑預報（0～120 小時）',
