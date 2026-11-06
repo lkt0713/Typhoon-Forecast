@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime, timedelta, timezone
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "7.1.0"
+SITE_VERSION = "7.1.1"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -936,6 +936,20 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 新版本加在最前面；第一筆的版本號必須等於 SITE_VERSION（tests/test_site.py 會檢查）。
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
+    ('7.1.1', '2026-11-06', [
+        ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
+         'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
+        ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
+         'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
+        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
+         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
+        ('校驗的官方預報自成一組：JTWC、日本氣象廳、中央氣象署各自以自己的定位校驗，並在三家之間排名',
+         'Verification puts the official forecasts in their own group: JTWC, JMA and CWA are each checked against their own positions and ranked among themselves'),
+        ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
+         'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
+        ('修正：英文統一為美式拼法、時區按鈕顯示「UTC+8」、切換時區時頁首不再位移、歷史頁卡片的文字對齊',
+         'Fixes: American spelling throughout, the time-zone button reads “UTC+8”, the header no longer shifts when switching time zones, and archive card text lines up'),
+    ]),
     ('7.1.0', '2026-10-28', [
         ('頁首新增 UTC／臺灣時間切換鈕，更新時間可以直接看臺灣時間',
          'A header button shows the update time in UTC or Taiwan time'),
@@ -943,24 +957,16 @@ CHANGELOG = [
          'New in Summary: ocean heat content along the JTWC forecast track, showing how warm the water ahead is'),
         ('強度分頁加上提醒：AI 模式的強度通常偏弱，請看增強或減弱的趨勢',
          'The Intensity tab now explains that AI-model intensities run low and are best read as a trend'),
-        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗，並在三家之間排名',
-         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions and ranked among themselves'),
+        ('校驗開始收錄 JTWC、日本氣象廳與中央氣象署的官方預報',
+         'Verification now also scores the JTWC, JMA and CWA official forecasts'),
         ('城市侵襲表預設只列有機率的模式，一鍵展開全部',
          'The city strike table lists only models with any chance, with a button to show them all'),
         ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
          'Faster: the first visit loads about 0.7 MB instead of 3.2 MB, and the page reloads only when new data arrives'),
         ('更好讀：淺色主題的灰字更清楚，分頁可用方向鍵切換，表格支援螢幕閱讀器',
          'Easier to read: clearer gray text in the light theme, arrow keys switch tabs, tables work with screen readers'),
-        ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
-         'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
-        ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
-         'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
-        ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
-         'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
-        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
-         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
-        ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
-         'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
+        ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片',
+         'Fixes: the globe no longer crowds the cover text on phones, and a duplicate update-time card is gone'),
     ]),
     ('7.0.0', '2026-10-26', [
         ('概況新增沿 AIFS 預報路徑的垂直風切（200–850 hPa，颱風中心外 200–800 km 平均）',
