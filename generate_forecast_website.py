@@ -363,7 +363,7 @@ def _score_groups(models: list, det_names: set) -> list:
         ('score.grp.det', 'Deterministic', 'score.grp.det.sub',
          'single run — usually less accurate than an ensemble mean', det),
         ('score.grp.off', 'Official forecasts', 'score.grp.off.sub',
-         'each verified against its own positions, which flatters them — not ranked', off)) if g[4]]
+         'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions', off)) if g[4]]
 
 
 # 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
@@ -405,11 +405,13 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
     if not models:
         return ''
     mag = (lambda v: abs(v[0])) if signed else (lambda v: v[0])
-    rank = {}
+    rank, rank_off = {}, {}
     for ld in SCORE_LEADS:
-        # 官方預報用自己的定位當實況、數字偏有利，不跟模式一起排名
+        # 官方預報用自己的定位當實況、數字偏有利，不跟模式一起排名；官方之間另外排（至少兩家）
         vals = [mag(v) for m in models if m not in OFFICIAL_MODELS and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
         rank[ld] = (min(vals), max(vals)) if vals else None
+        ov = [mag(v) for m in models if m in OFFICIAL_MODELS and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
+        rank_off[ld] = (min(ov), max(ov)) if len(ov) >= 2 else None
     fmt = (lambda x: f'{x:+.0f}'.replace('-', '−')) if signed else (lambda x: f'{x:.0f}')
 
     def extra(v):
@@ -430,15 +432,18 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
                     cells.append('<td class="c-nil">—</td>')
                     continue
                 n = v[1]
-                if m in OFFICIAL_MODELS and n >= SCORE_MIN_N:
+                rk = rank_off if m in OFFICIAL_MODELS else rank
+                if m in OFFICIAL_MODELS and n >= SCORE_MIN_N and rk[ld] is None:
+                    # 只有一家官方預報：沒得比，照舊灰底參考格
                     cells.append(f'<td class="c-ref">{fmt(v[0])}<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
-                if n < SCORE_MIN_N or rank[ld] is None:
+                if n < SCORE_MIN_N or rk[ld] is None:
                     cells.append(f'<td class="c-low" title="n &lt; {SCORE_MIN_N}">{fmt(v[0])}'
                                  f'<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
-                lo, hi = rank[ld]
-                rel = (mag(v) - lo) / (hi - lo) if hi > lo else 0.0
+                lo, hi = rk[ld]
+                # 差距要夠大才變紅（分母至少是最好值的一半）：官方只有三家時，差 1、2 才不會一綠一紅
+                rel = (mag(v) - lo) / max(hi - lo, 0.5 * lo, 1e-9)
                 if signed:
                     tag = ''
                 else:
@@ -508,6 +513,13 @@ def _score_metric_cards(card: dict, sample: str) -> dict:
     card = card or {}
     out = {'track': card.get(sample) or {},
            **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
+    # 「全部」樣本的官方列換成官方同質樣本（JTWC／JMA／CWA 三家都有的預報），三家才比得公平；
+    # 只有一家的颱風沒有這份樣本，照原本的數字
+    off = card.get('off') or {}
+    if sample == 'all' and off:
+        for k in out:
+            if off.get(k):
+                out[k] = {**{m: v for m, v in out[k].items() if m not in OFFICIAL_MODELS}, **off[k]}
     out['int'] = {m: {ld: ([v[2], v[1], v[0]] if len(v) >= 3 and v[2] is not None else v) for ld, v in leads.items()}
                   for m, leads in out['int'].items()}
     return out
@@ -559,7 +571,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
                 'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
-                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.'}
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; their archive starts later, so they appear only in the all-forecasts tab.'}
     if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
         notes.append('score.official')
     tabs, panels = [], []
@@ -778,6 +790,19 @@ def _load_archive(docs_dir: str) -> list[dict]:
                 fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
         except OSError:
             pass
+        # 誤差大 PK（颱風結束後 forecast.py 畫的總表）：沒有就寫空片段，網頁那一塊就不顯示
+        sd = d.get('showdown')
+        sd_html = ''
+        if sd and os.path.exists(os.path.join(adir, sd)):
+            sd_html = (f'<h4 class="arch-sub" data-i18n="panel.showdown">Forecast Showdown</h4>'
+                       + _figure('archive/' + sd, f"{tid} Forecast Showdown")
+                       + '<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>'
+                       + f'<p class="map-note" data-i18n="note.showdown">{NOTE_SHOWDOWN}</p></details>')
+        try:
+            with open(os.path.join(adir, f'{tid}_showdown.html'), 'w', encoding='utf-8') as fh:
+                fh.write(sd_html)
+        except OSError:
+            pass
         # 預報趨勢圖（颱風消散前最後一版的複本）：每模式一個分頁，網頁點開時才載入
         trends = [(lbl, rel) for lbl, rel in (d.get('trends') or []) if os.path.exists(os.path.join(adir, rel))]
         tpath = os.path.join(adir, f'{tid}_trend.html')
@@ -918,8 +943,8 @@ CHANGELOG = [
          'New in Summary: ocean heat content along the JTWC forecast track, showing how warm the water ahead is'),
         ('強度分頁加上提醒：AI 模式的強度通常偏弱，請看增強或減弱的趨勢',
          'The Intensity tab now explains that AI-model intensities run low and are best read as a trend'),
-        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗',
-         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions'),
+        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗，並在三家之間排名',
+         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions and ranked among themselves'),
         ('城市侵襲表預設只列有機率的模式，一鍵展開全部',
          'The city strike table lists only models with any chance, with a button to show them all'),
         ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
@@ -932,6 +957,8 @@ CHANGELOG = [
          'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
         ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
          'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
+        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差，官方預報也彼此比較',
+         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside, and ranks the official forecasts among themselves'),
         ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
          'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
     ]),
@@ -1055,6 +1082,8 @@ def _changelog_html() -> str:
 
 NOTE_ENS120 = "Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position"
 NOTE_RADII = "In the style of the JTWC warning graphic &nbsp;·&nbsp; Navy line = ensemble-mean track (dots every 12 h, time and mean wind every 24 h) &nbsp;·&nbsp; Outlines = 34-, 50- and 64-kt wind radii every 12 h out to 120 h, from the median radius of all members in each quadrant (members that never reach that wind count as 0) &nbsp;·&nbsp; Bold, filled = wind radii now &nbsp;·&nbsp; Radii come from each model’s own tracker: WeatherNext, ECMWF (IFS / AIFS, thresholds 18 / 26 / 33 m/s) and NOAA (GEFS / AIGEFS) &nbsp;·&nbsp; Model winds run low, AI models especially, so the 50- and 64-kt outlines are often smaller than in the official warning or missing"
+
+NOTE_SHOWDOWN = "Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued"
 
 TEASER_THUMB = 'genesis_teaser.jpg'
 
@@ -1993,6 +2022,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="arch-grid reveal">{"".join(cards)}</div>
             <div class="panel arch-detail" hidden>
                 <div class="panel-header"><span class="panel-icon">🗂️</span><span class="arch-title"></span></div>
+                <div class="arch-showdown"></div>
                 <div class="tm-controls arch-controls">
                     <select class="arch-model" aria-label="Model"></select>
                     <span class="tm-init"><span data-i18n="arch.init">Init</span> <b class="arch-init-val"></b></span>
@@ -3878,12 +3908,14 @@ const I18N = {
     'score.grp.det': 'Deterministic',
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
     'score.grp.off':  'Official forecasts',
-    'score.grp.off.sub': 'each verified against its own positions, which flatters them — not ranked',
+    'score.grp.off.sub': 'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions',
     'score.chart.y': 'Mean track error (km)',
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.et':           'Extratropical',
+    'panel.showdown':   'Forecast Showdown',
+    'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued',
     'sub.maps120':      '0–120 h',
     'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
     'note.ensemble120': 'Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
@@ -3912,7 +3944,7 @@ const I18N = {
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
     'note.ohctrack':    'Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
-    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; their archive starts later, so they appear only in the all-forecasts tab.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -4125,12 +4157,14 @@ const I18N = {
     'score.grp.det': '決定報',
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
     'score.grp.off':  '官方預報',
-    'score.grp.off.sub': '各自以自己的定位為實況，數字會偏有利，不參與排名',
+    'score.grp.off.sub': '只在彼此之間排名，比的是三家都有發布的預報；各自以自己的定位為實況',
     'score.chart.y': '平均路徑誤差（公里）',
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.et':           '溫帶氣旋',
+    'panel.showdown':   '誤差大 PK',
+    'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報只在彼此之間排名，各自以自己的定位校驗，比的是三家都有發布的那些預報',
     'sub.maps120':      '0～120 小時',
     'panel.ensemble120': '系集路徑預報（0～120 小時）',
     'note.ensemble120': '與下方完整路徑圖相同的成員、系集平均與決定報，只畫到 120 小時（5 天），近幾天的路徑放大看得更清楚 &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
@@ -4159,7 +4193,7 @@ const I18N = {
     'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
     'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
     'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
-    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名；它們的存檔比模式晚開始，只列在「全部」樣本。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名，只在彼此之間比，用的是三家同一時間都有發布的預報；它們的存檔比模式晚開始，只列在「全部」分頁。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
@@ -4952,6 +4986,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const mapEl = box.querySelector('.arch-map');
     const scoreEl = box.querySelector('.arch-score');
     const trendEl = box.querySelector('.arch-trend');
+    const showdownEl = box.querySelector('.arch-showdown');
     const OLD = [126, 196, 232], NEW = [59, 47, 143];          // 舊期淺藍 → 新期深紫，同趨勢圖
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
@@ -5017,9 +5052,12 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
         box.querySelector('.arch-title').textContent = card.querySelector('.arch-name').textContent + ' · ' + tid;
         try {
             // 成績單與趨勢圖不需要地圖：先放上去，地圖函式庫載不到也看得到
-            const [html, trendHtml] = await Promise.all([
+            const [html, trendHtml, sdHtml] = await Promise.all([
                 fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
-                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
+                fetch(`archive/${tid}_showdown.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            showdownEl.innerHTML = sdHtml;
+            i18nIn(showdownEl);
             scoreEl.innerHTML = html;
             i18nIn(scoreEl);
             trendEl.innerHTML = trendHtml;
