@@ -2465,9 +2465,11 @@ def compute_scorecard() -> dict:
                        'at': {'all': _signed(rx, 5), 'homog': _signed(hx, 5)},
                        'ct': {'all': _signed(rx, 6), 'homog': _signed(hx, 6)},
                        'int': {'all': _intensity(ri), 'homog': _intensity(hi)}}
-        # 官方預報彼此比的同質樣本（誤差大 PK 的官方區用）：至少兩家才有比的意義
+        # 官方預報彼此比的同質樣本（誤差大 PK 的官方區與校驗表的官方列用）：至少兩家才有比的意義
         if len({r[1] for r in rs if r[1] in OFFICIAL_AGENCIES}) >= 2:
-            card[scope]['off'] = {'track': _track(_homog(rs, True)), 'int': _intensity(_homog(ri, True))}
+            ox = _homog(rx, True)
+            card[scope]['off'] = {'track': _track(_homog(rs, True)), 'at': _signed(ox, 5), 'ct': _signed(ox, 6),
+                                  'int': _intensity(_homog(ri, True))}
     return card
 
 

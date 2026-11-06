@@ -363,7 +363,7 @@ def _score_groups(models: list, det_names: set) -> list:
         ('score.grp.det', 'Deterministic', 'score.grp.det.sub',
          'single run — usually less accurate than an ensemble mean', det),
         ('score.grp.off', 'Official forecasts', 'score.grp.off.sub',
-         'each verified against its own positions, which flatters them — not ranked', off)) if g[4]]
+         'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions', off)) if g[4]]
 
 
 # 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
@@ -405,11 +405,13 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
     if not models:
         return ''
     mag = (lambda v: abs(v[0])) if signed else (lambda v: v[0])
-    rank = {}
+    rank, rank_off = {}, {}
     for ld in SCORE_LEADS:
-        # 官方預報用自己的定位當實況、數字偏有利，不跟模式一起排名
+        # 官方預報用自己的定位當實況、數字偏有利，不跟模式一起排名；官方之間另外排（至少兩家）
         vals = [mag(v) for m in models if m not in OFFICIAL_MODELS and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
         rank[ld] = (min(vals), max(vals)) if vals else None
+        ov = [mag(v) for m in models if m in OFFICIAL_MODELS and (v := _score_get(card, m, ld)) and v[1] >= SCORE_MIN_N]
+        rank_off[ld] = (min(ov), max(ov)) if len(ov) >= 2 else None
     fmt = (lambda x: f'{x:+.0f}'.replace('-', '−')) if signed else (lambda x: f'{x:.0f}')
 
     def extra(v):
@@ -430,15 +432,18 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
                     cells.append('<td class="c-nil">—</td>')
                     continue
                 n = v[1]
-                if m in OFFICIAL_MODELS and n >= SCORE_MIN_N:
+                rk = rank_off if m in OFFICIAL_MODELS else rank
+                if m in OFFICIAL_MODELS and n >= SCORE_MIN_N and rk[ld] is None:
+                    # 只有一家官方預報：沒得比，照舊灰底參考格
                     cells.append(f'<td class="c-ref">{fmt(v[0])}<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
-                if n < SCORE_MIN_N or rank[ld] is None:
+                if n < SCORE_MIN_N or rk[ld] is None:
                     cells.append(f'<td class="c-low" title="n &lt; {SCORE_MIN_N}">{fmt(v[0])}'
                                  f'<span class="eta">n={n}{extra(v)}</span></td>')
                     continue
-                lo, hi = rank[ld]
-                rel = (mag(v) - lo) / (hi - lo) if hi > lo else 0.0
+                lo, hi = rk[ld]
+                # 差距要夠大才變紅（分母至少是最好值的一半）：官方只有三家時，差 1、2 才不會一綠一紅
+                rel = (mag(v) - lo) / max(hi - lo, 0.5 * lo, 1e-9)
                 if signed:
                     tag = ''
                 else:
@@ -508,6 +513,13 @@ def _score_metric_cards(card: dict, sample: str) -> dict:
     card = card or {}
     out = {'track': card.get(sample) or {},
            **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
+    # 「全部」樣本的官方列換成官方同質樣本（JTWC／JMA／CWA 三家都有的預報），三家才比得公平；
+    # 只有一家的颱風沒有這份樣本，照原本的數字
+    off = card.get('off') or {}
+    if sample == 'all' and off:
+        for k in out:
+            if off.get(k):
+                out[k] = {**{m: v for m, v in out[k].items() if m not in OFFICIAL_MODELS}, **off[k]}
     out['int'] = {m: {ld: ([v[2], v[1], v[0]] if len(v) >= 3 and v[2] is not None else v) for ld, v in leads.items()}
                   for m, leads in out['int'].items()}
     return out
@@ -559,7 +571,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
                 'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
-                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.'}
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; their archive starts later, so they appear only in the all-forecasts tab.'}
     if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
         notes.append('score.official')
     tabs, panels = [], []
@@ -931,8 +943,8 @@ CHANGELOG = [
          'New in Summary: ocean heat content along the JTWC forecast track, showing how warm the water ahead is'),
         ('強度分頁加上提醒：AI 模式的強度通常偏弱，請看增強或減弱的趨勢',
          'The Intensity tab now explains that AI-model intensities run low and are best read as a trend'),
-        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗',
-         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions'),
+        ('校驗新增「官方預報」一組：JTWC、日本氣象廳與中央氣象署，各自以自己的定位校驗，並在三家之間排名',
+         'Verification adds an Official forecasts group: JTWC, JMA and CWA, each checked against its own positions and ranked among themselves'),
         ('城市侵襲表預設只列有機率的模式，一鍵展開全部',
          'The city strike table lists only models with any chance, with a button to show them all'),
         ('載入更快：首頁第一次開啟從 3.2 MB 降到約 0.7 MB，資料沒更新時不再整頁重新整理',
@@ -3896,7 +3908,7 @@ const I18N = {
     'score.grp.det': 'Deterministic',
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
     'score.grp.off':  'Official forecasts',
-    'score.grp.off.sub': 'each verified against its own positions, which flatters them — not ranked',
+    'score.grp.off.sub': 'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions',
     'score.chart.y': 'Mean track error (km)',
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
@@ -3932,7 +3944,7 @@ const I18N = {
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
     'note.ohctrack':    'Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
-    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; their archive starts later, so they appear only in the all-forecasts tab.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -4145,7 +4157,7 @@ const I18N = {
     'score.grp.det': '決定報',
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
     'score.grp.off':  '官方預報',
-    'score.grp.off.sub': '各自以自己的定位為實況，數字會偏有利，不參與排名',
+    'score.grp.off.sub': '只在彼此之間排名，比的是三家都有發布的預報；各自以自己的定位為實況',
     'score.chart.y': '平均路徑誤差（公里）',
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
@@ -4181,7 +4193,7 @@ const I18N = {
     'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
     'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
     'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
-    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名；它們的存檔比模式晚開始，只列在「全部」樣本。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名，只在彼此之間比，用的是三家同一時間都有發布的預報；它們的存檔比模式晚開始，只列在「全部」分頁。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
