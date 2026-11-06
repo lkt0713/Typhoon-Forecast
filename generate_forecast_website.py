@@ -353,8 +353,10 @@ def _score_heat(rel: float) -> str:
     return '#d9463a'
 
 
-def _score_groups(models: list, det_names: set) -> list:
-    """(群組鍵, 預設標題, 副標鍵, 預設副標, [模式]) —— 系集平均／決定報／官方預報。"""
+def _score_groups(models: list, det_names: set, sample: str = 'homog') -> list:
+    """(群組鍵, 預設標題, 副標鍵, 預設副標, [模式]) —— 系集平均／決定報／官方預報。
+
+    官方預報的副標看樣本：同質（含同質＝全部）比的是三家都有的預報，全部樣本是各家自己全部的預報。"""
     ens = [m for m in models if m not in det_names and m not in OFFICIAL_MODELS]
     det = [m for m in models if m in det_names]
     off = [m for m in OFFICIAL_MODELS if m in models]
@@ -362,8 +364,11 @@ def _score_groups(models: list, det_names: set) -> list:
         ('score.grp.ens', 'Ensemble mean', None, '', ens),
         ('score.grp.det', 'Deterministic', 'score.grp.det.sub',
          'single run — usually less accurate than an ensemble mean', det),
-        ('score.grp.off', 'Official forecasts', 'score.grp.off.sub',
-         'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions', off)) if g[4]]
+        ('score.grp.off', 'Official forecasts', *(
+            ('score.grp.off.sub.all', 'ranked only among themselves, each on all of its own forecasts; '
+             'each verified against its own positions') if sample == 'all' else
+            ('score.grp.off.sub', 'ranked only among themselves, on the forecasts all of them issued; '
+             'each verified against its own positions')), off)) if g[4]]
 
 
 # 成績單的四種指標：(鍵, 分頁 i18n 鍵, 預設分頁名, 單位, 是否有正負號)
@@ -393,7 +398,7 @@ SCORE_METRIC_TEXT = {
 }
 
 
-def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'track') -> str:
+def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'track', sample: str = 'homog') -> str:
     """模式誤差表：card = {model: {lead: [值, n, (副值)]}}。
 
     每個預報時數各自比較：n ≥ SCORE_MIN_N 的格子依誤差由綠（最好）到紅（最差）上色。
@@ -421,7 +426,7 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
 
     span = len(SCORE_LEADS) + 1
     rows = []
-    for gk, gtxt, sk, stxt, ms in _score_groups(models, det_names):
+    for gk, gtxt, sk, stxt, ms in _score_groups(models, det_names, sample):
         sub = f'<small data-i18n="{sk}">{stxt}</small>' if sk else ''
         rows.append(f'<tr class="grp"><td colspan="{span}"><span data-i18n="{gk}">{gtxt}</span>{sub}</td></tr>')
         for m in ms:
@@ -513,26 +518,28 @@ def _score_metric_cards(card: dict, sample: str) -> dict:
     card = card or {}
     out = {'track': card.get(sample) or {},
            **{k: (card.get(k) or {}).get(sample) or {} for k in ('at', 'ct', 'int')}}
-    # 官方列（JTWC／JMA／CWA）在「同質」與「全部」兩個分頁都放，數字一樣：用官方同質樣本（三家都有的預報），
-    # 三家才比得公平；只有一家的颱風沒有這份樣本，用那家的全部預報。
-    # 模式的同質樣本本來就不含官方，官方只在彼此之間比，所以跟模式的同質樣本是分開算的
+    # 官方列（JTWC／JMA／CWA）：「全部」分頁是各家自己全部的預報（n 可以不同）；
+    # 「同質」分頁用官方同質樣本（範圍內每一家同一時間、同一時數都有的預報，n 相同）。
+    # 只有一家時沒有官方同質樣本，就用那家的全部預報。模式的同質樣本本來就不含官方，
+    # 官方只在彼此之間比，所以跟模式的同質樣本是分開算的
     off = card.get('off') or {}
-    for k in out:
-        if sample == 'homog' and not out[k]:   # 沒有模式同質樣本就不單獨放官方
-            continue
-        src = card.get('all') if k == 'track' else (card.get(k) or {}).get('all')
-        offr = off.get(k) or {m: v for m, v in (src or {}).items() if m in OFFICIAL_MODELS}
-        out[k] = {**{m: v for m, v in out[k].items() if m not in OFFICIAL_MODELS}, **offr}
+    if sample == 'homog':
+        for k in out:
+            if not out[k]:   # 沒有模式同質樣本就不單獨放官方
+                continue
+            src = (card.get('all') if k == 'track' else (card.get(k) or {}).get('all')) or {}
+            offr = (off.get(k) or {}) if off else {m: v for m, v in src.items() if m in OFFICIAL_MODELS}
+            out[k] = {**{m: v for m, v in out[k].items() if m not in OFFICIAL_MODELS}, **offr}
     out['int'] = {m: {ld: ([v[2], v[1], v[0]] if len(v) >= 3 and v[2] is not None else v) for ld, v in leads.items()}
                   for m, leads in out['int'].items()}
     return out
 
 
-def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set) -> str:
+def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set, sample: str = 'homog') -> str:
     """一個分頁（範圍 × 樣本）的內容：路徑誤差照原本的圖表放最前面，
     下面再接「其他指標」分頁：沿路徑／跨路徑／強度。"""
     track = cards.get('track') or {}
-    html = _score_chart(track, order, det_names, 'track') + _score_table(track, order, det_names, 'track')
+    html = _score_chart(track, order, det_names, 'track') + _score_table(track, order, det_names, 'track', sample)
     tabs, panels = [], []
     for i, (mk, lkey, ltxt, _, _) in enumerate(m for m in SCORE_METRICS if m[0] != 'track'):
         c = cards.get(mk) or {}
@@ -540,7 +547,7 @@ def _score_metric_panels(key: str, cards: dict, order: list[str], det_names: set
                     f'data-track="{_esc(key)}-m" data-model="{mk}"><span data-i18n="{lkey}">{ltxt}</span></button>')
         nkey, ntxt = SCORE_METRIC_TEXT[mk][2:]
         note = f'<p class="map-note" style="margin:0 0 10px;" data-i18n="{nkey}">{ntxt}</p>' if nkey else ''
-        body = (_score_chart(c, order, det_names, mk) + _score_table(c, order, det_names, mk)) if c else (
+        body = (_score_chart(c, order, det_names, mk) + _score_table(c, order, det_names, mk, sample)) if c else (
             '<p class="map-note" data-i18n="score.m.pending">Not enough data for this measure yet.</p>')
         hide = '' if i == 0 else ' style="display:none;"'
         panels.append(f'<div class="model-panel" data-track="{_esc(key)}-m" data-model="{mk}"{hide}>'
@@ -574,7 +581,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
         return ''
     note_txt = {'score.same': 'Every model has every forecast so far, so the homogeneous and full samples are identical and shown once.',
                 'score.onestorm': 'Only this storm has verified forecasts so far, so it matches the all-storms total.',
-                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; the homogeneous and all-forecasts tabs show the same official numbers.'}
+                'score.official': 'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves: the homogeneous tab uses only the forecasts all of them issued for the same time, the all-forecasts tab each one’s full set.'}
     if any(m in (c.get('track') or {}) for _, _, c in items for m in ('JTWC', 'JMA', 'CWA')) and 'score.official' not in notes:
         notes.append('score.official')
     tabs, panels = [], []
@@ -585,7 +592,7 @@ def _score_block(track_key: str, scope_cards: list, order: list[str], det_names:
                     f'<span data-i18n="score.tab.{scope}.{sample}">{key}</span></button>')
         hide = '' if i == 0 else ' style="display:none;"'
         panels.append(f'<div class="model-panel" data-track="{_esc(track_key)}" data-model="{key}"{hide}>'
-                      f'{_score_metric_panels(f"{track_key}-{key}", c, order, det_names)}</div>')
+                      f'{_score_metric_panels(f"{track_key}-{key}", c, order, det_names, sample)}</div>')
     head = (f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{"".join(tabs)}</div>'
             if len(tabs) > 1 else
             f'<div class="model-label" data-i18n="score.tab.{items[0][0]}.{items[0][1]}">{items[0][0]}</div>')
@@ -3923,6 +3930,7 @@ const I18N = {
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
     'score.grp.off':  'Official forecasts',
     'score.grp.off.sub': 'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions',
+    'score.grp.off.sub.all': 'ranked only among themselves, each on all of its own forecasts; each verified against its own positions',
     'score.chart.y': 'Mean track error (km)',
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
@@ -3958,7 +3966,7 @@ const I18N = {
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
     'note.ohctrack':    'Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
-    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; the homogeneous and all-forecasts tabs show the same official numbers.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves: the homogeneous tab uses only the forecasts all of them issued for the same time, the all-forecasts tab each one’s full set.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -4172,6 +4180,7 @@ const I18N = {
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
     'score.grp.off':  '官方預報',
     'score.grp.off.sub': '只在彼此之間排名，比的是三家都有發布的預報；各自以自己的定位為實況',
+    'score.grp.off.sub.all': '只在彼此之間排名，各家用自己全部的預報；各自以自己的定位為實況',
     'score.chart.y': '平均路徑誤差（公里）',
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
@@ -4207,7 +4216,7 @@ const I18N = {
     'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
     'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
     'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
-    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名，只在彼此之間比，用的是三家同一時間都有發布的預報；「同質樣本」與「全部樣本」分頁的官方數字相同。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名，只在彼此之間比：「同質樣本」分頁只用三家同一時間都有發布的預報，「全部樣本」分頁則各自用自己全部的預報。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
