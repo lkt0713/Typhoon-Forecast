@@ -2452,7 +2452,15 @@ def compute_scorecard() -> dict:
             t, mdl, ini, ld = r[:4]
             present.setdefault((t, ld), set()).add(mdl)
             cases.setdefault((t, ini, ld), set()).add(mdl)
-        ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
+        if official:
+            # 官方同質要求「這個範圍裡出現過的官方單位」全到，不是每顆颱風各自算：
+            # 所有颱風合計時，只有 JTWC 發報的颱風不會讓 JTWC 多算幾筆，同一時數三家的 n 一樣
+            lead_present: dict = {}
+            for (t, ld), ms in present.items():
+                lead_present.setdefault(ld, set()).update(ms)
+            ok = {k for k, ms in cases.items() if ms >= lead_present[k[2]]}
+        else:
+            ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
         return [r for r in rs if (r[0], r[2], r[3]) in ok]
 
     card = {}
