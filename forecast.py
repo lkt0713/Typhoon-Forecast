@@ -3415,7 +3415,7 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     offs = [m for m in SHOWDOWN_OFFICIAL if m in allc]
 
     # 版面：寬 12 單位（英吋），每列 0.5
-    RH = 0.5
+    RH = 0.56                          # 每列高度：格子裡有兩行字（數值＋小字）時上下才留得出空
     n_rows = len(rows) + (len(offs) + 1 if offs else 0)
     H = 2.35 + RH * (n_rows + 1) + 0.45
     fig = plt.figure(figsize=(12, H), facecolor='white')
@@ -3464,11 +3464,11 @@ def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
     ilo, ihi = (min(ints), max(ints)) if ints else (0, 1)
 
     def cell(x, yc, w, color, txt, fg, sub=None):
-        ax.add_patch(FancyBboxPatch((x + 0.05, yc - RH / 2 + 0.05), w - 0.1, RH - 0.1,
+        ax.add_patch(FancyBboxPatch((x + 0.05, yc - RH / 2 + 0.04), w - 0.1, RH - 0.08,
                                     boxstyle='round,pad=0,rounding_size=0.08', fc=color, ec='none'))
-        ax.text(x + w / 2, yc - (0.05 if sub else 0), txt, ha='center', va='center', fontsize=10.5, fontweight='bold', color=fg)
+        ax.text(x + w / 2, yc - (0.075 if sub else 0), txt, ha='center', va='center', fontsize=10.5, fontweight='bold', color=fg)
         if sub:
-            ax.text(x + w / 2, yc + 0.14, sub, ha='center', va='center', fontsize=7, color=fg, alpha=0.85)
+            ax.text(x + w / 2, yc + 0.125, sub, ha='center', va='center', fontsize=7, color=fg, alpha=0.85)
 
     def fg_for(hexc):
         r_, g_, b_ = (int(hexc[i:i + 2], 16) for i in (1, 3, 5))
