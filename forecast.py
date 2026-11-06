@@ -3359,6 +3359,192 @@ def _archive_trends(storms: list) -> dict:
     return out
 
 
+# ── 誤差大 PK（颱風結束後的成績總表，PNG）──────────────────────────────────────
+# 颱風消散後替它畫一張「誰最準」的總表，放在歷史頁該颱風最上面，也方便分享。
+# 排名用同質樣本（每個模式比的是同一批預報）的路徑誤差：各預報時數先算「比當時最好的
+# 模式多出幾 %」，再對 24–120 h 取平均，長時距誤差大不會一個人說了算。
+# 官方預報（各自用自己的定位校驗、只在全部樣本）另列一區，不參與排名。
+SHOWDOWN_LEADS = [24, 48, 72, 96, 120]
+SHOWDOWN_STYLE = 1                    # 改了圖的樣式就加 1，已結束的颱風會重畫
+SHOWDOWN_OFFICIAL = ('JTWC', 'JMA', 'CWA')
+SHOWDOWN_MIN_N = 3
+_SD_MEDAL = {1: '#E0B33A', 2: '#AEB8C2', 3: '#C58A5A'}
+
+
+def _sd_heat(rel: float) -> str:
+    """0（最好）→ 1（最差）：綠 → 黃 → 紅（與網頁校驗表同一組顏色）。"""
+    stops = [(0.0, (46, 158, 91)), (0.5, (224, 180, 58)), (1.0, (217, 70, 58))]
+    rel = min(max(float(rel), 0.0), 1.0)
+    for (a, ca), (b, cb) in zip(stops, stops[1:]):
+        if rel <= b:
+            t = (rel - a) / (b - a)
+            return '#%02x%02x%02x' % tuple(round(x + (y - x) * t) for x, y in zip(ca, cb))
+    return '#d9463a'
+
+
+def _sd_get(d: dict, m: str, ld: int):
+    v = (d.get(m) or {})
+    return v.get(str(ld)) or v.get(ld)
+
+
+def plot_error_showdown(tid: str, data: dict, save_path: str) -> str | None:
+    """畫誤差大 PK；同質樣本裡能排名的模式少於 3 個時回 None。"""
+    from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
+    card = data.get('card') or {}
+    hom, allc = card.get('homog') or {}, card.get('all') or {}
+    inth = (card.get('int') or {}).get('homog') or {}
+    det = set(data.get('det') or [])
+    models = [m for m in hom if m not in SHOWDOWN_OFFICIAL]
+    best = {}
+    for ld in SHOWDOWN_LEADS:
+        vals = [v[0] for m in models if (v := _sd_get(hom, m, ld)) and v[1] >= SHOWDOWN_MIN_N]
+        if vals:
+            best[ld] = min(vals)
+    rows = []
+    for m in models:
+        rel = [v[0] / best[ld] for ld in best if (v := _sd_get(hom, m, ld)) and v[1] >= SHOWDOWN_MIN_N and best[ld] > 0]
+        if len(rel) < 3:
+            continue
+        iv = [v for ld in SHOWDOWN_LEADS if (v := _sd_get(inth, m, ld)) and v[1] >= SHOWDOWN_MIN_N]
+        rows.append({'m': m, 'score': float(np.mean(rel)) - 1.0,
+                     'int': float(np.mean([v[0] for v in iv])) if iv else None,
+                     'bias': float(np.mean([v[2] for v in iv if len(v) > 2 and v[2] is not None])) if iv else None})
+    if len(rows) < 3:
+        return None
+    rows.sort(key=lambda r: r['score'])
+    offs = [m for m in SHOWDOWN_OFFICIAL if m in allc]
+
+    # 版面：寬 12 單位（英吋），每列 0.5
+    RH = 0.5
+    n_rows = len(rows) + (len(offs) + 1 if offs else 0)
+    H = 2.35 + RH * (n_rows + 1) + 0.45
+    fig = plt.figure(figsize=(12, H), facecolor='white')
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 12); ax.set_ylim(H, 0); ax.axis('off')
+    X_RANK, X_NAME, X_C0, CW = 0.62, 1.0, 3.55, 1.08
+    X_OV = X_C0 + CW * len(SHOWDOWN_LEADS) + 0.12
+    OV_W = 1.75
+    X_INT = X_OV + OV_W + 0.12
+    INT_W = 12 - 0.45 - X_INT
+
+    # 標題
+    name = data.get('name') or tid
+    first, last = data.get('first'), data.get('last')
+    dates = (f"{pd.Timestamp(first):%Y-%m-%d} – {pd.Timestamp(last):%m-%d}" if first and last else '')
+    n24 = (_sd_get(hom, rows[0]['m'], 24) or [None, None])[1]
+    ax.text(0.45, 0.62, f"{name}  ({tid})", fontsize=22, fontweight='bold', color=TEXT_DARK, va='baseline')
+    ax.text(11.55, 0.62, 'Forecast Showdown', fontsize=22, fontweight='bold', color='#B8860B', va='baseline', ha='right')
+    sub = '  ·  '.join(x for x in (dates, f"peak {data['peak']} kt" if data.get('peak') else '',
+                                   'mean track error vs JTWC warning positions',
+                                   f"homogeneous sample: every model on the same {n24} forecasts at 24 h" if n24 else '') if x)
+    ax.text(0.45, 1.02, sub, fontsize=9.5, color=TEXT_MUTED, va='baseline')
+
+    # 表頭
+    y = 1.62
+    hdr = dict(fontsize=9.5, color=TEXT_MUTED, fontweight='bold', va='center')
+    ax.text(X_RANK, y, 'Rank', ha='center', **hdr)
+    ax.text(X_NAME, y, 'Model', ha='left', **hdr)
+    for i, ld in enumerate(SHOWDOWN_LEADS):
+        n = (_sd_get(hom, rows[0]['m'], ld) or [None, None])[1]
+        ax.text(X_C0 + CW * (i + 0.5), y - 0.06, f"{ld} h", ha='center', **hdr)
+        if n:
+            ax.text(X_C0 + CW * (i + 0.5), y + 0.16, f"n={n}", ha='center', fontsize=7.5, color=TEXT_MUTED, va='center')
+    ax.text(X_OV + OV_W / 2, y - 0.06, 'Overall', ha='center', **hdr)
+    ax.text(X_OV + OV_W / 2, y + 0.16, 'behind the best', ha='center', fontsize=7.5, color=TEXT_MUTED, va='center')
+    ax.text(X_INT + INT_W / 2, y - 0.06, 'Intensity |e|', ha='center', **hdr)
+    ax.text(X_INT + INT_W / 2, y + 0.16, 'kt (bias)', ha='center', fontsize=7.5, color=TEXT_MUTED, va='center')
+    ax.plot([0.45, 11.55], [y + 0.34, y + 0.34], color=BOX_EDGE, lw=1.0)
+
+    lo_hi = {}
+    for ld in SHOWDOWN_LEADS:
+        vals = [v[0] for r in rows if (v := _sd_get(hom, r['m'], ld))]
+        lo_hi[ld] = (min(vals), max(vals)) if vals else None
+    smax = max(r['score'] for r in rows) or 1.0
+    ints = [r['int'] for r in rows if r['int'] is not None]
+    ilo, ihi = (min(ints), max(ints)) if ints else (0, 1)
+
+    def cell(x, yc, w, color, txt, fg, sub=None):
+        ax.add_patch(FancyBboxPatch((x + 0.05, yc - RH / 2 + 0.05), w - 0.1, RH - 0.1,
+                                    boxstyle='round,pad=0,rounding_size=0.08', fc=color, ec='none'))
+        ax.text(x + w / 2, yc - (0.05 if sub else 0), txt, ha='center', va='center', fontsize=10.5, fontweight='bold', color=fg)
+        if sub:
+            ax.text(x + w / 2, yc + 0.14, sub, ha='center', va='center', fontsize=7, color=fg, alpha=0.85)
+
+    def fg_for(hexc):
+        r_, g_, b_ = (int(hexc[i:i + 2], 16) for i in (1, 3, 5))
+        return '#16324F' if 0.299 * r_ + 0.587 * g_ + 0.114 * b_ > 150 else 'white'
+
+    y = 2.2 + RH / 2
+    for k, r in enumerate(rows, start=1):
+        if k == 1:
+            ax.add_patch(Rectangle((0.45, y - RH / 2), 11.1, RH, fc='#FFF6DC', ec='none', zorder=0))
+        if k in _SD_MEDAL:
+            ax.add_patch(Circle((X_RANK, y), 0.17, fc=_SD_MEDAL[k], ec='white', lw=1.5, zorder=2))
+            ax.text(X_RANK, y, str(k), ha='center', va='center', fontsize=10.5, fontweight='bold', color='white', zorder=3)
+        else:
+            ax.text(X_RANK, y, str(k), ha='center', va='center', fontsize=10.5, color=TEXT_MUTED)
+        ax.text(X_NAME, y - (0.06 if r['m'] in det else 0), r['m'], ha='left', va='center', fontsize=11.5,
+                fontweight='bold', color=TEXT_DARK)
+        if r['m'] in det:
+            ax.text(X_NAME, y + 0.15, 'single run', ha='left', va='center', fontsize=7, color=TEXT_MUTED)
+        for i, ld in enumerate(SHOWDOWN_LEADS):
+            v = _sd_get(hom, r['m'], ld)
+            if not v:
+                ax.text(X_C0 + CW * (i + 0.5), y, '—', ha='center', va='center', color=TEXT_MUTED)
+                continue
+            lo, hi = lo_hi[ld]
+            c = _sd_heat((v[0] - lo) / (hi - lo) if hi > lo else 0)
+            cell(X_C0 + CW * i, y, CW, c, f"{v[0]:.0f}", fg_for(c))
+        # 總分：長條＋「+x%」
+        frac = r['score'] / smax if smax > 0 else 0
+        c = _sd_heat(frac)
+        ax.add_patch(FancyBboxPatch((X_OV + 0.05, y - 0.12), max(0.08, (OV_W - 0.75) * frac), 0.24,
+                                    boxstyle='round,pad=0,rounding_size=0.06', fc=c, ec='none'))
+        pct = r['score'] * 100       # 10% 以下多一位小數，名次相鄰的才分得出先後
+        ax.text(X_OV + OV_W - 0.05, y, 'best' if pct < 0.05 else (f"+{pct:.1f}%" if pct < 10 else f"+{pct:.0f}%"),
+                ha='right', va='center', fontsize=10.5, fontweight='bold', color=TEXT_DARK)
+        if r['int'] is not None:
+            c = _sd_heat((r['int'] - ilo) / (ihi - ilo) if ihi > ilo else 0)
+            b = r['bias']
+            cell(X_INT, y, INT_W, c, f"{r['int']:.0f}", fg_for(c),
+                 sub=(f"({b:+.0f})".replace('-', '−') if b is not None else None))
+        y += RH
+
+    if offs:
+        y += 0.12
+        ax.text(X_NAME, y, 'Official forecasts', ha='left', va='center', fontsize=10, fontweight='bold', color=TEXT_DARK)
+        ax.text(X_NAME + 1.55, y, 'each checked against its own positions · all forecasts · not ranked',
+                ha='left', va='center', fontsize=8, color=TEXT_MUTED)
+        ax.plot([0.45, 11.55], [y + RH / 2 - 0.02, y + RH / 2 - 0.02], color=BOX_EDGE, lw=0.8)
+        y += RH
+        inta = (card.get('int') or {}).get('all') or {}
+        for m in offs:
+            ax.text(X_NAME, y, m, ha='left', va='center', fontsize=11.5, fontweight='bold', color=TEXT_DARK)
+            for i, ld in enumerate(SHOWDOWN_LEADS):
+                v = _sd_get(allc, m, ld)
+                if not v:
+                    ax.text(X_C0 + CW * (i + 0.5), y, '—', ha='center', va='center', color=TEXT_MUTED)
+                    continue
+                cell(X_C0 + CW * i, y, CW, '#E9EEF3', f"{v[0]:.0f}", TEXT_DARK, sub=f"n={v[1]}")
+            iv = [v for ld in SHOWDOWN_LEADS if (v := _sd_get(inta, m, ld)) and v[1] >= SHOWDOWN_MIN_N]
+            if iv:
+                mae = float(np.mean([v[0] for v in iv]))
+                bs = [v[2] for v in iv if len(v) > 2 and v[2] is not None]
+                cell(X_INT, y, INT_W, '#E9EEF3', f"{mae:.0f}", TEXT_DARK,
+                     sub=(f"({np.mean(bs):+.0f})".replace('-', '−') if bs else None))
+            y += RH
+
+    ax.text(0.45, H - 0.42, "Track error in km, lower is better  ·  Overall = how far behind the best model each one was, "
+            "averaged over 24–120 h  ·  Intensity |e| = mean absolute wind error 24–120 h (bias: + too strong, − too weak)",
+            fontsize=7.8, color=TEXT_MUTED, va='center')
+    ax.text(11.55, H - 0.18, 'By Pillar', fontsize=7.5, style='italic', color=TEXT_MUTED, ha='right', va='center')
+    plt.savefig(save_path, dpi=200, facecolor='white')
+    plt.close(fig)
+    print(f"[SHOWDOWN] 已儲存誤差大 PK：{save_path}（第一名 {rows[0]['m']}，{len(rows)} 個模式）")
+    return save_path
+
+
+
 def update_storm_archive(storms: list, card: dict) -> None:
     """把每顆有 JTWC 實況的颱風合併寫進 docs/archive/{tid}.json（見上方說明）。"""
     import json
@@ -3424,6 +3610,18 @@ def update_storm_archive(storms: list, card: dict) -> None:
         data['peak'] = max(winds) if winds else None
         data['first'], data['last'] = (data['obs'][0][0], data['obs'][-1][0]) if data['obs'] else (None, None)
         data['active'] = tid in active
+        # 颱風結束後畫誤差大 PK；成績或樣式變了才重畫（已結束的颱風成績幾乎不再變）
+        if not data['active'] and data.get('card'):
+            import hashlib
+            sig = hashlib.sha1(json.dumps([data['card'], data.get('name'), data.get('peak'), sorted(data.get('det', [])),
+                                           SHOWDOWN_STYLE], sort_keys=True).encode()).hexdigest()[:12]
+            rel = f"{tid}_showdown.png"
+            if data.get('showdown_sig') != sig or not os.path.exists(os.path.join(ARCHIVE_DIR, rel)):
+                try:
+                    if plot_error_showdown(tid, data, os.path.join(ARCHIVE_DIR, rel)):
+                        data['showdown'], data['showdown_sig'] = rel, sig
+                except Exception as e:
+                    print(f"[SHOWDOWN] {tid} 誤差大 PK 失敗，略過: {e}")
         try:
             with open(path, 'w', encoding='utf-8') as fh:
                 json.dump(data, fh, separators=(',', ':'), ensure_ascii=False)

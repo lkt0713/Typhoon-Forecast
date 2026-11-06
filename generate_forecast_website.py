@@ -778,6 +778,19 @@ def _load_archive(docs_dir: str) -> list[dict]:
                 fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
         except OSError:
             pass
+        # 誤差大 PK（颱風結束後 forecast.py 畫的總表）：沒有就寫空片段，網頁那一塊就不顯示
+        sd = d.get('showdown')
+        sd_html = ''
+        if sd and os.path.exists(os.path.join(adir, sd)):
+            sd_html = (f'<h4 class="arch-sub" data-i18n="panel.showdown">Forecast Showdown</h4>'
+                       + _figure('archive/' + sd, f"{tid} Forecast Showdown")
+                       + '<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>'
+                       + f'<p class="map-note" data-i18n="note.showdown">{NOTE_SHOWDOWN}</p></details>')
+        try:
+            with open(os.path.join(adir, f'{tid}_showdown.html'), 'w', encoding='utf-8') as fh:
+                fh.write(sd_html)
+        except OSError:
+            pass
         # 預報趨勢圖（颱風消散前最後一版的複本）：每模式一個分頁，網頁點開時才載入
         trends = [(lbl, rel) for lbl, rel in (d.get('trends') or []) if os.path.exists(os.path.join(adir, rel))]
         tpath = os.path.join(adir, f'{tid}_trend.html')
@@ -932,6 +945,8 @@ CHANGELOG = [
          'The Strike tab adds a JTWC-style wind radii forecast (WeatherNext, ECMWF and NOAA ensembles) with 34-, 50- and 64-kt wind radii every 12 h'),
         ('官方預報圖：預報轉為溫帶氣旋之後的點不再畫出，地圖也不會被撐破；表格標示「溫帶氣旋」',
          'Official forecast map: points after a forecast turns extratropical are no longer drawn, so the map stays in frame; the table marks them'),
+        ('歷史頁新增「誤差大 PK」：颱風結束後自動產生一張圖，排出各模式的路徑誤差名次與強度誤差',
+         'The Archive adds a Forecast Showdown: when a storm ends, one image ranks every model by track error, with intensity error alongside'),
         ('修正：手機封面的地球不再擋字、拿掉重複的更新時間卡片、歷史頁卡片的文字對齊',
          'Fixes: the globe no longer crowds the cover text on phones, a duplicate update-time card is gone, and archive card text lines up'),
     ]),
@@ -1055,6 +1070,8 @@ def _changelog_html() -> str:
 
 NOTE_ENS120 = "Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position"
 NOTE_RADII = "In the style of the JTWC warning graphic &nbsp;·&nbsp; Navy line = ensemble-mean track (dots every 12 h, time and mean wind every 24 h) &nbsp;·&nbsp; Outlines = 34-, 50- and 64-kt wind radii every 12 h out to 120 h, from the median radius of all members in each quadrant (members that never reach that wind count as 0) &nbsp;·&nbsp; Bold, filled = wind radii now &nbsp;·&nbsp; Radii come from each model’s own tracker: WeatherNext, ECMWF (IFS / AIFS, thresholds 18 / 26 / 33 m/s) and NOAA (GEFS / AIGEFS) &nbsp;·&nbsp; Model winds run low, AI models especially, so the 50- and 64-kt outlines are often smaller than in the official warning or missing"
+
+NOTE_SHOWDOWN = "Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are checked against their own positions and not ranked"
 
 TEASER_THUMB = 'genesis_teaser.jpg'
 
@@ -1993,6 +2010,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             <div class="arch-grid reveal">{"".join(cards)}</div>
             <div class="panel arch-detail" hidden>
                 <div class="panel-header"><span class="panel-icon">🗂️</span><span class="arch-title"></span></div>
+                <div class="arch-showdown"></div>
                 <div class="tm-controls arch-controls">
                     <select class="arch-model" aria-label="Model"></select>
                     <span class="tm-init"><span data-i18n="arch.init">Init</span> <b class="arch-init-val"></b></span>
@@ -3884,6 +3902,8 @@ const I18N = {
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.et':           'Extratropical',
+    'panel.showdown':   'Forecast Showdown',
+    'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are checked against their own positions and not ranked',
     'sub.maps120':      '0–120 h',
     'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
     'note.ensemble120': 'Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
@@ -4131,6 +4151,8 @@ const I18N = {
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.et':           '溫帶氣旋',
+    'panel.showdown':   '誤差大 PK',
+    'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報各自以自己的定位校驗，不參與排名',
     'sub.maps120':      '0～120 小時',
     'panel.ensemble120': '系集路徑預報（0～120 小時）',
     'note.ensemble120': '與下方完整路徑圖相同的成員、系集平均與決定報，只畫到 120 小時（5 天），近幾天的路徑放大看得更清楚 &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
@@ -4952,6 +4974,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const mapEl = box.querySelector('.arch-map');
     const scoreEl = box.querySelector('.arch-score');
     const trendEl = box.querySelector('.arch-trend');
+    const showdownEl = box.querySelector('.arch-showdown');
     const OLD = [126, 196, 232], NEW = [59, 47, 143];          // 舊期淺藍 → 新期深紫，同趨勢圖
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
@@ -5017,9 +5040,12 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
         box.querySelector('.arch-title').textContent = card.querySelector('.arch-name').textContent + ' · ' + tid;
         try {
             // 成績單與趨勢圖不需要地圖：先放上去，地圖函式庫載不到也看得到
-            const [html, trendHtml] = await Promise.all([
+            const [html, trendHtml, sdHtml] = await Promise.all([
                 fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
-                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
+                fetch(`archive/${tid}_showdown.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            showdownEl.innerHTML = sdHtml;
+            i18nIn(showdownEl);
             scoreEl.innerHTML = html;
             i18nIn(scoreEl);
             trendEl.innerHTML = trendHtml;
