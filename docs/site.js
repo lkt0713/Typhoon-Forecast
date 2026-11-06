@@ -184,12 +184,14 @@ const I18N = {
     'score.grp.det': 'Deterministic',
     'score.grp.det.sub': 'single run — usually less accurate than an ensemble mean',
     'score.grp.off':  'Official forecasts',
-    'score.grp.off.sub': 'each verified against its own positions, which flatters them — not ranked',
+    'score.grp.off.sub': 'ranked only among themselves, on the forecasts all of them issued; each verified against its own positions',
     'score.chart.y': 'Mean track error (km)',
     'sub.official':     'Official',
     'panel.official':   'Official Forecasts Compared',
     'off.now':          'Now',
     'off.et':           'Extratropical',
+    'panel.showdown':   'Forecast Showdown',
+    'note.showdown':    'Drawn when the storm ended. Track error (km) by forecast lead, homogeneous sample: every model is scored on the same forecasts, against the JTWC warning positions &nbsp;·&nbsp; Overall = how far behind the best model each one was, averaged over 24–120 h, so the long leads with big errors do not decide it alone &nbsp;·&nbsp; Intensity |e| = mean absolute wind error (bias: + too strong, − too weak) &nbsp;·&nbsp; Official forecasts are ranked only among themselves, each checked against its own positions, on the forecasts all of them issued',
     'sub.maps120':      '0–120 h',
     'panel.ensemble120': 'Ensemble Track Forecast (0–120 h)',
     'note.ensemble120': 'Same members, mean and deterministic run as the full map below, cut at 120 h (5 days) so the next few days fill the frame &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
@@ -218,7 +220,7 @@ const I18N = {
     'panel.ohctrack':   'Ocean Heat Content along the JTWC Track',
     'note.ohctrack':    'Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes',
     'caveat.intensity': 'Read the intensities here as a trend, not as a forecast of peak winds. The AI models (WN3-C, WN2-C, GENC, AIFS, AIGFS) run at about 0.25° and cannot resolve the eyewall, so strong typhoons usually come out tens of knots too weak; the ECMWF and GFS ensembles also run weak. For how strong the storm will get, use the official forecasts (JTWC / JMA / CWA) in Summary; use these curves for whether it strengthens or weakens, and when. The Verification tab shows each model’s actual intensity bias for this storm.',
-    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are not ranked with the models; their archive starts later, so they appear only in the all-forecasts sample.',
+    'score.official':   'JTWC / JMA / CWA rows are the official forecasts, each verified against its own positions (JTWC warnings, JMA and CWA analyses) and its own wind scale, so they are ranked only among themselves, using the forecasts all of them issued for the same time; their archive starts later, so they appear only in the all-forecasts tab.',
     'note.ohc':         'Tropical cyclone heat potential: heat stored above 26 °C between the sea surface and the 26 °C isotherm (kJ/cm²), computed from the latest daily CMEMS (Copernicus Marine) 1/12° ocean analysis, or HYCOM (US Navy) as a backup &nbsp;·&nbsp; A thick warm layer keeps the water under a typhoon warm even when it stirs the ocean, which favors strengthening; about 50 kJ/cm² (yellow and warmer) is a common threshold &nbsp;·&nbsp; Black = water colder than 26 °C or land &nbsp;·&nbsp; Dot = current JTWC position, solid line = track so far, dashed = JTWC forecast (dots every 24 h)',
     'sub.steer':        'Steering',
     'panel.steer':      'Steering Flow (500 hPa)',
@@ -431,12 +433,14 @@ const I18N = {
     'score.grp.det': '決定報',
     'score.grp.det.sub': '單一路徑，通常不如系集平均準',
     'score.grp.off':  '官方預報',
-    'score.grp.off.sub': '各自以自己的定位為實況，數字會偏有利，不參與排名',
+    'score.grp.off.sub': '只在彼此之間排名，比的是三家都有發布的預報；各自以自己的定位為實況',
     'score.chart.y': '平均路徑誤差（公里）',
     'sub.official':     '官方預報',
     'panel.official':   '各國官方預報比較',
     'off.now':          '現在',
     'off.et':           '溫帶氣旋',
+    'panel.showdown':   '誤差大 PK',
+    'note.showdown':    '颱風結束時畫的總表。各預報時數的路徑誤差（公里），用同質樣本：每個模式比的是同一批預報，以 JTWC 警報位置為實況 &nbsp;·&nbsp; 總分＝每個時數比當時最好的模式多出幾 %，再對 24～120 小時取平均，長時距的大誤差不會一個人說了算 &nbsp;·&nbsp; 強度 |e|＝最大風速的平均絕對誤差（括號是偏差：＋偏強、−偏弱） &nbsp;·&nbsp; 官方預報只在彼此之間排名，各自以自己的定位校驗，比的是三家都有發布的那些預報',
     'sub.maps120':      '0～120 小時',
     'panel.ensemble120': '系集路徑預報（0～120 小時）',
     'note.ensemble120': '與下方完整路徑圖相同的成員、系集平均與決定報，只畫到 120 小時（5 天），近幾天的路徑放大看得更清楚 &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
@@ -465,7 +469,7 @@ const I18N = {
     'panel.ohctrack':   '沿 JTWC 路徑的海洋熱含量',
     'note.ohctrack':    '沿 JTWC 最新預報路徑、每 6 小時取樣的颱風中心底下海洋熱含量（中心 ±0.5° 內的平均） &nbsp;·&nbsp; 虛線＝50 kJ/cm²，常用的增強門檻：高於它暖水層夠厚，颱風自己攪動海水也不太會把海面變冷 &nbsp;·&nbsp; 灰方塊＝陸地或低於 26 °C 的海水 &nbsp;·&nbsp; 海洋分析是每日一張快照，這裡畫的是颱風若照 JTWC 路徑走會遇到的海洋，不是海洋本身的變化',
     'caveat.intensity': '這裡的強度只能看趨勢，不能當成最大風速的預報。AI 模式（WN3-C、WN2-C、GENC、AIFS、AIGFS）解析度約 0.25°，解析不出眼牆，強颱常偏弱數十 kt；ECMWF 與 GFS 系集也偏弱。颱風會多強，請看「概況」裡的官方預報（JTWC／JMA／CWA）；這些曲線拿來看會增強還是減弱、大約什麼時候。「校驗」分頁有各模式對這顆颱風實際的強度偏差。',
-    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名；它們的存檔比模式晚開始，只列在「全部」樣本。',
+    'score.official':   'JTWC／JMA／CWA 列是官方預報，各自以自己的定位（JTWC 警報、日本氣象廳與中央氣象署自己的分析位置）與自己的風速校驗，所以不和模式一起排名，只在彼此之間比，用的是三家同一時間都有發布的預報；它們的存檔比模式晚開始，只列在「全部」分頁。',
     'note.ohc':         '熱帶氣旋熱潛能：海面到 26 °C 等溫線之間、高於 26 °C 的熱量（kJ/cm²），由 CMEMS（歐盟哥白尼海洋服務）1/12° 最新一天的海洋分析計算，取不到時改用 HYCOM（美國海軍） &nbsp;·&nbsp; 暖水層越厚，颱風攪動海水時底下越不容易變冷，越有利增強；常用約 50 kJ/cm²（黃色以上）當門檻 &nbsp;·&nbsp; 黑色＝低於 26 °C 的海水或陸地 &nbsp;·&nbsp; 圓點＝JTWC 目前位置，實線＝目前為止的路徑，虛線＝JTWC 預報（每 24 小時一點）',
     'sub.steer':        '駛流場',
     'panel.steer':      '駛流場（500 hPa）',
@@ -1258,6 +1262,7 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
     const mapEl = box.querySelector('.arch-map');
     const scoreEl = box.querySelector('.arch-score');
     const trendEl = box.querySelector('.arch-trend');
+    const showdownEl = box.querySelector('.arch-showdown');
     const OLD = [126, 196, 232], NEW = [59, 47, 143];          // 舊期淺藍 → 新期深紫，同趨勢圖
     const PICK = '#E8963A';
     const PREFER = ['WN3-C', 'ECMWF-ENS', 'WN2-C r2', 'AIFS-ENS', 'GENC'];
@@ -1323,9 +1328,12 @@ document.querySelectorAll('.track-map').forEach(b => tmIO ? tmIO.observe(b) : in
         box.querySelector('.arch-title').textContent = card.querySelector('.arch-name').textContent + ' · ' + tid;
         try {
             // 成績單與趨勢圖不需要地圖：先放上去，地圖函式庫載不到也看得到
-            const [html, trendHtml] = await Promise.all([
+            const [html, trendHtml, sdHtml] = await Promise.all([
                 fetch(`archive/${tid}_score.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
-                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+                fetch(`archive/${tid}_trend.html`).then(r => r.ok ? r.text() : '').catch(() => ''),
+                fetch(`archive/${tid}_showdown.html`).then(r => r.ok ? r.text() : '').catch(() => '')]);
+            showdownEl.innerHTML = sdHtml;
+            i18nIn(showdownEl);
             scoreEl.innerHTML = html;
             i18nIn(scoreEl);
             trendEl.innerHTML = trendHtml;
