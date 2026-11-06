@@ -758,6 +758,8 @@ OFFICIAL_TABLE_H = [0, 12, 24, 48, 72, 96, 120]
 # 颱風歷史存檔（forecast.update_storm_archive 寫的 docs/archive/{tid}.json）
 ARCHIVE_MODEL_ORDER = ['WN3-C', 'WN2-C r2', 'WN2-C r1', 'WN2-C 1000', 'GENC', 'AIFS-ENS', 'AIFS-single',
                        'ECMWF-ENS', 'ECMWF HRES', 'AIGEFS', 'AIGFS', 'GEFS', 'GFS']
+# 決定報的名稱（校驗表分組用）：不管這一輪有沒有那個模式，成績單裡出現就歸到「決定報」
+SCORE_DET_NAMES = {'AIFS-single', 'ECMWF HRES', 'AIGFS', 'GFS'}
 
 
 def _load_archive(docs_dir: str) -> list[dict]:
@@ -784,7 +786,7 @@ def _load_archive(docs_dir: str) -> list[dict]:
         card = d.get('card') or {}
         score = ''
         if card:
-            score = _score_block(f'arch-{tid}-score', [('storm', card)], ARCHIVE_MODEL_ORDER, set(d.get('det') or []))
+            score = _score_block(f'arch-{tid}-score', [('storm', card)], ARCHIVE_MODEL_ORDER, SCORE_DET_NAMES | set(d.get('det') or []))
         try:
             with open(os.path.join(adir, f'{tid}_score.html'), 'w', encoding='utf-8') as fh:
                 fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
@@ -1722,9 +1724,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         if _card_m is not None:
             sec_id = f"sec-{key_prefix}-score"
             sections.append((sec_id, 'sub.score', 'Verification'))
-            order = [x for m in models if isinstance(m, dict)
-                     for x in (m.get('ens_name') or m.get('model'), m.get('det_name')) if x]
-            det_names = {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
+            # 校驗表一律用固定的模式順序：這一輪只有部分模式追到這顆颱風時，成績單（尤其「所有颱風」）
+            # 裡其他模式也照原本的位置排，不會被擠到最後按字母排，決定報也不會被當成系集
+            order = list(ARCHIVE_MODEL_ORDER) + [x for m in models if isinstance(m, dict)
+                                                 for x in (m.get('ens_name') or m.get('model'), m.get('det_name'))
+                                                 if x and x not in ARCHIVE_MODEL_ORDER]
+            det_names = SCORE_DET_NAMES | {m.get('det_name') for m in models if isinstance(m, dict) and m.get('det_name')}
             # 「這個颱風」排前面（預設），「所有颱風」在後；各自再分同質／全部樣本
             body = _score_block(f"{key_prefix}-score",
                                 [('storm', _card_m.get('scorecard')), ('allst', _card_m.get('scorecard_all'))],
