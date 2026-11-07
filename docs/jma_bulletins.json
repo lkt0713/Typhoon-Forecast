@@ -70,23 +70,5 @@
     "ext": false
    }
   ]
- },
- "TC2637": {
-  "agency": "JMA",
-  "id": "TC2637",
-  "number": "2631",
-  "name": "In-fa",
-  "issue": "2026-11-06T00:00Z",
-  "points": [
-   {
-    "h": 0,
-    "lat": 38.0,
-    "lon": 152.0,
-    "kt": null,
-    "hpa": 984.0,
-    "r70_km": null,
-    "ext": true
-   }
-  ]
  }
 }
