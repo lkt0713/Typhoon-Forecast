@@ -2640,6 +2640,10 @@ def make_official_forecasts(storms: list) -> None:
         now = _storm_now(head)
         fcs = [f for f in [_jtwc_official(head)] if f]
         if now is not None:
+            # 每個單位只取一報：配對到好幾報時用最新的（同時間再取最近的）。熱帶性低氣壓命名後
+            # CWA 換了名字（例如「35」→ CEMPAKA），舊名那報還在快取裡（official._keep_recent_cwa），
+            # 不篩的話兩報都配對到同一顆颱風，官方圖就畫出兩條 CWA 路徑
+            pick: dict = {}
             for f in others:
                 a = f['points'][0]
                 if a['h'] != 0:
@@ -2648,7 +2652,16 @@ def make_official_forecasts(storms: list) -> None:
                 if id(f) not in nearest or d < nearest[id(f)][0]:
                     nearest[id(f)] = (d, tid)
                 if d <= OFFICIAL_MATCH_KM:
-                    fcs.append(f)
+                    ag = f.get('agency')
+                    if ag in pick:
+                        old, od = pick[ag]
+                        newer = (str(f.get('issue') or ''), -d) > (str(old.get('issue') or ''), -od)
+                        print(f"[OFFICIAL] {tid}: {ag} 有兩報配對到（{old.get('name')} {old.get('issue')}、"
+                              f"{f.get('name')} {f.get('issue')}），只用較新的")
+                        if not newer:
+                            continue
+                    pick[ag] = (f, d)
+            fcs += [f for f, _ in pick.values()]
         _mark_official_et(fcs)
         try:
             _archive_official_verif(tid, fcs)
