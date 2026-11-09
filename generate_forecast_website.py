@@ -1316,18 +1316,31 @@ def _hero_glance(info: dict, models: list, docs_dir: str) -> str:
         _, _, kt24, tau = min(fc, key=lambda p: abs(p[3] - 24))
         arrow = '↑' if kt24 >= wind + 5 else ('↓' if kt24 <= wind - 5 else '→')
         chips.append(_bi(f'<b>{kt24:.0f} kt</b> in {tau:.0f} h {arrow}', f'{tau:.0f} 小時後 <b>{kt24:.0f} kt</b> {arrow}'))
-    cs = [m.get('city_strike') for m in models if isinstance(m, dict) and isinstance(m.get('city_strike'), dict)]
+    # 各模式（系集）的侵襲機率：只取最高值會讓單一離群模式變成標題，所以寫出是哪個地點、哪個模式，
+    # 以及幾個模式 ≥ 1%；全部 <1% 就直說「各模式都低於 1%」
+    cs = [(m.get('ens_name') or m.get('model'), m.get('city_strike')) for m in models
+          if isinstance(m, dict) and isinstance(m.get('city_strike'), dict)]
     if cs:
-        def top(keys):
-            vals = [(c.get(k) or {}).get('p') for c in cs for k in keys]
-            vals = [v for v in vals if v is not None]
-            return max(vals) if vals else None
-        tw, jp = top(['tw_landfall']), top(['naha', 'tokyo'])
-        fmt = lambda v: '&lt;1%' if v < 1 else f'{v:.0f}%'
-        if tw is not None:
-            chips.append(_bi(f'Taiwan landfall <b>{fmt(tw)}</b>', f'登陸臺灣 <b>{fmt(tw)}</b>'))
-        if jp is not None:
-            chips.append(_bi(f'Okinawa / Tokyo strike <b>{fmt(jp)}</b>', f'沖繩／東京侵襲 <b>{fmt(jp)}</b>'))
+        places = {'tw_landfall': ('Taiwan landfall', '登陸臺灣'), 'naha': ('Okinawa strike', '沖繩侵襲'),
+                  'tokyo': ('Tokyo strike', '東京侵襲')}
+
+        def chip(keys, all_en, all_zh):
+            vals = [(((c.get(k) or {}).get('p')), k, name) for name, c in cs for k in keys]
+            vals = [v for v in vals if v[0] is not None]
+            if not vals:
+                return None
+            n_models = len({name for _, _, name in vals})
+            p, k, name = max(vals, key=lambda v: v[0])
+            if p < 1:
+                return _bi(f'{all_en} <b>&lt;1%</b> in every model', f'{all_zh}<b>各模式都 &lt;1%</b>')
+            hits = len({nm for v, _, nm in vals if v >= 1})
+            en, zh = places[k]
+            return _bi(f'{en} <b>up to {p:.0f}%</b> ({_esc(name)}; {hits} of {n_models} models ≥1%)',
+                       f'{zh}<b>最高 {p:.0f}%</b>（{_esc(name)}；{n_models} 個模式中 {hits} 個 ≥1%）')
+        for c in (chip(['tw_landfall'], 'Taiwan landfall', '登陸臺灣'),
+                  chip(['naha', 'tokyo'], 'Okinawa / Tokyo strike', '沖繩／東京侵襲')):
+            if c:
+                chips.append(c)
     delta = _run_delta(docs_dir, info['id'], [m.get('model') for m in models if isinstance(m, dict) and m.get('model')])
     if delta:
         chips.append(re.sub(r'</?strong>', '', delta))
