@@ -166,7 +166,7 @@ const I18N = {
     'run.latest':       'Latest',
     'tmap.all':         'All',
     'tmap.na':          'not issued yet',
-    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run',
+    'note.tmap':        'Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp; Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run &nbsp;·&nbsp; Untick "Full tracks" to scrub by forecast hour: tracks are drawn up to that hour and a dot marks where every member puts the center then, so the spread of dots is the position uncertainty',
     'sub.score':        'Verification',
     'panel.score':      'Track Error by Model',
     'score.model':      'Model',
@@ -176,6 +176,26 @@ const I18N = {
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
     'frag.loading':     'Loading…',
+    'tmap.full':        'Full tracks',
+    'tmap.play':        'Play through the forecast hours',
+    'sub.mine':         'My location',
+    'panel.mine':       'Risk at a location',
+    'mine.geo':         'Use my location',
+    'mine.pick':        'Pick a place…',
+    'mine.lat':         'Lat',
+    'mine.lon':         'Lon',
+    'mine.go':          'Compute',
+    'mine.need':        'Enter a latitude and longitude, pick a place, or use your location.',
+    'mine.none':        'No ensemble members available for this storm yet.',
+    'mine.geo.fail':    'Could not get your location. Pick a place or type coordinates instead.',
+    'mine.at':          'Risk at',
+    'mine.all':         'All models (pooled)',
+    'mine.col.model':   'Model',
+    'mine.col.p':       'Center within',
+    'mine.col.dist':    'Closest approach',
+    'mine.col.when':    'When',
+    'mine.col.wind':    'Wind then',
+    'note.mine':        'Computed in your browser from every ensemble member\'s track, nothing is sent anywhere &nbsp;·&nbsp; Chance = share of members whose center passes within 110 km (the same 1° rule as the strike maps) &nbsp;·&nbsp; Closest approach and timing are medians over all members; wind is the median member intensity at that moment &nbsp;·&nbsp; This is the chance of the center coming near, not of damaging winds: a Cat 3 passing 100 km away is still dangerous, and model intensities run weak',
     'dl.label':         'Download:',
     'season.title':     'Season so far',
     'season.note':      'Every verified forecast this season, all storms together, scored against the JTWC warning positions; {n} storms so far.',
@@ -428,7 +448,7 @@ const I18N = {
     'run.latest':       '最新',
     'tmap.all':         '全部',
     'tmap.na':          '尚未出報',
-    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期',
+    'note.tmap':        '拖曳、滾輪縮放 &nbsp;·&nbsp; 滑鼠移到線上看成員、時間（UTC）與風速 &nbsp;·&nbsp; 成員顏色＝強度 &nbsp;·&nbsp; 多模式比較：模式可任選、全部也行，一個模式一種顏色，虛線＝決定報 &nbsp;·&nbsp; 起報時間按鈕：所有模式一起切到同一期 &nbsp;·&nbsp; 取消「完整路徑」就能依預報時數拉動：路徑只畫到那個時數，並以點標出每個成員那一刻的中心位置，點的散布就是位置的不確定性',
     'sub.score':        '校驗',
     'panel.score':      '模式路徑誤差',
     'score.model':      '模式',
@@ -438,6 +458,26 @@ const I18N = {
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
+    'tmap.full':        '完整路徑',
+    'tmap.play':        '依預報時數播放',
+    'sub.mine':         '我的位置',
+    'panel.mine':       '指定地點的風險',
+    'mine.geo':         '使用我的位置',
+    'mine.pick':        '選一個地點…',
+    'mine.lat':         '緯度',
+    'mine.lon':         '經度',
+    'mine.go':          '計算',
+    'mine.need':        '請輸入經緯度、選一個地點，或使用你的位置。',
+    'mine.none':        '這顆颱風還沒有系集成員資料。',
+    'mine.geo.fail':    '取不到你的位置，請改選地點或輸入座標。',
+    'mine.at':          '地點',
+    'mine.all':         '所有模式合計',
+    'mine.col.model':   '模式',
+    'mine.col.p':       '中心經過',
+    'mine.col.dist':    '最近距離',
+    'mine.col.when':    '時間',
+    'mine.col.wind':    '當時風速',
+    'note.mine':        '全部在你的瀏覽器裡用每個系集成員的路徑算，位置不會送出 &nbsp;·&nbsp; 機率＝中心經過 110 公里內的成員比例（與侵襲機率圖相同的 1° 規則） &nbsp;·&nbsp; 最近距離與時間是所有成員的中位數；風速是那一刻成員強度的中位數 &nbsp;·&nbsp; 這是中心接近的機率，不是災害風的機率：三級颱風從 100 公里外經過仍然危險，而且模式強度偏弱',
     'dl.label':         '下載：',
     'season.title':     '本季至今',
     'season.note':      '本季所有颱風的校驗合計，以 JTWC 警報位置為實況；目前 {n} 顆颱風。',
@@ -1222,17 +1262,43 @@ async function initTrackMap(box) {
                     .bindTooltip(ptsTip(m, d, p, det)).addTo(layer));
             ll.forEach(p => bounds.push(p));
         }
+        // 某成員在第 h 小時的位置（線性內插）；超出該成員的預報長度回 null
+        let upto = () => null;
+        const posAt = (pts, h) => {
+            for (let k = 0; k < pts.length - 1; k++) {
+                const a = pts[k], b = pts[k + 1];
+                if (a[3] <= h && h <= b[3]) {
+                    const f = b[3] === a[3] ? 0 : (h - a[3]) / (b[3] - a[3]);
+                    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] != null && b[2] != null ? a[2] + (b[2] - a[2]) * f : (a[2] ?? b[2]), h];
+                }
+            }
+            return pts.length && pts[0][3] === h ? pts[0] : null;
+        };
+        const clip = pts => {
+            const h = upto();
+            if (h == null) return pts;
+            const kept = pts.filter(p => p[3] <= h), tail = posAt(pts, h);
+            if (tail && (!kept.length || kept[kept.length - 1][3] < h)) kept.push(tail);
+            return kept;
+        };
         // 只有第一次載入時縮放到路徑範圍；之後切模式／期數都保留使用者目前的畫面，方便對照
         function draw(fit) {
             layer.clearLayers();
             const cmp = cmpOn(), list = (cmp ? shown() : [sel.value]).filter(has), bounds = [];
+            const h = upto();
             // 選了某期而模式還沒出報：地圖上方標示
             const miss = run ? (cmp ? shown() : [sel.value]).filter(m => !has(m)) : [];
             msg.hidden = !miss.length;
             msg.textContent = miss.length ? `${miss.join('、')} ${fmtAt(run, 0)} ${t('tmap.na')}` : '';
             // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
             if (showM.checked) list.forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
-                const pts = unwrap(raw);
+                const pts = clip(unwrap(raw));
+                if (!pts.length) return;
+                if (h != null) {
+                    const q = pts[pts.length - 1];
+                    if (q[3] === h) L.circleMarker([q[0], q[1]], {radius: 3.2, color: '#fff', weight: .8, fillColor: cmp ? colorOf(m) : TM_COLORS[tmCat(q[2])], fillOpacity: .9})
+                        .bindTooltip(`${cmp ? m + ' ' : ''}#${i + 1} · +${h}h · ${q[2] != null ? Math.round(q[2]) : '–'} kt`).addTo(layer);
+                }
                 if (cmp) {
                     // 模式一多成員線就淡一點，平均線才看得出來
                     L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: list.length > 3 ? .2 : .35})
@@ -1249,8 +1315,17 @@ async function initTrackMap(box) {
             showD.closest('label').style.display = hasDet ? '' : 'none';
             list.forEach(m => {
                 const d = cur.models[m];
-                if (showA.checked && (d.mean || []).length) drawLine(m, d, d.mean, cmp ? colorOf(m) : '#16324F', false, bounds);
-                if (showD.checked && d.det && d.det.length > 1) drawLine(m, d, d.det, cmp ? colorOf(m) : '#B45309', true, bounds);
+                if (showA.checked && (d.mean || []).length) {
+                    const mp = clip(unwrap(d.mean));
+                    if (mp.length > 1) drawLine(m, d, mp, cmp ? colorOf(m) : '#16324F', false, bounds);
+                    const q = h != null && mp.length ? mp[mp.length - 1] : null;
+                    if (q && q[3] === h) L.circleMarker([q[0], q[1]], {radius: 7, color: '#fff', weight: 2, fillColor: cmp ? colorOf(m) : '#16324F', fillOpacity: 1})
+                        .bindTooltip(`${m} ${t('tmap.mean')} · +${h}h · ${fmt(m, h)} · ${q[2] != null ? Math.round(q[2]) : '–'} kt`).addTo(layer);
+                }
+                if (showD.checked && d.det && d.det.length > 1) {
+                    const dp = clip(unwrap(d.det));
+                    if (dp.length > 1) drawLine(m, d, dp, cmp ? colorOf(m) : '#B45309', true, bounds);
+                }
             });
             // 與靜態圖一致：轉溫帶後跑到高緯的成員不算進範圍（AIGFS／GFS 會一路追到極區）
             const cap = Math.max(45, Math.min(...bounds.map(p => p[0])) + 10);
@@ -1305,8 +1380,42 @@ async function initTrackMap(box) {
                 runBox.appendChild(b);
             });
         } else runBox.remove();
+        // 時間軸：取消「完整路徑」後，拉桿選某個時數，只畫到那裡並標出各成員那一刻的位置
+        const hourIn = box.querySelector('.tm-hour'), hourVal = box.querySelector('.tm-hour-val');
+        const fullBox = box.querySelector('.tm-full'), playBtn = box.querySelector('.tm-play');
+        let playT = 0;
+        const maxLead = () => Math.min(240, Math.max(24, ...Object.values(cur.models).flatMap(d =>
+            [...(d.members || []), d.mean || [], d.det || []]).map(p => p.length ? p[p.length - 1][3] : 0)));
+        const syncHour = () => {
+            const mx = maxLead();
+            hourIn.max = mx; if (+hourIn.value > mx) hourIn.value = mx;
+            hourIn.classList.toggle('idle', fullBox.checked);
+            const m = cmpOn() ? shown()[0] : sel.value;
+            hourVal.textContent = fullBox.checked ? t('tmap.full') : `+${hourIn.value} h · ${fmt(m, +hourIn.value)}`;
+        };
+        upto = () => fullBox.checked ? null : +hourIn.value;
+        const stopPlay = () => { clearInterval(playT); playT = 0; playBtn.classList.remove('playing'); };
+        fullBox.onchange = () => { if (fullBox.checked) stopPlay(); syncHour(); draw(false); };
+        hourIn.oninput = () => { fullBox.checked = false; syncHour(); draw(false); };   // 一拉就離開完整路徑模式
+        box.querySelectorAll('.tm-step').forEach(b => b.onclick = () => {
+            stopPlay(); fullBox.checked = false;
+            const mx = maxLead(), v = +hourIn.value + (+b.dataset.step);
+            hourIn.value = Math.max(0, Math.min(mx, v));
+            syncHour(); draw(false);
+        });
+        playBtn.onclick = () => {
+            if (playT) { stopPlay(); return; }
+            fullBox.checked = false; syncHour();
+            playBtn.classList.add('playing');
+            playT = setInterval(() => {
+                const mx = maxLead(), v = +hourIn.value + 6;
+                hourIn.value = v > mx ? 0 : v;
+                syncHour(); draw(false);
+            }, 650);
+        };
+        syncHour();
         showInit();
-        sel.onchange = () => { showInit(); draw(false); };
+        sel.onchange = () => { showInit(); syncHour(); draw(false); };
         cmpBtn.onclick = () => {
             cmpBtn.setAttribute('aria-pressed', !cmpOn());
             box.classList.toggle('tm-cmp', cmpOn());
@@ -1321,6 +1430,80 @@ async function initTrackMap(box) {
         console.log('[trackmap]', e);
     }
 }
+// ── 我的位置：用系集成員算某地點的風險（全部在瀏覽器裡算，不送出位置） ──
+const MINE_R = 110;   // km，與侵襲機率圖的 1° 規則一致
+function kmBetween(a1, o1, a2, o2) {
+    const r = Math.PI / 180, dl = ((o2 - o1 + 540) % 360 - 180) * r;
+    const p1 = a1 * r, p2 = a2 * r;
+    return 6371 * Math.acos(Math.min(1, Math.max(-1, Math.sin(p1) * Math.sin(p2) + Math.cos(p1) * Math.cos(p2) * Math.cos(dl))));
+}
+const median = xs => { const a = xs.filter(x => x != null).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+function mineStats(members, lat, lon) {
+    const hits = [], mins = [];
+    members.forEach(pts => {
+        let best = null;
+        if (pts.length === 1) best = {d: kmBetween(lat, lon, pts[0][0], pts[0][1]), h: pts[0][3], kt: pts[0][2]};
+        for (let k = 0; k < pts.length - 1; k++) {
+            const a = pts[k], b = pts[k + 1], n = Math.max(1, Math.round(b[3] - a[3]));
+            for (let s = 0; s <= n; s++) {
+                const f = s / n, d = kmBetween(lat, lon, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f);
+                if (!best || d < best.d) best = {d, h: a[3] + (b[3] - a[3]) * f, kt: a[2] != null && b[2] != null ? a[2] + (b[2] - a[2]) * f : (a[2] ?? b[2])};
+            }
+        }
+        if (best) { mins.push(best.d); if (best.d <= MINE_R) hits.push(best); }
+    });
+    return {n: members.length, hits: hits.length, p: members.length ? hits.length / members.length * 100 : 0,
+            dist: median(mins), when: median(hits.map(x => x.h)), wind: median(hits.map(x => x.kt))};
+}
+const mineCache = {};
+async function initMine(box) {
+    const out = box.querySelector('.mine-out'), latIn = box.querySelector('.mine-lat'), lonIn = box.querySelector('.mine-lon');
+    const place = box.querySelector('.mine-place');
+    const load = () => mineCache[box.dataset.src] || (mineCache[box.dataset.src] = fetch(box.dataset.src).then(r => r.json()));
+    const pad = n => String(n).padStart(2, '0');
+    const at = (iso, h) => { const d = new Date(new Date(iso).getTime() + h * 3600e3); return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}Z`; };
+    async function run() {
+        const lat = parseFloat(latIn.value), lon = parseFloat(lonIn.value);
+        if (!isFinite(lat) || !isFinite(lon)) { out.innerHTML = `<p class="map-note">${t('mine.need')}</p>`; return; }
+        out.innerHTML = `<p class="map-note">${t('frag.loading')}</p>`;
+        let data;
+        try { data = await load(); } catch (e) { out.innerHTML = `<p class="map-note">${t('frag.failed')}</p>`; return; }
+        const rows = [], pooled = [];
+        Object.keys(data.models).forEach(m => {
+            const d = data.models[m], mem = d.members || [];
+            if (!mem.length) return;
+            pooled.push(...mem);
+            rows.push([m, mineStats(mem, lat, lon), data.inits[m] || data.init]);
+        });
+        if (!rows.length) { out.innerHTML = `<p class="map-note">${t('mine.none')}</p>`; return; }
+        const all = mineStats(pooled, lat, lon);
+        const cell = (s, init) => {
+            const p = s.p < 1 && s.hits ? '&lt;1%' : `${Math.round(s.p)}%`;
+            const when = s.when != null ? at(init || data.init, s.when) : '—';
+            return `<td class="${s.p >= 50 ? 'mine-hi' : s.p >= 10 ? 'mine-mid' : ''}">${p}<span class="eta">${s.hits}/${s.n}</span></td>`
+                 + `<td>${s.dist != null ? Math.round(s.dist) + ' km' : '—'}</td><td class="mono">${when}</td>`
+                 + `<td>${s.wind != null ? Math.round(s.wind) + ' kt' : '—'}</td>`;
+        };
+        out.innerHTML = `<p class="mine-where">${t('mine.at')} <b class="mono">${lat.toFixed(2)}°, ${lon.toFixed(2)}°</b></p>`
+            + `<div class="city-table-wrap"><table class="city-table mine-table"><thead><tr>`
+            + `<th>${t('mine.col.model')}</th><th>${t('mine.col.p')}<span class="eta">${MINE_R} km</span></th><th>${t('mine.col.dist')}</th><th>${t('mine.col.when')}<span class="eta">UTC</span></th><th>${t('mine.col.wind')}</th></tr></thead><tbody>`
+            + `<tr class="mine-all"><td class="c-name">${t('mine.all')}</td>${cell(all, data.init)}</tr>`
+            + rows.map(([m, s, init]) => `<tr><td class="c-name">${m}</td>${cell(s, init)}</tr>`).join('')
+            + `</tbody></table></div>`;
+    }
+    box.querySelector('.mine-go').onclick = run;
+    place.onchange = () => { if (!place.value) return; const [la, lo] = place.value.split(','); latIn.value = la; lonIn.value = lo; run(); };
+    [latIn, lonIn].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') run(); }));
+    box.querySelector('.mine-geo').onclick = () => {
+        if (!navigator.geolocation) { out.innerHTML = `<p class="map-note">${t('mine.geo.fail')}</p>`; return; }
+        out.innerHTML = `<p class="map-note">${t('frag.loading')}</p>`;
+        navigator.geolocation.getCurrentPosition(pos => {
+            latIn.value = pos.coords.latitude.toFixed(2); lonIn.value = pos.coords.longitude.toFixed(2); place.value = ''; run();
+        }, () => { out.innerHTML = `<p class="map-note">${t('mine.geo.fail')}</p>`; }, {timeout: 10000, maximumAge: 600000});
+    };
+}
+$$('.mine').forEach(initMine);
+
 const tmIO = ('IntersectionObserver' in window) ? new IntersectionObserver(es => es.forEach(e => {
     if (e.isIntersecting) { tmIO.unobserve(e.target); initTrackMap(e.target); }
 }), {rootMargin: '200px'}) : null;
