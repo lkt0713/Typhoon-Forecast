@@ -28,7 +28,7 @@ os.chdir(ROOT)
 import forecast as f  # noqa: E402
 import generate_forecast_website as g  # noqa: E402
 
-PANE_NOW = ['sat', 'ohc', 'shear', 'steer', 'jtwc', 'official', 'cities']
+PANE_NOW = ['sat', 'ohc', 'shear', 'steer', 'jtwc', 'official', 'cities', 'tw']
 PANE_STRIKE = ['radii', 'strike', 'strikex', 'mine']
 PANE_TRACK = ['cmp', 'maps120', 'maps', 'anim', 'tmap', 'trend']
 
