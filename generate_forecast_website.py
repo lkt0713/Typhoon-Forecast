@@ -470,7 +470,9 @@ def _score_table(card: dict, order: list[str], det_names: set, metric: str = 'tr
 def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'track') -> str:
     """平均誤差隨預報時數的折線圖（inline SVG，跟著網站深淺主題變色）。
 
-    沿／跨路徑誤差有正負號，y 軸上下對稱並畫出 0 線。"""
+    沿／跨路徑誤差有正負號，y 軸上下對稱並畫出 0 線。
+    畫兩張：桌機寬版與手機窄版（字放大、線條粗一點），CSS 依螢幕寬度只顯示一張；
+    圖例可以點：點一下只看那個模式，再點一下恢復（腳本 .sc-legend 處理）。"""
     unit, signed = next((u, sg) for k, _, _, u, sg in SCORE_METRICS if k == metric)
     ykey, ytxt = SCORE_METRIC_TEXT[metric][:2]
     models = [m for m in order if m in card] + sorted(m for m in card if m not in order)
@@ -478,7 +480,20 @@ def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'tr
     pts = {m: p for m, p in pts.items() if p}
     if not pts:
         return ''
-    W, H, L, R, T, B = 900, 300, 52, 16, 12, 34
+    svg = (_score_svg(pts, det_names, unit, signed, ytxt, 900, 300, 11, 2.2, 'sc-desk')
+           + _score_svg(pts, det_names, unit, signed, ytxt, 420, 300, 15, 2.8, 'sc-phone'))
+    legend = ''.join(
+        f'<button type="button" class="sc-key" data-m="{_esc(m)}"><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
+        f'{";opacity:.55" if m in det_names or m in OFFICIAL_MODELS else ""}"></i>{_esc(m)}</button>' for m in pts)
+    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="{ykey}">{ytxt}</div>'
+            f'{svg}<div class="sc-legend">{legend}</div>'
+            f'<p class="sc-tip" data-i18n="score.legend.tip">Tap a model in the legend to show only that line; tap again to show all.</p></div>')
+
+
+def _score_svg(pts: dict, det_names: set, unit: str, signed: bool, ytxt: str,
+               W: int, H: int, fs: int, lw: float, cls: str) -> str:
+    """一張誤差折線圖的 SVG。fs 字級、lw 線寬；每條線帶 data-m，圖例開關用。"""
+    L, R, T, B = int(fs * 4.6), int(fs * 1.6), 12, int(fs * 3)
     top = max(abs(e) for p in pts.values() for _, e, _ in p) * 1.1 or 1.0
     step = next(st for st in (5, 10, 20, 25, 50, 100, 200, 500) if top / st <= 8)
     ymax = (int(top // step) + 1) * step
@@ -490,25 +505,22 @@ def _score_chart(card: dict, order: list[str], det_names: set, metric: str = 'tr
         lbl = f'{k:+d}'.replace('-', '−') if signed and k else f'{k}'
         g.append(f'<line x1="{L}" x2="{W - R}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)" '
                  f'stroke-width="{2 if signed and k == 0 else 1}"/>'
-                 f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{lbl}</text>')
+                 f'<text x="{L - 6}" y="{y(k) + fs * 0.36:.1f}" text-anchor="end" font-size="{fs}" style="fill:var(--text-2)">{lbl}</text>')
     for ld in SCORE_LEADS:
-        g.append(f'<text x="{x(ld):.1f}" y="{H - 12}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{ld} h</text>')
+        g.append(f'<text x="{x(ld):.1f}" y="{H - fs}" text-anchor="middle" font-size="{fs}" style="fill:var(--text-2)">{ld} h</text>')
+    r = lw * 1.65
     for m, p in pts.items():
         c = SCORE_COLORS.get(m, '#9AA6B2')
         dash = ' stroke-dasharray="6 4"' if m in det_names else (' stroke-dasharray="2 4"' if m in OFFICIAL_MODELS else '')
         path = ' '.join(f'{x(ld):.1f},{y(e):.1f}' for ld, e, _ in p)
-        g.append(f'<polyline points="{path}" fill="none" stroke="{c}" stroke-width="2.2"{dash}/>')
+        dots = ''
         for ld, e, n in p:
             fill = c if n >= SCORE_MIN_N else 'none'
             val = f'{e:+.0f}' if signed else f'{e:.0f}'
-            g.append(f'<circle cx="{x(ld):.1f}" cy="{y(e):.1f}" r="3.6" fill="{fill}" stroke="{c}" stroke-width="1.6">'
+            dots += (f'<circle cx="{x(ld):.1f}" cy="{y(e):.1f}" r="{r:.1f}" fill="{fill}" stroke="{c}" stroke-width="{lw * 0.75:.1f}">'
                      f'<title>{_esc(m)} · {ld} h · {val} {unit} · n={n}</title></circle>')
-    legend = ''.join(
-        f'<span><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
-        f'{";opacity:.55" if m in det_names or m in OFFICIAL_MODELS else ""}"></i>{_esc(m)}</span>' for m in pts)
-    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="{ykey}">{ytxt}</div>'
-            f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{_esc(ytxt)}">{"".join(g)}</svg>'
-            f'<div class="sc-legend">{legend}</div></div>')
+        g.append(f'<g class="sc-line" data-m="{_esc(m)}"><polyline points="{path}" fill="none" stroke="{c}" stroke-width="{lw}"{dash}/>{dots}</g>')
+    return f'<svg class="{cls}" viewBox="0 0 {W} {H}" role="img" aria-label="{_esc(ytxt)}">{"".join(g)}</svg>'
 
 
 def _score_metric_cards(card: dict, sample: str) -> dict:
@@ -607,13 +619,184 @@ COMPASS16 = [('north', '北'), ('north-northeast', '北北東'), ('northeast', '
              ('west', '西'), ('west-northwest', '西北西'), ('northwest', '西北'), ('north-northwest', '北北西')]
 
 
+def _fold_notes_html(html: str) -> str:
+    """圖說收進「怎麼看這張圖」，需要時再展開。"""
+    return re.sub(r'(<p class="map-note"[^>]*data-i18n="note\.[^"]+"[^>]*>.*?</p>)',
+                  r'<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>\1</details>',
+                  html, flags=re.S)
+
+
 def _bi(en: str, zh: str) -> str:
     """中英各一份，CSS 依 <html lang> 只顯示其中一份（句子結構不同，套不進 data-i18n 的參數）。"""
     return f'<span class="i-en">{en}</span><span class="i-zh">{zh}</span>'
 
 
-def _storm_summary(info: dict, city_cols: list) -> str:
-    """颱風頁頂端的白話摘要：往哪走、會變強還是變弱、臺灣有沒有威脅。缺資料的那句就不寫。"""
+def _km(lat1, lon1, lat2, lon2) -> float:
+    p1, p2, dl = math.radians(lat1), math.radians(lat2), math.radians(lon2 - lon1)
+    return 6371 * math.acos(min(1, max(-1, math.sin(p1) * math.sin(p2) + math.cos(p1) * math.cos(p2) * math.cos(dl))))
+
+
+def _bearing16(lat1, lon1, lat2, lon2) -> tuple[str, str]:
+    """從 1 到 2 的方位（16 方位，中英）。"""
+    p1, p2, dl = math.radians(lat1), math.radians(lat2), math.radians(lon2 - lon1)
+    brg = math.degrees(math.atan2(math.sin(dl) * math.cos(p2),
+                                  math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl))) % 360
+    return COMPASS16[int((brg + 11.25) // 22.5) % 16]
+
+
+def _at_lead(mean: list, h: float):
+    """平均路徑（[lat, lon, kt, h] 清單）在第 h 小時的位置（線性內插）；超出範圍回 None。"""
+    pts = sorted((p for p in mean if p and p[3] is not None), key=lambda p: p[3])
+    if not pts or h < pts[0][3] or h > pts[-1][3]:
+        return None
+    for a, b in zip(pts, pts[1:]):
+        if a[3] <= h <= b[3]:
+            f = 0 if b[3] == a[3] else (h - a[3]) / (b[3] - a[3])
+            return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+    return (pts[-1][0], pts[-1][1])
+
+
+def _run_files(docs_dir: str, tid: str) -> list[tuple[str, dict]]:
+    """這顆颱風每一期的路徑檔（{tid}_Tracks_{YYYYMMDDHH}.json），新的在前。"""
+    out = []
+    for fn in os.listdir(docs_dir or '.'):
+        m = re.match(rf'^{re.escape(tid)}_Tracks_(\d{{10}})\.json$', fn)
+        if not m:
+            continue
+        try:
+            with open(os.path.join(docs_dir, fn), encoding='utf-8') as fh:
+                out.append((m.group(1), json.load(fh)))
+        except (OSError, ValueError):
+            continue
+    return sorted(out, key=lambda x: x[0], reverse=True)
+
+
+def _run_delta(docs_dir: str, tid: str, prefer: list[str]) -> str:
+    """「跟上一報比變了什麼」：同一個模式最新一期 vs 前一期，比同一個有效時間的位置、
+    平均路徑的最大風速、登陸臺灣機率。沒有前一期（或資料不夠）回空字串。"""
+    runs = _run_files(docs_dir, tid)
+    if len(runs) < 2:
+        return ''
+    for model in prefer:
+        cur = next(((st, d['models'][model]) for st, d in runs if (d.get('models') or {}).get(model, {}).get('mean')), None)
+        if not cur:
+            continue
+        prev = next(((st, d['models'][model]) for st, d in runs
+                     if st < cur[0] and (d.get('models') or {}).get(model, {}).get('mean')), None)
+        if not prev:
+            continue
+        (cs, cm), (ps, pm) = cur, prev
+        dh = (datetime.strptime(cs, '%Y%m%d%H') - datetime.strptime(ps, '%Y%m%d%H')).total_seconds() / 3600
+        if dh <= 0 or dh > 48:
+            continue
+        en, zh = [], []
+        # 位置：同一個有效時間（上一期的時數 = 這一期的時數 + 兩期相隔）
+        for h in range(72, 23, -6):   # 兩期都有的最長時數（上一期要多 dh 小時才是同一個有效時間）
+            a, b = _at_lead(cm['mean'], h), _at_lead(pm['mean'], h + dh)
+            if a and b:
+                d = _km(b[0], b[1], a[0], a[1])
+                if d >= 20:
+                    be, bz = _bearing16(b[0], b[1], a[0], a[1])
+                    en.append(f'{h} h position shifted {d:.0f} km {be}')
+                    zh.append(f'{h} 小時位置往{bz}移了 {d:.0f} 公里')
+                else:
+                    en.append(f'{h} h position about the same (within {max(d, 1):.0f} km)')
+                    zh.append(f'{h} 小時位置幾乎不變（差 {max(d, 1):.0f} 公里內）')
+                break
+        kc = [p[2] for p in cm['mean'] if p and p[2] is not None]
+        kp = [p[2] for p in pm['mean'] if p and p[2] is not None]
+        if kc and kp:
+            a, b = max(kc), max(kp)
+            if abs(a - b) >= 5:
+                en.append(f'peak wind {b:.0f} → {a:.0f} kt')
+                zh.append(f'最大風速 {b:.0f} → {a:.0f} kt')
+        pc, pp = (cm.get('city') or {}).get('tw_landfall'), (pm.get('city') or {}).get('tw_landfall')
+        if pc is not None and pp is not None and abs(pc - pp) >= 1:
+            en.append(f'Taiwan landfall {pp:.0f}% → {pc:.0f}%')
+            zh.append(f'登陸臺灣機率 {pp:.0f}% → {pc:.0f}%')
+        run_lbl = f'{ps[6:8]}/{ps[8:10]}Z'
+        if not en:
+            return _bi(f'<strong>Since the {run_lbl} run</strong> ({_esc(model)}): little change.',
+                       f'<strong>跟 {run_lbl} 那報比</strong>（{_esc(model)}）：變化不大。')
+        return _bi(f'<strong>Since the {run_lbl} run</strong> ({_esc(model)}): ' + '; '.join(en) + '.',
+                   f'<strong>跟 {run_lbl} 那報比</strong>（{_esc(model)}）：' + '；'.join(zh) + '。')
+    return ''
+
+
+def _consensus(models: list) -> str:
+    """模式共識：各系集平均在 72 小時（不夠就 48）彼此有多接近、誰是離群值。"""
+    means = {}
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        tp = m.get('track_points') or {}
+        if tp.get('mean'):
+            means[m.get('ens_name') or m.get('model')] = tp['mean']
+    if len(means) < 3:
+        return ''
+    for h in (72, 48):
+        pos = {k: _at_lead(v, h) for k, v in means.items()}
+        pos = {k: v for k, v in pos.items() if v}
+        if len(pos) >= 3:
+            break
+    else:
+        return ''
+    clat = sorted(v[0] for v in pos.values())[len(pos) // 2]
+    clon = sorted(v[1] for v in pos.values())[len(pos) // 2]
+    dist = {k: _km(clat, clon, v[0], v[1]) for k, v in pos.items()}
+    med = sorted(dist.values())[len(dist) // 2]
+    cut = max(300.0, 2.5 * med)
+    outl = sorted((k for k, d in dist.items() if d > cut), key=lambda k: -dist[k])
+    core = [k for k in pos if k not in outl]
+    within = max((dist[k] for k in core), default=0)
+    if within < 150:
+        lvl = ('agree closely', '相當一致')
+    elif within < 300:
+        lvl = ('agree moderately', '大致一致')
+    else:
+        lvl = ('spread widely', '分歧很大')
+    if within < 300:
+        en = f'<strong>Consensus at {h} h:</strong> {len(core)} of {len(pos)} ensemble means {lvl[0]}, within {within:.0f} km of their median position'
+        zh = f'<strong>{h} 小時共識：</strong>{len(pos)} 個系集平均中有 {len(core)} 個{lvl[1]}，離中位位置都在 {within:.0f} 公里內'
+    else:
+        en = f'<strong>Consensus at {h} h:</strong> the {len(pos)} ensemble means {lvl[0]}, up to {within:.0f} km from their median position'
+        zh = f'<strong>{h} 小時共識：</strong>{len(pos)} 個系集平均{lvl[1]}，離中位位置最遠 {within:.0f} 公里'
+    if outl:
+        parts_en, parts_zh = [], []
+        for k in outl[:2]:
+            be, bz = _bearing16(clat, clon, pos[k][0], pos[k][1])
+            parts_en.append(f'{_esc(k)} ({dist[k]:.0f} km {be})')
+            parts_zh.append(f'{_esc(k)}（偏{bz} {dist[k]:.0f} 公里）')
+        en += '; outlier' + ('s' if len(outl) > 1 else '') + ': ' + ', '.join(parts_en)
+        zh += '；離群：' + '、'.join(parts_zh)
+    return _bi(en + '.', zh + '。')
+
+
+def _best_model(card_all: dict, card_storm: dict) -> str:
+    """校驗裡目前最準的模式：所有颱風同質樣本 72 小時路徑誤差最小（n ≥ SCORE_MIN_N）；
+    這顆颱風自己也有足夠樣本時一併寫。官方預報不參與。"""
+    def best(card, h=72):
+        hom = (card or {}).get('homog') or {}
+        cands = [(v[0], v[1], m) for m, d in hom.items() if m not in OFFICIAL_MODELS
+                 and (v := d.get(h) or d.get(str(h))) and v[1] >= SCORE_MIN_N]
+        return min(cands) if cands else None
+    b = best(card_all)
+    if not b:
+        return ''
+    err, n, m = b
+    en = f'<strong>Most accurate so far:</strong> {_esc(m)}, lowest 72 h track error across all storms ({err:.0f} km, n={n})'
+    zh = f'<strong>目前最準：</strong>{_esc(m)}，所有颱風的 72 小時路徑誤差最低（{err:.0f} 公里，n={n}）'
+    bs = best(card_storm)
+    if bs and bs[2] != m:
+        en += f'; for this storm, {_esc(bs[2])} leads ({bs[0]:.0f} km)'
+        zh += f'；這顆颱風則是 {_esc(bs[2])} 領先（{bs[0]:.0f} 公里）'
+    tab = ('<button type="button" class="link-btn" data-storm-tab="score" data-i18n="sum.verif">See Verification</button>')
+    return _bi(en + '. ', zh + '。') + tab
+
+
+def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None) -> str:
+    """颱風頁頂端的白話摘要：往哪走、會變強還是變弱、臺灣有沒有威脅。缺資料的那句就不寫。
+    extra 是另外算好的句子（跟上一報比、模式共識、最準模式），接在後面、字小一點。"""
     import math
     lines = []
     lat, lon, wind = info.get('lat'), info.get('lon'), info.get('wind')
@@ -653,9 +836,11 @@ def _storm_summary(info: dict, city_cols: list) -> str:
         else:
             lines.append(_bi(f'Taiwan landfall: up to {top:.0f}% ({_esc(name)}).',
                              f'登陸臺灣：機率最高 {top:.0f}%（{_esc(name)}）。'))
-    if not lines:
+    extra = [x for x in (extra or []) if x]
+    if not lines and not extra:
         return ''
-    return '<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines) + '</div>'
+    return ('<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines)
+            + ''.join(f'<p class="ss-extra">{x}</p>' for x in extra) + '</div>')
 
 
 def _city_table(cols: list[tuple]) -> str:
@@ -949,6 +1134,12 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.1.1', '2026-11-06', [
+        ('颱風頁摘要新增三句：跟上一報比變了什麼（位置、最大風速、登陸臺灣機率）、各模式 72 小時的共識與離群值、目前校驗最準的模式',
+         'The storm summary adds three lines: what changed since the last run (position, peak wind, Taiwan landfall chance), how far the models agree at 72 h and which one is the outlier, and the most accurate model so far'),
+        ('手機上校驗折線圖改用大字版，點圖例可以只看一個模式；放大的圖片可以兩指縮放、拖曳、雙擊',
+         'On phones the Verification chart uses a large-type version and tapping a legend entry isolates one model; enlarged images can be pinch-zoomed, dragged and double-tapped'),
+        ('校驗分頁改為點到才載入，颱風頁的檔案縮小約七成，手機開啟更快',
+         'The Verification tab now loads on demand, cutting the storm page to about a third of its size so it opens faster on phones'),
         ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
          'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
         ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
@@ -1747,8 +1938,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             if not body:
                 body = ('<p class="map-note" data-i18n="score.pending">Collecting data — the first '
                         'errors appear once a forecast has been out for 24 hours.</p>')
-            score_html = f"""
-            <div class="panel reveal" id="{sec_id}">
+            score_full = f"""
+            <div class="panel reveal in" id="{sec_id}">
                 <div class="panel-header">
                     <span class="panel-icon">🏁</span>
                     <span data-i18n="panel.score">Track Error by Model</span>
@@ -1761,6 +1952,14 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked
                 </p>
             </div>"""
+            # 校驗區塊佔了颱風頁七成以上的 HTML（四個樣本分頁 × 四種指標的表與圖），
+            # 寫成另一個檔，點到「校驗」分頁才載入；頁面本身只留佔位
+            _fdir = os.path.join(os.path.dirname(output_path) or '.', 'frag')
+            os.makedirs(_fdir, exist_ok=True)
+            with open(os.path.join(_fdir, f'{track_id}_score.html'), 'w', encoding='utf-8') as fh:
+                fh.write(_fold_notes_html(score_full))
+            score_html = (f'<div class="lazy-frag" data-src="frag/{_esc(track_id)}_score.html" data-sec="{sec_id}">'
+                          f'<p class="map-note frag-state" data-i18n="frag.loading">Loading…</p></div>')
 
         tmap_html = ""
         _tj = next((m.get('tracks_json') for m in models
@@ -1855,7 +2054,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 </p>
             </div>"""
 
-        summary_html = _storm_summary(info, city_cols)
+        _docs = os.path.dirname(output_path) or '.'
+        _prefer = [x for m in models if isinstance(m, dict) for x in [m.get('model')] if x]
+        extras = [_run_delta(_docs, track_id, _prefer),
+                  _consensus(models),
+                  _best_model(_card_m.get('scorecard_all') if _card_m else {}, _card_m.get('scorecard') if _card_m else {})]
+        summary_html = _storm_summary(info, city_cols, extras)
 
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／校驗，每頁單欄排列
         panes = [
@@ -1868,11 +2072,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         ]
         panes = [pn for pn in panes if pn[3].strip()]
 
-        # 圖說收進「怎麼看這張圖」，需要時再展開
-        def _fold_notes(html):
-            return re.sub(r'(<p class="map-note"[^>]*data-i18n="note\.[^"]+"[^>]*>.*?</p>)',
-                          r'<details class="note-fold"><summary data-i18n="note.how">How to read this</summary>\1</details>',
-                          html, flags=re.S)
+        _fold_notes = _fold_notes_html
 
         tab_btns = "".join(
             f'<button class="model-tab-btn storm-tab{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
@@ -2307,6 +2507,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <button class="lb-close" data-lb="close" title="Close"
                 data-i18n="lb.close" data-i18n-attr="title">✕</button>
         <img id="lightbox-img" alt="Full-size view">
+        <span class="lb-hint" data-i18n="lb.hint">Pinch or double-tap to zoom · scroll wheel on desktop</span>
     </div>
 
     <script id="site-data" type="application/json">{site_json}</script>
@@ -2857,6 +3058,22 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-chart .sc-axis { font-size: .78em; color: var(--text-2); margin-bottom: 2px; }
 .score-chart .sc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8em; color: var(--text-2); margin-top: 4px; }
 .score-chart .sc-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.score-chart .sc-key { background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; border-radius: 6px; }
+.score-chart .sc-key:hover { color: var(--text); }
+.score-chart.solo .sc-key { opacity: .45; }
+.score-chart.solo .sc-key.on { opacity: 1; color: var(--text); font-weight: 600; }
+.score-chart .sc-line { transition: opacity .25s; }
+.score-chart.solo .sc-line { opacity: .12; }
+.score-chart.solo .sc-line.on { opacity: 1; }
+.score-chart .sc-tip { display: none; font-size: .76em; color: var(--text-2); margin: 6px 0 0; }
+.score-chart svg.sc-phone { display: none; }
+@media (max-width: 600px) {
+    .score-chart svg.sc-desk { display: none; }
+    .score-chart svg.sc-phone { display: block; }
+    .score-chart .sc-legend { font-size: .86em; gap: 6px 12px; }
+    .score-chart .sc-key { padding: 5px 2px; }
+    .score-chart .sc-tip { display: block; }
+}
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
 /* 決定報：外框＋琥珀字，不用實心色塊，免得跟 60–70% 的橘色機率格混淆 */
 .city-table td.c-det { background: var(--surface-2); color: #E8963A; box-shadow: inset 0 0 0 2px #B45309; }
@@ -3034,7 +3251,18 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
     max-width: 95vw; max-height: 92vh;
     border-radius: 10px; object-fit: contain;
     box-shadow: 0 30px 80px rgba(0,0,0,.6);
+    touch-action: none; user-select: none; -webkit-user-drag: none; cursor: zoom-in;
+    transform-origin: center center; will-change: transform;
 }
+.lightbox.zoomed img { cursor: grab; }
+.lightbox .lb-close { z-index: 2; }
+.lightbox .lb-hint {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    font-size: .8em; color: rgba(255,255,255,.75); background: rgba(0,0,0,.45);
+    padding: 6px 12px; border-radius: 999px; pointer-events: none; white-space: nowrap;
+}
+.lightbox.zoomed .lb-hint { display: none; }
+.frag-state { padding: 18px 0; text-align: center; }
 .lb-close {
     position: absolute; top: 18px; right: 22px;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
@@ -3203,6 +3431,9 @@ html[lang^="zh"] .i-zh { display: inline; }
 html[lang^="zh"] .i-en { display: none; }
 .storm-summary { margin-top: 18px; max-width: 54ch; display: grid; gap: 6px; }
 .storm-summary p { font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.55; color: #eaf0f5; font-weight: 400; }
+.storm-summary p.ss-extra { font-size: clamp(.9rem, 1.2vw, 1rem); color: #c9d4df; }
+.storm-summary p.ss-extra strong { color: #eaf0f5; font-weight: 600; }
+.storm-summary .link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--accent, #7fc7ff); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .storm-badges { margin-bottom: 14px; }
 .storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
 
@@ -3918,6 +4149,10 @@ const I18N = {
     'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
     'note.score':       'Track error = mean distance (km) between each forecast position and the JTWC warning position at the same time; the other tabs split it into along-/cross-track parts or check intensity &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst (along-/cross-track: green = closest to 0); ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
     'score.tab.allst.homog': 'All storms · homogeneous',
+    'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
+    'frag.loading':     'Loading…',
+    'sum.verif':        'See Verification →',
+    'frag.failed':      'Could not load this section. Check your connection and tap the tab again.',
     'score.tab.allst.all': 'All storms · all forecasts',
     'score.tab.storm.homog': 'This storm · homogeneous',
     'score.tab.storm.all': 'This storm · all forecasts',
@@ -4017,6 +4252,7 @@ const I18N = {
     'panel.comparison': 'Multi-Model Comparison',
     'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
     'zoom.hint':        '🔍 Click to enlarge',
+    'lb.hint':          'Pinch or double-tap to zoom · scroll wheel on desktop',
     'panel.anim':       '{model} Track Evolution Animation',
     'panel.anim.generic': 'Track Evolution Animation',
     'note.anim':        'Step through the forecast frame by frame to watch the ensemble tracks unfold over time.',
@@ -4168,6 +4404,10 @@ const I18N = {
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
     'note.score':       '路徑誤差＝各預報位置與同時間 JTWC 警報位置的平均距離（公里）；其他分頁把它拆成沿／跨路徑，或比較強度 &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差（沿／跨路徑：越接近 0 越綠）；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
     'score.tab.allst.homog': '所有颱風・同質樣本',
+    'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
+    'frag.loading':     '載入中…',
+    'sum.verif':        '看校驗 →',
+    'frag.failed':      '這一區載入失敗，請確認網路後再點一次分頁。',
     'score.tab.allst.all': '所有颱風・全部樣本',
     'score.tab.storm.homog': '這顆颱風・同質樣本',
     'score.tab.storm.all': '這顆颱風・全部樣本',
@@ -4267,6 +4507,7 @@ const I18N = {
     'panel.comparison': '多模式比較',
     'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
     'zoom.hint':        '🔍 點擊放大',
+    'lb.hint':          '兩指或雙擊放大・桌機用滾輪',
     'panel.anim':       '{model} 路徑演變動畫',
     'panel.anim.generic': '路徑演變動畫',
     'note.anim':        '逐格檢視預報，看系集路徑如何隨預報時間展開。',
@@ -4643,6 +4884,28 @@ function revealTab(btn) {
 }
 
 // ── Model tab switching (WN3-C / WN2-C r2 / WN2-C r1 / GENC for the same storm) ──
+// 點到分頁才載入的區塊（校驗表）：抓片段、套語言、指示塊重量；失敗留提示，再點分頁會重試
+const i18nIn = el => $$('[data-i18n]', el).forEach(x => {
+    const txt = t(x.dataset.i18n, i18nParams(x)); if (!txt) return;
+    if (x.dataset.i18nAttr) x.setAttribute(x.dataset.i18nAttr, txt); else x.innerHTML = txt; });
+async function loadFrags(scope) {
+    for (const box of $$('.lazy-frag[data-src]', scope)) {
+        if (box.dataset.state === 'loading' || box.dataset.state === 'done') continue;
+        box.dataset.state = 'loading';
+        try {
+            const r = await fetch(box.dataset.src, { cache: 'no-cache' });
+            if (!r.ok) throw new Error(r.status);
+            box.innerHTML = await r.text();
+            box.dataset.state = 'done';
+            i18nIn(box);
+            requestAnimationFrame(updateIndicators);
+        } catch (e) {
+            box.dataset.state = 'failed';
+            box.innerHTML = `<p class="map-note frag-state" data-i18n="frag.failed">${t('frag.failed')}</p>`;
+            console.log('[frag]', box.dataset.src, e);
+        }
+    }
+}
 function switchModelTab(trackId, model) {
     $$('.model-panel').filter(el => el.dataset.track === trackId).forEach(el => {
         const isActive = el.dataset.model === model;
@@ -4650,6 +4913,7 @@ function switchModelTab(trackId, model) {
         // A panel whose image already failed to load stays hidden even if selected —
         // otherwise switching tabs away and back would silently un-hide the broken image.
         el.style.display = (isActive && el.dataset.broken !== 'true') ? '' : 'none';
+        if (isActive && el.classList.contains('tab-pane')) loadFrags(el);
         if (isActive && wasHidden && !reduced()) {
             el.classList.remove('swap-in'); void el.offsetWidth; el.classList.add('swap-in');
         }
@@ -5269,14 +5533,71 @@ if (canHover) {
 // ── Lightbox ──────────────────────────────────────────────────────
 const lightbox = $('#lightbox');
 function zoomImgOf(fig) { return $('img.is-front', fig) || $('img', fig); }
+const LB = { s: 1, x: 0, y: 0, ptrs: new Map(), moved: false, start: null, lastTap: 0 };
+const lbImg = $('#lightbox-img');
+function lbApply() {
+    if (!lbImg) return;
+    if (LB.s <= 1.001) { LB.s = 1; LB.x = LB.y = 0; }
+    lbImg.style.transform = LB.s === 1 ? '' : `translate(${LB.x}px, ${LB.y}px) scale(${LB.s})`;
+    lightbox.classList.toggle('zoomed', LB.s > 1);
+}
+function lbZoomAt(factor, cx, cy) {
+    // 以指標位置為中心縮放：縮放前後那個點留在原地
+    const r = lbImg.getBoundingClientRect();
+    const ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2);
+    const ns = Math.min(6, Math.max(1, LB.s * factor)), k = ns / LB.s;
+    LB.x = ox - (ox - LB.x) * k; LB.y = oy - (oy - LB.y) * k; LB.s = ns;
+    lbApply();
+}
 function openLightbox(src) {
-    $('#lightbox-img').src = src;
+    lbImg.src = src;
+    LB.s = 1; LB.x = LB.y = 0; LB.ptrs.clear(); lbApply();
     lightbox.classList.add('open');
     document.body.classList.add('lb-lock');
 }
 function closeLightbox() {
-    lightbox.classList.remove('open');
+    lightbox.classList.remove('open', 'zoomed');
     document.body.classList.remove('lb-lock');
+}
+if (lbImg) {
+    lbImg.addEventListener('pointerdown', e => {
+        LB.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        LB.moved = false;
+        if (LB.ptrs.size === 1) LB.start = { x: e.clientX, y: e.clientY, ox: LB.x, oy: LB.y };
+        if (LB.ptrs.size === 2) {
+            const [a, b] = [...LB.ptrs.values()];
+            LB.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: LB.s };
+        }
+        lbImg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    lbImg.addEventListener('pointermove', e => {
+        if (!LB.ptrs.has(e.pointerId)) return;
+        LB.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (LB.ptrs.size === 2 && LB.pinch) {
+            const [a, b] = [...LB.ptrs.values()];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+            lbZoomAt((LB.pinch.s * d / LB.pinch.d) / LB.s, cx, cy);
+            LB.moved = true;
+        } else if (LB.ptrs.size === 1 && LB.start && LB.s > 1) {
+            LB.x = LB.start.ox + e.clientX - LB.start.x; LB.y = LB.start.oy + e.clientY - LB.start.y;
+            if (Math.hypot(e.clientX - LB.start.x, e.clientY - LB.start.y) > 6) LB.moved = true;
+            lbApply();
+        }
+    });
+    const up = e => {
+        LB.ptrs.delete(e.pointerId);
+        if (LB.ptrs.size < 2) LB.pinch = null;
+        if (LB.ptrs.size === 1) { const [a] = [...LB.ptrs.values()]; LB.start = { x: a.x, y: a.y, ox: LB.x, oy: LB.y }; }
+        if (LB.ptrs.size === 0 && !LB.moved) {
+            const now = performance.now();
+            if (now - LB.lastTap < 320) { clearTimeout(LB.closeT); lbZoomAt(LB.s > 1 ? 1 / LB.s : 2.5, e.clientX, e.clientY); LB.lastTap = 0; LB.tapZoom = true; }
+            else LB.lastTap = now;
+        }
+    };
+    lbImg.addEventListener('pointerup', up); lbImg.addEventListener('pointercancel', up);
+    lbImg.addEventListener('wheel', e => { e.preventDefault(); lbZoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX, e.clientY); }, { passive: false });
 }
 // 系集路徑圖的歷史期數：同一個 model-panel 裡換圖
 document.addEventListener('click', e => {
@@ -5289,7 +5610,17 @@ document.addEventListener('click', e => {
     if (img) img.src = b.dataset.src;
 });
 document.addEventListener('click', e => {
-    if (lightbox.classList.contains('open')) { closeLightbox(); return; }   // 點任意處關閉
+    if (lightbox.classList.contains('open')) {
+        // 拖曳、兩指縮放或雙擊之後的 click 不算關閉；放大時點圖也不關（點圖外才關）
+        if (LB.moved || LB.tapZoom) { LB.moved = false; LB.tapZoom = false; return; }
+        if (e.target === lbImg) {
+            if (LB.s > 1) return;                       // 放大時點圖不關，點圖外或 ✕ 才關
+            clearTimeout(LB.closeT);                    // 等一下：可能是雙擊的第一下
+            LB.closeT = setTimeout(() => { if (LB.s === 1 && lightbox.classList.contains('open')) closeLightbox(); }, 330);
+            return;
+        }
+        closeLightbox(); return;
+    }
     const fig = e.target.closest('.zoomable');
     if (fig && !fig.classList.contains('broken')) { const img = zoomImgOf(fig); openLightbox(img.currentSrc || img.src); }
 });
@@ -5443,6 +5774,22 @@ document.addEventListener('click', e => {
         ct.setAttribute('aria-expanded', open ? 'true' : 'false');
         const wrap = ct.previousElementSibling;
         if (wrap && wrap.classList.contains('city-table-wrap')) wrap.classList.toggle('compact', !open);
+        return;
+    }
+    const key = e.target.closest('.sc-key');
+    if (key) {
+        const chart = key.closest('.score-chart');
+        const on = !(chart.classList.contains('solo') && key.classList.contains('on'));
+        chart.classList.toggle('solo', on);
+        $$('.sc-key', chart).forEach(k => k.classList.toggle('on', on && k === key));
+        $$('.sc-line', chart).forEach(l => l.classList.toggle('on', on && l.dataset.m === key.dataset.m));
+        return;
+    }
+    const jump = e.target.closest('[data-storm-tab]');
+    if (jump) {
+        const view = jump.closest('.view');
+        const b = view && $(`.storm-tab[data-model="${jump.dataset.stormTab}"]`, view);
+        if (b) { b.click(); b.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); }
         return;
     }
     const tab = e.target.closest('.model-tab-btn');
