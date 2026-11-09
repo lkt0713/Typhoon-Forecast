@@ -742,6 +742,8 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 }
 .lightbox.zoomed .lb-hint { display: none; }
 .frag-state { padding: 18px 0; text-align: center; }
+.ibias-bias { font-size: .8em; }
+.gen-table td.c-low { color: var(--text-2); }
 .tm-time { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; font-size: .86em; color: var(--text-2); }
 .tm-time .tm-hour { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
 .tm-time .tm-hour.idle { opacity: .55; }
