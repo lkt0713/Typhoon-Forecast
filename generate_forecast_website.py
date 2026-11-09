@@ -794,6 +794,36 @@ def _best_model(card_all: dict, card_storm: dict) -> str:
     return _bi(en + '. ', zh + '。') + tab
 
 
+def _hero_glance(info: dict, models: list, docs_dir: str) -> str:
+    """總覽頁主視覺下的一眼看懂列：JTWC 24 小時強度趨勢、各模式登陸臺灣與沖繩／東京的最高侵襲機率、
+    跟上一報比變了什麼。缺哪個就不放哪個。"""
+    chips = []
+    wind = info.get('wind')
+    fc = [p for p in (info.get('jtwc_fc') or []) if p and p[3] and 12 <= p[3] <= 36 and p[2] is not None]
+    if wind is not None and fc:
+        _, _, kt24, tau = min(fc, key=lambda p: abs(p[3] - 24))
+        arrow = '↑' if kt24 >= wind + 5 else ('↓' if kt24 <= wind - 5 else '→')
+        chips.append(_bi(f'<b>{kt24:.0f} kt</b> in {tau:.0f} h {arrow}', f'{tau:.0f} 小時後 <b>{kt24:.0f} kt</b> {arrow}'))
+    cs = [m.get('city_strike') for m in models if isinstance(m, dict) and isinstance(m.get('city_strike'), dict)]
+    if cs:
+        def top(keys):
+            vals = [(c.get(k) or {}).get('p') for c in cs for k in keys]
+            vals = [v for v in vals if v is not None]
+            return max(vals) if vals else None
+        tw, jp = top(['tw_landfall']), top(['naha', 'tokyo'])
+        fmt = lambda v: '&lt;1%' if v < 1 else f'{v:.0f}%'
+        if tw is not None:
+            chips.append(_bi(f'Taiwan landfall <b>{fmt(tw)}</b>', f'登陸臺灣 <b>{fmt(tw)}</b>'))
+        if jp is not None:
+            chips.append(_bi(f'Okinawa / Tokyo strike <b>{fmt(jp)}</b>', f'沖繩／東京侵襲 <b>{fmt(jp)}</b>'))
+    delta = _run_delta(docs_dir, info['id'], [m.get('model') for m in models if isinstance(m, dict) and m.get('model')])
+    if delta:
+        chips.append(re.sub(r'</?strong>', '', delta))
+    if not chips:
+        return ''
+    return '<ul class="hero-glance">' + ''.join(f'<li>{c}</li>' for c in chips) + '</ul>'
+
+
 def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None) -> str:
     """颱風頁頂端的白話摘要：往哪走、會變強還是變弱、臺灣有沒有威脅。缺資料的那句就不寫。
     extra 是另外算好的句子（跟上一報比、模式共識、最準模式），接在後面、字小一點。"""
@@ -1134,6 +1164,12 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.1.1', '2026-11-06', [
+        ('颱風頁每個分頁上方多一條小目錄，點了直接跳到那個區塊；「怎麼看這張圖」先露出第一句',
+         'Each storm-page tab gets a mini-index that jumps straight to a section; "How to read this" shows its first sentence inline'),
+        ('總覽頁颱風名下方新增一眼看懂列：24 小時強度趨勢、登陸臺灣與沖繩／東京侵襲機率、跟上一報比',
+         'The Overview adds an at-a-glance strip under the storm name: 24 h intensity trend, Taiwan landfall and Okinawa/Tokyo strike chances, and what changed since the last run'),
+        ('細節：生成潛勢頁標題縮短並加副標、手機上分頁鈕更好按、圖片補替代文字、中文字型只在中文介面載入',
+         'Details: shorter Genesis title with a subtitle, larger tap targets on phones, alt text on images, and the Chinese web font loads only in the Chinese interface'),
         ('颱風頁摘要新增三句：跟上一報比變了什麼（位置、最大風速、登陸臺灣機率）、各模式 72 小時的共識與離群值、目前校驗最準的模式',
          'The storm summary adds three lines: what changed since the last run (position, peak wind, Taiwan landfall chance), how far the models agree at 72 h and which one is the outlier, and the most accurate model so far'),
         ('手機上校驗折線圖改用大字版，點圖例可以只看一個模式；放大的圖片可以兩指縮放、拖曳、雙擊',
@@ -1517,9 +1553,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         hero_rgb = _hex_rgb(lead['color'], 0.35)
         hero_strength = min(1.0, max(0.15, ((lead['wind'] or 30) - 20) / 120))
         _wind = lambda i: f"{i['wind']:.0f} kt" if i['wind'] is not None else "— kt"
-        hero_sub = (f'<p class="hero-sub" data-i18n="hero.live.sub" data-i18n-count="{len(infos)}"\n'
-                    f'                   data-i18n-models="{len(active_models)}">{len(infos)} active system(s) · '
+        _subk = 'hero.live.sub1' if len(infos) == 1 else 'hero.live.sub'
+        hero_sub = (f'<p class="hero-sub" data-i18n="{_subk}" data-i18n-count="{len(infos)}"\n'
+                    f'                   data-i18n-models="{len(active_models)}">{len(infos)} active system{"" if len(infos) == 1 else "s"} · '
                     f'ensemble guidance from {len(active_models)} models, refreshed every 10–15 minutes.</p>')
+        # 一眼看懂列：24 小時強度趨勢、登陸臺灣、沖繩／東京侵襲機率、跟上一報比（資料在各颱風的 storm dict）
+        glance = _hero_glance(lead, groups.get(lead['id'], []), os.path.dirname(output_path) or '.')
         genesis_btn = ('<a class="btn-ghost" href="#/genesis" data-i18n="hero.cta.genesis">Genesis outlook</a>'
                        if _genesis_entries else '')
         if len(infos) == 1:
@@ -1532,6 +1571,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <span class="sep">·</span><span class="mono">{_wind(lead)}</span>
                     <span class="sep">·</span><span class="mono">{_esc(lead['pos'])}</span>
                 </p>
+                {glance}
                 {hero_sub}
                 <div class="hero-cta">
                     <a class="btn-primary" href="#/storm/{_esc(lead['id'])}"><span data-i18n="hero.cta.storm">Open forecast</span> <span aria-hidden="true">→</span></a>
@@ -1591,7 +1631,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <h3 data-i18n="sec.genesis">Genesis potential</h3></div>
             </div>
             <a class="genesis-teaser reveal" href="#/genesis">
-                <div class="teaser-img"><img src="{_esc(_teaser_src)}" alt="" loading="lazy" decoding="async"></div>
+                <div class="teaser-img"><img src="{_esc(_teaser_src)}" alt="Genesis potential map preview" loading="lazy" decoding="async"></div>
                 <div class="teaser-body">
                     <p data-i18n="genesis.teaser" data-i18n-n="{_n_genesis_models}">Where might the next storm form? Explore ensemble genesis signals from {_n_genesis_models} models.</p>
                     <div class="mini-chips">{chips}</div>
@@ -2079,9 +2119,18 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             f'data-track="{key_prefix}-tabs" data-model="{pid}" data-i18n="{k}">{txt}</button>'
             for i, (pid, k, txt, _) in enumerate(panes))
         hide = ' style="display:none;"'
+        _sec_lbl = {sid: (k, txt) for sid, k, txt in sections}
+
+        def _pane_nav(body):
+            ids = [x for x in re.findall(r'id="(sec-[^"]+)"', body) if x in _sec_lbl]
+            if len(ids) < 3:
+                return ''
+            return ('<nav class="subnav pane-nav" aria-label="Sections">' + ''.join(
+                f'<button type="button" data-target="{sid}" data-i18n="{_sec_lbl[sid][0]}">{_sec_lbl[sid][1]}</button>'
+                for sid in ids) + '</nav>')
         pane_html = "".join(
             f'<div class="model-panel tab-pane" data-track="{key_prefix}-tabs" data-model="{pid}" role="tabpanel"'
-            f'{"" if i == 0 else hide}>{_fold_notes(body)}</div>'
+            f'{"" if i == 0 else hide}>{_pane_nav(body)}{_fold_notes(body)}</div>'
             for i, (pid, _, _, body) in enumerate(panes))
 
         # 整頁一個模式選單：選項＝各圖分頁裡出現過的模式（同一模式的系集／決定性算一個）
@@ -2175,8 +2224,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                         <label><select id="cmp-b" aria-label="Right model">{opts_b}</select><span class="pick-dot b"></span></label>
                     </div>
                     <div class="cmp-stage" tabindex="0" role="slider" aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="" draggable="false" loading="lazy" decoding="async">
-                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="" draggable="false" loading="lazy" decoding="async"></div>
+                        <img class="cmp-base" src="{_esc(_cmp_entries[1][1])}" alt="Genesis potential · {_esc(_cmp_entries[1][0])}" draggable="false" loading="lazy" decoding="async">
+                        <div class="cmp-top"><img src="{_esc(_cmp_entries[0][1])}" alt="Genesis potential · {_esc(_cmp_entries[0][0])}" draggable="false" loading="lazy" decoding="async"></div>
                         <div class="cmp-handle"><span>{ICONS['compare']}</span></div>
                     </div>
                 </div>"""
@@ -2186,7 +2235,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         <div class="page">
             <div class="page-head reveal">
                 <div class="kicker" data-i18n="sec.genesis.kicker">Outlook</div>
-                <h2 class="page-title" data-i18n="panel.genesis">Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview</h2>
+                <h2 class="page-title" data-i18n="panel.genesis">Genesis Potential</h2>
+                <p class="page-sub" data-i18n="panel.genesis.sub">Where the next storm may form — ensemble tracks for the Western Pacific, model by model</p>
             </div>
             <div class="panel genesis-panel reveal">
                 <div class="genesis-toolbar">
@@ -2417,7 +2467,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     {share_meta}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&family=Noto+Sans+TC:wght@300..900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&display=swap">
     <title>Pillar's Tropical Cyclone Forecast | {_esc(title_track_ids)}</title>
     <script>
     // 在第一次繪製前就決定主題（預設黑底，使用者切過就沿用上次的選擇），避免閃一下
@@ -2807,6 +2857,10 @@ html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size
 .cat-pill { padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size:.85em; letter-spacing:.04em; }
 .hero-sub { margin-top: 12px; font-size: clamp(.98rem,1.4vw,1.12rem); color: rgba(234,244,252,.74); max-width: 56ch; line-height: 1.65; animation: fadeUp .9s var(--ease-out) .45s both; }
 .hero-cta { display:flex; flex-wrap:wrap; gap:12px; margin-top: 30px; animation: fadeUp .9s var(--ease-out) .55s both; }
+.hero-glance { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; max-width: 64ch; animation: fadeUp .9s var(--ease-out) .4s both; }
+.hero-glance li { font-size: .9rem; color: rgba(234,244,252,.85); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 6px 12px; line-height: 1.35; }
+.hero-glance li b { color: #fff; font-weight: 700; }
+.hero-glance li:last-child:not(:first-child) { flex-basis: 100%; border-radius: 14px; }
 .btn-primary, .btn-ghost {
     display:inline-flex; align-items:center; gap:8px;
     padding: 13px 22px; border-radius: 13px;
@@ -2847,6 +2901,7 @@ html[lang^="zh"] .kicker { letter-spacing:.06em; }
 .legend-inline { display:flex; align-items:center; gap:7px; font-size:.78em; color: var(--text-3); font-weight:600; }
 .page-head { padding-top: 8px; }
 .page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
+.page-sub { margin-top: 8px; color: var(--text-2); font-size: clamp(.95rem, 1.3vw, 1.08rem); max-width: 60ch; line-height: 1.5; }
 /* 中文標題：行距拉開、字距微開，兩行時不會擠在一起 */
 html[lang^="zh"] .page-title { letter-spacing: .05em; line-height: 1.38; }
 html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
@@ -3013,6 +3068,11 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .subnav button:hover { color: var(--text); }
 .subnav button.active { background: var(--btn-bg); color:#fff; box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3); }
 .subnav button[hidden] { display:none; }
+/* 分頁內的小目錄：黏在分頁列（.storm-bar）正下方；分頁列高度（--bar-h）由腳本量，手機上是兩列 */
+.subnav.pane-nav { top: calc(var(--header-h) + 22px + var(--bar-h, 46px) + 6px); z-index: 49; margin: -6px auto 0; padding: 4px; gap: 2px; }
+.subnav.pane-nav button { padding: 6px 12px; font-size: .78em; font-weight: 600; }
+@media (max-width: 900px) { .subnav.pane-nav { top: calc(8px + var(--bar-h, 46px) + 6px); } }
+@media (max-width: 600px) { .subnav.pane-nav { width: 100%; justify-content: flex-start; border-radius: 16px; } .subnav.pane-nav button { padding: 9px 12px; } }
 
 /* ── Panels ─────────────────────────────────────────────────── */
 .panel { background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 22px 24px; min-width:0; transition: background .35s, border .35s, opacity .8s var(--ease-out), transform .8s var(--ease-out); scroll-margin-top: calc(var(--header-h) + 80px); }
@@ -3068,6 +3128,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-chart .sc-tip { display: none; font-size: .76em; color: var(--text-2); margin: 6px 0 0; }
 .score-chart svg.sc-phone { display: none; }
 @media (max-width: 600px) {
+    .seg .model-tab-btn, .run-btn, .speed-btn, .city-toggle { min-height: 40px; }
+    .sc-key { min-height: 36px; }
     .score-chart svg.sc-desk { display: none; }
     .score-chart svg.sc-phone { display: block; }
     .score-chart .sc-legend { font-size: .86em; gap: 6px 12px; }
@@ -3958,6 +4020,9 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
 .note-fold > summary::before { content: "ⓘ"; font-size: 1.1em; }
 .note-fold > summary:hover, .note-fold[open] > summary { background: var(--surface-2); color: var(--text-2); }
 .note-fold > .map-note { margin-top: 6px; }
+.note-fold > summary .nf-lead { color: var(--text-2); font-weight: 500; }
+.note-fold > summary .nf-more { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.note-fold[open] > summary .nf-lead { display: none; }
 .jtwc-src { margin-top: 10px; font-size: .78em; color: var(--text-3); }
 
 @media (max-width: 900px) {
@@ -4081,7 +4146,8 @@ const I18N = {
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
-    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
+    'hero.live.sub':    '{count} active systems · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
+    'hero.live.sub1':   '1 active system · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
@@ -4265,7 +4331,8 @@ const I18N = {
     'note.ensemble':    '{model} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
-    'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
+    'panel.genesis':    'Genesis Potential',
+    'panel.genesis.sub': 'Where the next storm may form — ensemble tracks for the Western Pacific, model by model',
     'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (up to 360 h; GEFS 120 h). Data sourced from {source}.',
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
@@ -4337,6 +4404,7 @@ const I18N = {
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
     'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
+    'hero.live.sub1':   '1 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
@@ -4520,7 +4588,8 @@ const I18N = {
     'note.ensemble':    '{model} &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
-    'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
+    'panel.genesis':    '生成潛勢',
+    'panel.genesis.sub': '下一個颱風可能在哪裡生成 — 西北太平洋各模式的系集路徑',
     'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（最長 360 小時；GEFS 只到 120 小時）。資料來源：{source}。',
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
@@ -4634,15 +4703,38 @@ function i18nParams(el) {
     return p;
 }
 
+// 圖說第一句直接露出在「怎麼看這張圖」旁邊，點開才看全文；語言換了要重算
+function foldNotes(scope) {
+    $$('details.note-fold', scope || document).forEach(d => {
+        const sum = d.querySelector('summary'), note = d.querySelector('.map-note');
+        if (!sum || !note) return;
+        const txt = note.textContent.replace(/\s+/g, ' ').trim();
+        const m = txt.match(/^(.{12,}?[.。])(?=\s|$)|^(.+?)(?=\s·\s)/);
+        let lead = (m && (m[1] || m[2])) || txt;
+        if (lead.length > 140) lead = lead.slice(0, 137).replace(/\s+\S*$/, '') + '…';
+        sum.removeAttribute('data-i18n');
+        sum.innerHTML = `<span class="nf-lead">${lead.replace(/</g, '&lt;')}</span> <span class="nf-more">${t('note.how')} ▾</span>`;
+    });
+}
+// 中文介面才載入 Noto Sans TC（字型 CSS 約 120 KB；英文讀者用不到）
+function ensureTcFont() {
+    if (currentLang !== 'zh' || $('#font-tc')) return;
+    const l = document.createElement('link');
+    l.id = 'font-tc'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400..700&display=swap';
+    document.head.appendChild(l);
+}
 function applyLang(lang, save = true) {
     currentLang = (lang === 'zh') ? 'zh' : 'en';
     root.setAttribute('lang', currentLang === 'zh' ? 'zh-Hant' : 'en');
+    ensureTcFont();
     $$('[data-i18n]').forEach(el => {
         const txt = t(el.dataset.i18n, i18nParams(el));
         if (!txt) return;                       // 字典沒這個 key 就保留原文，不要清空
         if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, txt);
         else el.innerHTML = txt;
     });
+    foldNotes();
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
@@ -4839,7 +4931,7 @@ function updateNav() {
 }
 
 function onViewShown(view) {
-    requestAnimationFrame(updateIndicators);
+    requestAnimationFrame(() => { updateIndicators(); syncHeaderH(); });
     refreshSubnavs();
     scrollSpy();
     Hero.setActive(view.dataset.view === 'overview' && !Globe.ready);
@@ -4898,6 +4990,7 @@ async function loadFrags(scope) {
             box.innerHTML = await r.text();
             box.dataset.state = 'done';
             i18nIn(box);
+            foldNotes(box);
             requestAnimationFrame(updateIndicators);
         } catch (e) {
             box.dataset.state = 'failed';
@@ -5010,6 +5103,7 @@ function syncModelPick(view) {
 function onStormTab(btn) {
     const view = btn.closest('.view');
     syncModelPick(view);
+    requestAnimationFrame(() => { syncHeaderH(); refreshSubnavs(); scrollSpy(); });
     try { sessionStorage.setItem('tab:' + view.dataset.view, btn.dataset.model); } catch (e) {}
     const anchor = $('.storm-bar-anchor', view), bar = $('.storm-bar', view);
     if (anchor && bar) {
@@ -5459,6 +5553,8 @@ function animateGauge(el) {
 }
 
 // ── 段落導覽（颱風頁）：點擊平滑捲動、捲動時標示目前段落 ─────────────
+// 分頁各有一條小目錄：只看目前顯示的那條
+function activeSubnav(view) { return $$('.subnav', view).find(n => n.offsetParent) || null; }
 function refreshSubnavs() {
     $$('.subnav').forEach(nav => {
         $$('button[data-target]', nav).forEach(b => {
@@ -5473,7 +5569,7 @@ let spyRaf = 0;
 function scrollSpy() {
     spyRaf = 0;
     const view = currentRoute && viewFor(currentRoute);
-    const nav = view && $('.subnav', view);
+    const nav = view && activeSubnav(view);
     if (!nav) return;
     const line = nav.getBoundingClientRect().bottom + 60;   // 段落導覽黏在上方，以它的底緣為準（手機頁首不黏，不能用頁首高度算）
     let active = null;
@@ -5513,7 +5609,11 @@ window.addEventListener('scroll', () => {
 
 // 頁首高度會因換行而變（手機兩列），黏性元素要跟著它的實際高度走
 const header = $('#site-header');
-function syncHeaderH() { if (header) root.style.setProperty('--header-h', header.offsetHeight + 'px'); }
+function syncHeaderH() {
+    if (header) root.style.setProperty('--header-h', header.offsetHeight + 'px');
+    const bar = $$('.storm-bar').find(b => b.offsetParent);
+    if (bar) root.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+}
 if ('ResizeObserver' in window && header) new ResizeObserver(syncHeaderH).observe(header);
 syncHeaderH();
 
