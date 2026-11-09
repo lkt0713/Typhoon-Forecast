@@ -59,7 +59,7 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
     for m in re.finditer(r'class="lazy-frag" data-src="([^"]+)"', html):   # 點到分頁才載入的片段也要存在
         if not os.path.exists(os.path.join(docs, m.group(1))):
             problems.append(f'片段不存在 {m.group(1)}')
-    for fn in ('site.css', 'site.js', 'status.json', 'robots.txt', 'sitemap.xml', '404.html'):   # 拆出去的樣式／腳本與附屬檔
+    for fn in ('site.css', 'site.js', 'sw.js', 'status.json', 'robots.txt', 'sitemap.xml', '404.html'):   # 拆出去的樣式／腳本與附屬檔
         if not os.path.exists(os.path.join(docs, fn)):
             problems.append(f'缺 {fn}')
     if 'site.css?v=' not in html or 'site.js?v=' not in html:
