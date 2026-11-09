@@ -4135,6 +4135,9 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .mine-table td.mine-hi { background: rgba(217,70,58,.28); }
 .mine-table tr.mine-all td { font-weight: 700; border-bottom: 1px solid var(--border); }
 @media (max-width: 600px) { .mine-controls input[type=number] { width: 5.5em; } }
+@media (max-width: 599px) and (orientation: portrait) {
+    .has-globe .view[data-view="overview"] .hero-inner { padding-top: calc(var(--globe-pad, 0px) + 20px); }
+}
 .dl-row { margin: 10px 0 0; font-size: .82em; color: var(--text-2); }
 .dl-row a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; margin-left: 4px; }
 .arch-spark { display: block; width: 100%; height: 26px; margin-top: 6px; }
@@ -7174,7 +7177,7 @@ const Globe = (function () {
 
     const D2R = Math.PI / 180;
     const WPAC = [20, 140];                  // 沒有颱風時看西太平洋
-    let route = 'overview', ctl = null;
+    let route = 'overview', ctl = null, globePad = -1;
     api.route = r => { route = r; if (ctl) ctl.kick(); };
 
     function start() {
@@ -7591,9 +7594,21 @@ const Globe = (function () {
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
                 T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
                 T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
+                if (portrait && W < 600) {
+                    // 手機直式：地球縮小、放在封面文字上方預留的空間（CSS 用 --globe-pad 留位置），
+                    // 位置直接跟著封面走（含 iOS 往下拉的回彈），不做平滑，文字就不會滑到地球上
+                    const ppu = H / 2 / hv, sc = .56, Rg = 1.1 * ppu * sc;
+                    const pad = Math.round(2 * Rg);
+                    if (pad !== globePad) { globePad = pad; root.style.setProperty('--globe-pad', pad + 'px'); }
+                    const inner = $('.view.active .hero-inner');
+                    const top = inner ? inner.getBoundingClientRect().top : hr.top;
+                    const ys = top + 10 + Rg;
+                    T.x = 0; T.y = (H / 2 - ys) / (ppu * sc); T.z = camZ * (1 - 1 / sc);
+                    T.lock = true;
+                }
                 T.extra += .2 * e1 + .2 * e2;     // 捲動只微轉（合計約 23°），西北太平洋始終朝前
                 T.tiltX = .25 * e2;
-                const dim = (portrait && W < 600) ? .62 : 1;   // 手機直式：地球疊在封面文字底下，淡一些才讀得清
+                const dim = 1;
                 if (dark) T.op = dim * (1 - .3 * e1 - .12 * e2);
                 else {
                     // 淺色主題：只畫在深色的 hero 卡片裡（連圓角一起裁），捲出去就淡掉
@@ -7622,7 +7637,7 @@ const Globe = (function () {
             if (sz.x !== W || sz.y !== H) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); }
 
             const T = targets(W, H);
-            const k = reduced() || (first && route !== 'overview') ? 1 : 1 - Math.pow(.02, dt * 1.6);
+            const k = reduced() || T.lock || (first && route !== 'overview') ? 1 : 1 - Math.pow(.02, dt * 1.6);
             first = false;
             camera.position.z = T.camZ;
             pmx += (mx - pmx) * Math.min(1, dt * 3); pmy += (my - pmy) * Math.min(1, dt * 3);
