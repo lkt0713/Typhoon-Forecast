@@ -1671,6 +1671,42 @@ def taiwan_landfall_stats(tracks: list, init_time, n_total: int | None = None) -
     return {'p': round(p, 1), 'eta': eta}
 
 
+# 臺灣各縣市代表點（縣市政府所在地附近），北到南、再離島；鍵與網頁字典 tw.* 一致
+TAIWAN_COUNTIES = [
+    ('keelung', 25.13, 121.74), ('taipei', 25.05, 121.55), ('newtaipei', 25.01, 121.46), ('taoyuan', 24.99, 121.30),
+    ('hsinchu', 24.80, 120.97), ('miaoli', 24.56, 120.82), ('taichung', 24.15, 120.67), ('changhua', 24.08, 120.54),
+    ('nantou', 23.91, 120.69), ('yunlin', 23.71, 120.54), ('chiayi', 23.48, 120.45), ('tainan', 23.00, 120.21),
+    ('kaohsiung', 22.63, 120.30), ('pingtung', 22.67, 120.49), ('yilan', 24.76, 121.75), ('hualien', 23.98, 121.60),
+    ('taitung', 22.76, 121.14), ('penghu', 23.57, 119.58), ('kinmen', 24.44, 118.32), ('lienchiang', 26.16, 119.95),
+]
+
+
+def county_window_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
+    """各縣市：中心經過 STRIKE_RADIUS_DEG 內的成員比例，以及這些成員「第一次進入」與「最後離開」
+    時間的中位數（＝中心在附近的時間窗）。回傳 {key: {'p': %, 'start': iso|None, 'end': iso|None}}。"""
+    init = pd.to_datetime(init_time)
+    dense = [_densify_track(x, y, h) for x, y, h in tracks]
+    out = {}
+    for key, clat, clon in TAIWAN_COUNTIES:
+        first, last = [], []
+        for xs, ys, hs in dense:
+            if xs.size == 0:
+                continue
+            dx = (xs - clon + 180.0) % 360.0 - 180.0
+            hit = np.hypot(dx, ys - clat) <= STRIKE_RADIUS_DEG
+            if hit.any():
+                idx = np.flatnonzero(hit)
+                first.append(float(hs[idx[0]]))
+                last.append(float(hs[idx[-1]]))
+        n = max(n_total or len(tracks), 1)
+        iso = lambda h: (init + pd.to_timedelta(h, unit='h')).strftime('%Y-%m-%dT%H:%MZ')
+        out[key] = {'p': round(len(first) * 100.0 / n, 1),
+                    'start': iso(float(np.median(first))) if first else None,
+                    'end': iso(float(np.median(last))) if last else None}
+    out['_init_iso'] = init.strftime('%Y-%m-%dT%H:%MZ')
+    return out
+
+
 def city_strike_stats(tracks: list, init_time, n_total: int | None = None) -> dict:
     """各城市的侵襲機率與預估影響時間。
 
@@ -5340,10 +5376,11 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 print(f"[{display}-RADII] 暴風圈圖失敗，略過: {e}")
 
             # 侵襲機率圖：加分項，失敗只略過這張
-            strike_path, city_strike = None, None
+            strike_path, city_strike, tw_counties = None, None, None
             try:
                 member_tracks = _member_tracks(df, init_time)
                 city_strike = city_strike_stats(member_tracks, init_time)
+                tw_counties = county_window_stats(member_tracks, init_time)
                 strike_path = plot_strike_probability(
                     member_tracks, init_time, tid,
                     os.path.join(OUTPUT_DIR, f"{prefix}{tid}_Strike_Probability.png"),
@@ -5427,6 +5464,7 @@ def _process_model(cfg: dict, get_jtwc_text, download_jtwc_img) -> tuple[str | N
                 'wind_radii_path': wind_radii_path,
                 'strike_map_path': strike_path,
                 'city_strike': city_strike,
+                'tw_counties': tw_counties,
                 'plume_path': plume_path,
                 'trend_path': trend_path,
                 'det_name': det_name if has_det else None,
@@ -5528,6 +5566,7 @@ def main():
                     model_name=le_name, n_members=le_n)
                 head = next(s for s in storms if s['track_id'] == tid)
                 head['city_strike_1000'] = city_strike_stats(le_tracks[tid], le_init, n_total=le_n)
+                head['tw_counties_1000'] = county_window_stats(le_tracks[tid], le_init, n_total=le_n)
                 try:
                     plume, ri = plot_intensity_plume(
                         le_series.get(tid, []), le_init, tid,

@@ -82,6 +82,8 @@ jobs:
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
           COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
           COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
+          # 選用：ntfy.sh 主題名稱，設了就把新事件（新系統、命名、強度變化…）推播到該主題
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python forecast.py
 
       - name: Compute cache key

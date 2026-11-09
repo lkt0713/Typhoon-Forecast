@@ -763,6 +763,125 @@ def _season_trend_chart(storms: list, det: set, h: int = 72) -> str:
 
 _SEASON_FRAG = False
 
+# JTWC 還沒命名時用數字英文當名字（THIRTYONE、TWENTY-SEVEN…）；命名事件就是名字從這種變成真名
+_NUMBER_WORDS = re.compile(r'^(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|'
+                           r'SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|THIRTY|FORTY)([- ]?(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE))?$', re.I)
+ALERT_SHIFT_KM = 150      # 72 小時內同一有效時間的平均路徑移了這麼多就算「預報大幅改變」
+ALERT_TW_STEP = 10        # 登陸臺灣機率變動這麼多個百分點就通知
+
+
+def _is_unnamed(name: str | None) -> bool:
+    n = (name or '').strip()
+    return not n or n.isdigit() or bool(_NUMBER_WORDS.match(n)) or n.upper().startswith(('TD', 'INVEST'))
+
+
+def _update_alerts(docs_dir: str, infos: dict, groups: dict, site_url: str, now_iso: str) -> list[dict]:
+    """比對上一輪的狀態（docs/alerts.json），產生事件：新系統、命名、強度分級變化、預報大幅改變、
+    登陸臺灣機率跳動、系統結束。寫回狀態、產生 feed.json（JSON Feed 1.1）與 feed.xml（RSS 2.0），
+    回傳這一輪新增的事件（給 ntfy 推播）。"""
+    path = os.path.join(docs_dir, 'alerts.json')
+    try:
+        with open(path, encoding='utf-8') as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        state = {'storms': {}, 'events': []}
+    storms_prev = state.get('storms') or {}
+    events = list(state.get('events') or [])
+    new = []
+
+    def add(kind, tid, en, zh):
+        ev = {'id': f'{tid}-{kind}-{now_iso}', 'kind': kind, 'storm': tid, 'time': now_iso, 'en': en, 'zh': zh,
+              'url': f'{site_url}#/storm/{tid}'}
+        new.append(ev)
+
+    cur_state = {}
+    for tid, info in infos.items():
+        name = info.get('name') or ''
+        cat = info.get('cat') or 'Unknown'
+        wind = info.get('wind')
+        wtxt = f'{wind:.0f} kt' if wind is not None else ''
+        prev = storms_prev.get(tid)
+        disp = name or tid
+        if prev is None:
+            add('new', tid, f'New system: {disp} ({tid}){", " + wtxt if wtxt else ""}', f'新系統：{disp}（{tid}）{"，" + wtxt if wtxt else ""}')
+        else:
+            if _is_unnamed(prev.get('name')) and not _is_unnamed(name):
+                add('named', tid, f'{name} named (was {prev.get("name") or tid}){", " + wtxt if wtxt else ""}',
+                    f'命名為 {name}（原 {prev.get("name") or tid}）{"，" + wtxt if wtxt else ""}')
+            if prev.get('cat') and prev['cat'] != cat and cat != 'Unknown':
+                add('intensity', tid, f'{disp}: now {cat}{" (" + wtxt + ")" if wtxt else ""}, was {prev["cat"]}',
+                    f'{disp}：現在是 {cat}{"（" + wtxt + "）" if wtxt else ""}，原 {prev["cat"]}')
+        models = groups.get(tid, [])
+        d = _run_delta_data(docs_dir, tid, [m.get('model') for m in models if isinstance(m, dict) and m.get('model')])
+        last_shift_run = (prev or {}).get('shift_run')
+        if d and d.get('cur') != last_shift_run:
+            if d.get('shift_km') is not None and d['shift_km'] >= ALERT_SHIFT_KM:
+                be, bz = d['dir']
+                add('shift', tid, f'{disp}: {d["model"]} {d["h"]} h track shifted {d["shift_km"]:.0f} km {be} since the previous run',
+                    f'{disp}：{d["model"]} {d["h"]} 小時路徑比上一報往{bz}移了 {d["shift_km"]:.0f} 公里')
+            if d.get('tw_cur') is not None and d.get('tw_prev') is not None and abs(d['tw_cur'] - d['tw_prev']) >= ALERT_TW_STEP:
+                add('taiwan', tid, f'{disp}: Taiwan landfall chance {d["tw_prev"]:.0f}% → {d["tw_cur"]:.0f}% ({d["model"]})',
+                    f'{disp}：登陸臺灣機率 {d["tw_prev"]:.0f}% → {d["tw_cur"]:.0f}%（{d["model"]}）')
+        cur_state[tid] = {'name': name, 'cat': cat, 'wind': wind, 'first_seen': (prev or {}).get('first_seen') or now_iso,
+                          'shift_run': d.get('cur') if d else last_shift_run}
+    for tid, prev in storms_prev.items():
+        if tid not in infos:
+            add('ended', tid, f'{prev.get("name") or tid} ({tid}) is no longer being tracked', f'{prev.get("name") or tid}（{tid}）已結束追蹤')
+    events = (new + events)[:60]
+    try:
+        with open(path, 'w', encoding='utf-8') as fh:
+            json.dump({'storms': cur_state, 'events': events}, fh, ensure_ascii=False, indent=1)
+    except OSError:
+        pass
+    # JSON Feed 1.1
+    feed = {'version': 'https://jsonfeed.org/version/1.1', 'title': f'{SITE_NAME} · alerts', 'home_page_url': site_url,
+            'feed_url': f'{site_url}feed.json', 'language': 'zh-Hant',
+            'description': 'New systems, naming, intensity changes, large forecast shifts and Taiwan landfall chance changes',
+            'items': [{'id': e['id'], 'url': e['url'], 'title': f'{e["zh"]} · {e["en"]}',
+                       'content_text': f'{e["zh"]}\n{e["en"]}', 'date_published': e['time'], 'tags': [e['kind'], e['storm']]} for e in events]}
+    try:
+        with open(os.path.join(docs_dir, 'feed.json'), 'w', encoding='utf-8') as fh:
+            json.dump(feed, fh, ensure_ascii=False, indent=1)
+    except OSError:
+        pass
+    # RSS 2.0
+    def _rfc822(iso):
+        try:
+            return pd.Timestamp(iso).strftime('%a, %d %b %Y %H:%M:%S +0000')
+        except Exception:
+            return ''
+    items = ''.join(
+        f'<item><title>{_esc(e["zh"])} · {_esc(e["en"])}</title><link>{_esc(e["url"])}</link>'
+        f'<guid isPermaLink="false">{_esc(e["id"])}</guid><pubDate>{_rfc822(e["time"])}</pubDate>'
+        f'<category>{_esc(e["kind"])}</category><description>{_esc(e["zh"])} / {_esc(e["en"])}</description></item>' for e in events)
+    rss = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+           f'<title>{_esc(SITE_NAME)} · alerts</title><link>{_esc(site_url)}</link>'
+           '<description>New systems, naming, intensity changes, large forecast shifts and Taiwan landfall chance changes</description>'
+           f'<language>zh-Hant</language>{items}</channel></rss>')
+    try:
+        with open(os.path.join(docs_dir, 'feed.xml'), 'w', encoding='utf-8') as fh:
+            fh.write(rss)
+    except OSError:
+        pass
+    return new
+
+
+def _push_ntfy(events: list[dict]) -> None:
+    """選用：把這一輪的新事件發到 ntfy.sh 的主題（環境變數 NTFY_TOPIC），讀者用 ntfy app 訂閱就有推播。"""
+    topic = os.environ.get('NTFY_TOPIC', '').strip()
+    if not topic or not events:
+        return
+    import urllib.request
+    for e in events[:10]:
+        try:
+            req = urllib.request.Request(f'https://ntfy.sh/{topic}', data=f'{e["zh"]}\n{e["en"]}'.encode('utf-8'), method='POST',
+                                         headers={'Title': f'{SITE_SHORT_NAME} · {e["storm"]}', 'Click': e['url'],
+                                                  'Tags': {'new': 'cyclone', 'named': 'label', 'intensity': 'chart_with_upwards_trend',
+                                                           'shift': 'arrows_counterclockwise', 'taiwan': 'warning', 'ended': 'white_check_mark'}.get(e['kind'], 'cyclone'),
+                                                  'Priority': '4' if e['kind'] in ('taiwan', 'named') else '3'})
+            urllib.request.urlopen(req, timeout=10).read()
+        except Exception as ex:
+            print(f'[ALERTS] ntfy 推播失敗，略過: {ex}')
 
 PLACE_PRESETS = [
     ('taipei', 25.04, 121.56), ('taichung', 24.15, 120.67), ('kaohsiung', 22.62, 120.30),
@@ -852,6 +971,37 @@ def _run_files(docs_dir: str, tid: str) -> list[tuple[str, dict]]:
     return sorted(out, key=lambda x: x[0], reverse=True)
 
 
+def _run_delta_data(docs_dir: str, tid: str, prefer: list[str]) -> dict | None:
+    """跟上一報比的數字：{'model','prev','cur','h','shift_km','dir','kt_prev','kt_cur','tw_prev','tw_cur'}，沒得比回 None。"""
+    runs = _run_files(docs_dir, tid)
+    if len(runs) < 2:
+        return None
+    for model in prefer:
+        cur = next(((st, d['models'][model]) for st, d in runs if (d.get('models') or {}).get(model, {}).get('mean')), None)
+        if not cur:
+            continue
+        prev = next(((st, d['models'][model]) for st, d in runs
+                     if st < cur[0] and (d.get('models') or {}).get(model, {}).get('mean')), None)
+        if not prev:
+            continue
+        (cs, cm), (ps, pm) = cur, prev
+        dh = (datetime.strptime(cs, '%Y%m%d%H') - datetime.strptime(ps, '%Y%m%d%H')).total_seconds() / 3600
+        if dh <= 0 or dh > 48:
+            continue
+        out = {'model': model, 'prev': ps, 'cur': cs, 'h': None, 'shift_km': None, 'dir': None}
+        for h in range(72, 23, -6):
+            a, b = _at_lead(cm['mean'], h), _at_lead(pm['mean'], h + dh)
+            if a and b:
+                out.update(h=h, shift_km=_km(b[0], b[1], a[0], a[1]), dir=_bearing16(b[0], b[1], a[0], a[1]))
+                break
+        kc = [p[2] for p in cm['mean'] if p and p[2] is not None]
+        kp = [p[2] for p in pm['mean'] if p and p[2] is not None]
+        out['kt_cur'], out['kt_prev'] = (max(kc) if kc else None), (max(kp) if kp else None)
+        out['tw_cur'], out['tw_prev'] = (cm.get('city') or {}).get('tw_landfall'), (pm.get('city') or {}).get('tw_landfall')
+        return out
+    return None
+
+
 def _run_delta(docs_dir: str, tid: str, prefer: list[str]) -> str:
     """「跟上一報比變了什麼」：同一個模式最新一期 vs 前一期，比同一個有效時間的位置、
     平均路徑的最大風速、登陸臺灣機率。沒有前一期（或資料不夠）回空字串。"""
@@ -915,13 +1065,18 @@ def _consensus(models: list) -> str:
             means[m.get('ens_name') or m.get('model')] = tp['mean']
     if len(means) < 3:
         return ''
-    for h in (72, 48):
-        pos = {k: _at_lead(v, h) for k, v in means.items()}
-        pos = {k: v for k, v in pos.items() if v}
-        if len(pos) >= 3:
+    # 72 小時優先，但要有六成以上的模式到得了（颱風快消散時很多平均路徑提早結束）；不然退到 48、24
+    need = max(3, -(-len(means) * 3 // 5))
+    cands = []
+    for h in (72, 48, 24):
+        pos = {k: v for k, v in ((k, _at_lead(v, h)) for k, v in means.items()) if v}
+        cands.append((h, pos))
+        if len(pos) >= need:
             break
     else:
-        return ''
+        h, pos = max(cands, key=lambda c: (len(c[1]), c[0]))
+        if len(pos) < 3:
+            return ''
     clat = sorted(v[0] for v in pos.values())[len(pos) // 2]
     clon = sorted(v[1] for v in pos.values())[len(pos) // 2]
     dist = {k: _km(clat, clon, v[0], v[1]) for k, v in pos.items()}
@@ -1052,6 +1207,61 @@ def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None) 
         return ''
     return ('<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines)
             + ''.join(f'<p class="ss-extra">{x}</p>' for x in extra) + '</div>')
+
+
+TW_COUNTY_NAMES = {
+    'keelung': ('Keelung', '基隆'), 'taipei': ('Taipei', '臺北'), 'newtaipei': ('New Taipei', '新北'), 'taoyuan': ('Taoyuan', '桃園'),
+    'hsinchu': ('Hsinchu', '新竹'), 'miaoli': ('Miaoli', '苗栗'), 'taichung': ('Taichung', '臺中'), 'changhua': ('Changhua', '彰化'),
+    'nantou': ('Nantou', '南投'), 'yunlin': ('Yunlin', '雲林'), 'chiayi': ('Chiayi', '嘉義'), 'tainan': ('Tainan', '臺南'),
+    'kaohsiung': ('Kaohsiung', '高雄'), 'pingtung': ('Pingtung', '屏東'), 'yilan': ('Yilan', '宜蘭'), 'hualien': ('Hualien', '花蓮'),
+    'taitung': ('Taitung', '臺東'), 'penghu': ('Penghu', '澎湖'), 'kinmen': ('Kinmen', '金門'), 'lienchiang': ('Lienchiang (Matsu)', '連江（馬祖）'),
+}
+
+
+def _tz_cell(iso: str | None) -> str:
+    if not iso:
+        return '—'
+    try:
+        d = pd.Timestamp(iso)
+        return f'{d:%m/%d %H}Z'
+    except Exception:
+        return _esc(iso)
+
+
+def _county_table(cols: list[tuple], track: str) -> str:
+    """cols = [(模式名, {county: {'p','start','end'}}), ...] → 一個模式一個分頁（model-panel）的縣市表。
+    每列：縣市、機率（色階同城市表）、中心在附近的時間窗（開始～結束，UTC，成員中位數）。
+    全部縣市都 <1% 的模式只寫一句。"""
+    if not cols:
+        return ''
+    panels = []
+    for i, (lbl, st) in enumerate(cols):
+        rows = []
+        quiet = 0
+        for key in TW_COUNTY_NAMES:
+            v = st.get(key) or {}
+            p = v.get('p') or 0
+            if p < CITY_LEVELS[0]:
+                quiet += 1
+                continue
+            lvl = sum(1 for t in CITY_LEVELS if p >= t) - 1
+            bg, fg = CITY_COLORS[lvl], ('#16324F' if lvl in CITY_DARK_TEXT else '#fff')
+            en, zh = TW_COUNTY_NAMES[key]
+            rows.append(f'<tr><td class="c-name">{_bi(en, zh)}</td>'
+                        f'<td style="background:{bg};color:{fg};">{p:.0f}%</td>'
+                        f'<td class="mono">{_tz_cell(v.get("start"))} – {_tz_cell(v.get("end"))}</td></tr>')
+        if rows:
+            body = (f'<div class="city-table-wrap"><table class="city-table tw-table"><thead><tr>'
+                    f'<th data-i18n="tw.col.county">County</th><th data-i18n="tw.col.p">Center within 110 km</th>'
+                    f'<th data-i18n="tw.col.window">Window (UTC)<span class="eta" data-i18n="tw.col.window.sub">median first entry – last exit</span></th>'
+                    f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+            if quiet:
+                body += f'<p class="map-note tw-quiet" data-i18n="tw.quiet" data-i18n-n="{quiet}">{quiet} other counties: under 1%.</p>'
+        else:
+            body = '<p class="map-note" data-i18n="tw.none">No member brings the center within 110 km of any county.</p>'
+        panels.append(f'<div class="model-panel" data-track="{track}" data-model="{_esc(lbl)}"{"" if i == 0 else " style=\"display:none;\""}>{body}</div>')
+    tabs = _model_tabs(track, [lbl for lbl, _ in cols]) if len(cols) > 1 else f'<div class="model-label">{_esc(cols[0][0])}</div>'
+    return tabs + ''.join(panels)
 
 
 def _city_table(cols: list[tuple]) -> str:
@@ -1448,6 +1658,10 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.1.1', '2026-11-06', [
+        ('概況分頁新增「臺灣各縣市」表：各模式中心經過每個縣市 110 公里內的機率，以及中心在附近的時間窗（首次進入～最後離開）',
+         'The Summary tab adds a Taiwan-by-county table: each model\'s chance that the center passes within 110 km of every county, and the window when it is nearby (first entry to last exit)'),
+        ('新增通知 feed（RSS／JSON Feed，連結在說明頁）：新系統、命名、強度分級變化、預報大幅移動、登陸臺灣機率跳動',
+         'An alerts feed (RSS / JSON Feed, linked on the About page): new systems, naming, intensity-category changes, large forecast shifts and Taiwan landfall chance jumps'),
         ('互動地圖新增時間軸：取消「完整路徑」後可以拉到某個預報時數或按播放，路徑只畫到那裡，並以點標出每個成員那一刻的中心位置',
          'The interactive map gets a time slider: untick "Full tracks" to scrub or play through the forecast hours; tracks are drawn up to that hour and a dot marks each member\'s center then'),
         ('侵襲分頁新增「我的位置」：用你的位置或任一地點，算各模式中心經過 110 公里內的機率、最近距離、時間與當時風速；全部在瀏覽器內計算',
@@ -1693,6 +1907,8 @@ def _share_meta(lead: dict | None, track_ids: list, updated: str, has_image: boo
         f'<meta name="description" content="{_esc(desc)}">',
         f'<meta name="theme-color" content="{APP_BG}">',
         '<link rel="manifest" href="manifest.webmanifest">',
+        '<link rel="alternate" type="application/feed+json" title="Alerts (JSON Feed)" href="feed.json">',
+        '<link rel="alternate" type="application/rss+xml" title="Alerts (RSS)" href="feed.xml">',
         '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">',
         '<link rel="apple-touch-icon" href="apple-touch-icon.png">',
         '<meta name="apple-mobile-web-app-capable" content="yes">',
@@ -1823,6 +2039,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 
     # 路由順序同時決定導覽列排列與換頁動畫的方向（往右的頁面從右邊滑入）
     _archive = _load_archive(os.path.dirname(output_path) or '.')
+    try:
+        _new_events = _update_alerts(os.path.dirname(output_path) or '.', infos, groups, _site_url(),
+                                     datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+        _push_ntfy(_new_events)
+    except Exception as e:
+        print(f'[ALERTS] 通知產生失敗，略過: {e}')
     routes = ['overview'] + [f'storm/{tid}' for tid in order]
     if _genesis_entries:
         routes.append('genesis')
@@ -2387,6 +2609,28 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         city_cols += [(CLUSTER_LABEL, m['city_strike_1000'])
                       for m in models if isinstance(m, dict) and m.get('city_strike_1000')][:1]
         city_cols = _place_1000(city_cols, label=lambda c: c[0])
+        tw_html = ""
+        tw_cols = [(m.get('ens_name') or m.get('model', 'WN2-C r2'), m['tw_counties'])
+                   for m in models if isinstance(m, dict) and m.get('tw_counties')]
+        tw_cols += [(CLUSTER_LABEL, m['tw_counties_1000']) for m in models if isinstance(m, dict) and m.get('tw_counties_1000')][:1]
+        tw_cols = _place_1000(tw_cols, label=lambda c: c[0])
+        if tw_cols:
+            sec_id = f"sec-{key_prefix}-tw"
+            sections.append((sec_id, 'sub.tw', 'Taiwan'))
+            tw_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🇹🇼</span>
+                    <span data-i18n="panel.tw">Taiwan by county · when the center may pass nearby</span>{MT_SHOWN if len(tw_cols) > 1 else ''}
+                </div>
+                {_county_table(tw_cols, f'{key_prefix}-tw')}
+                <p class="map-note" data-i18n="note.tw">
+                    Per county: share of ensemble members whose center passes within 110 km (the same 1° rule as the strike maps),
+                    and the window when those members have the center nearby: median time of first entry to median time of last exit (UTC)
+                    &nbsp;·&nbsp; This is when the center is close, not when winds start: gales usually arrive several hours earlier and linger after
+                    &nbsp;·&nbsp; Counties with under 1% in every member are summarised in one line
+                </p>
+            </div>"""
         table = _city_table(city_cols) if city_cols else ''
         if table:
             sec_id = f"sec-{key_prefix}-cities"
@@ -2421,7 +2665,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／校驗，每頁單欄排列
         panes = [
             ('now', 'tab.now', 'Summary',
-             f"{sat_html}{ohc_html}{shear_html}{steer_html}{jtwc_html}{official_html}{cities_html}"),
+             f"{sat_html}{ohc_html}{shear_html}{steer_html}{jtwc_html}{official_html}{cities_html}{tw_html}"),
             ('track', 'tab.track', 'Track', f"{cmp_html}{map120_html}{maps_html}{anim_html}{tmap_html}{trend_html}"),
             ('strike', 'tab.strike', 'Strike', f"{radii_html}{strike_html}{extra_html}{mine_html}"),
             ('intensity', 'tab.int', 'Intensity', plume_html),
@@ -2692,6 +2936,11 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <p data-i18n="about.disclaimer">Not for operational use. For official warnings, follow your national meteorological agency.</p>
                     <p class="map-note" data-i18n="about.prob">Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.</p>
                 </div>
+            </div>
+            <div class="panel reveal about-alerts">
+                <div class="panel-header"><span class="panel-icon">🔔</span><span data-i18n="about.alerts">Alerts</span></div>
+                <p class="map-note" style="margin-top:0" data-i18n="about.alerts.text">New systems, naming, intensity-category changes, forecast shifts of 150 km or more and Taiwan landfall chance changes of 10 points or more, as soon as an update notices them.</p>
+                <p class="dl-row"><span data-i18n="about.alerts.sub">Subscribe:</span> <a href="feed.xml">RSS</a> · <a href="feed.json">JSON Feed</a></p>
             </div>
             <div class="section-head reveal">
                 <div><h3 data-i18n="sec.models">Forecast models</h3></div>
@@ -4562,6 +4811,18 @@ const I18N = {
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
     'frag.loading':     'Loading…',
+    'sub.tw':           'Taiwan',
+    'panel.tw':         'Taiwan by county · when the center may pass nearby',
+    'tw.col.county':    'County',
+    'tw.col.p':         'Center within 110 km',
+    'tw.col.window':    'Window (UTC)',
+    'tw.col.window.sub': 'median first entry – last exit',
+    'tw.quiet':         '{n} other counties: under 1%.',
+    'tw.none':          'No member brings the center within 110 km of any county.',
+    'note.tw':          'Per county: share of ensemble members whose center passes within 110 km (the same 1° rule as the strike maps), and the window when those members have the center nearby: median time of first entry to median time of last exit (UTC) &nbsp;·&nbsp; This is when the center is close, not when winds start: gales usually arrive several hours earlier and linger after &nbsp;·&nbsp; Counties with under 1% in every member are summarised in one line',
+    'about.alerts':     'Alerts',
+    'about.alerts.text': 'New systems, naming, intensity-category changes, forecast shifts of 150 km or more and Taiwan landfall chance changes of 10 points or more, as soon as an update notices them.',
+    'about.alerts.sub': 'Subscribe:',
     'tmap.full':        'Full tracks',
     'tmap.play':        'Play through the forecast hours',
     'sub.mine':         'My location',
@@ -4844,6 +5105,18 @@ const I18N = {
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
+    'sub.tw':           '臺灣',
+    'panel.tw':         '臺灣各縣市・中心可能經過附近的時間',
+    'tw.col.county':    '縣市',
+    'tw.col.p':         '中心經過 110 公里內',
+    'tw.col.window':    '時間窗（UTC）',
+    'tw.col.window.sub': '首次進入～最後離開的中位數',
+    'tw.quiet':         '其餘 {n} 個縣市：低於 1%。',
+    'tw.none':          '沒有任何成員的中心經過任一縣市 110 公里內。',
+    'note.tw':          '各縣市：中心經過 110 公里內的系集成員比例（與侵襲機率圖相同的 1° 規則），以及這些成員中心在附近的時間窗：首次進入到最後離開的中位數（UTC） &nbsp;·&nbsp; 這是中心接近的時間，不是起風的時間：強風通常提早幾小時出現、離開後也會持續一陣子 &nbsp;·&nbsp; 每個成員都低於 1% 的縣市合成一行',
+    'about.alerts':     '通知',
+    'about.alerts.text': '新系統、命名、強度分級變化、預報路徑移動 150 公里以上、登陸臺灣機率變動 10 個百分點以上，更新一發現就發出。',
+    'about.alerts.sub': '訂閱：',
     'tmap.full':        '完整路徑',
     'tmap.play':        '依預報時數播放',
     'sub.mine':         '我的位置',
