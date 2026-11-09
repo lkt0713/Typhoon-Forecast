@@ -105,7 +105,8 @@ const I18N = {
     'hero.eyebrow.quiet': 'Western Pacific · Monitoring',
     'hero.quiet.title': 'All quiet in the Western Pacific',
     'hero.quiet.sub':   'No active tropical cyclones right now. The genesis outlook shows where ensemble members hint at something forming next.',
-    'hero.live.sub':    '{count} active system(s) · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
+    'hero.live.sub':    '{count} active systems · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
+    'hero.live.sub1':   '1 active system · ensemble guidance from {models} models, refreshed every 10–15 minutes.',
     'hero.cta.storm':   'Open forecast',
     'hero.cta.genesis': 'Genesis outlook',
     'hero.now':         'Current time',
@@ -289,7 +290,8 @@ const I18N = {
     'note.ensemble':    '{model} &nbsp;·&nbsp; Colored lines = ensemble members (color = intensity) &nbsp;·&nbsp; Navy line = ensemble mean &nbsp;·&nbsp; Cyclone symbol = initial position',
     'panel.jtwc':       'JTWC Official Forecast',
     'note.jtwc':        'Source: Joint Typhoon Warning Center (JTWC) — U.S. Navy &amp; Air Force',
-    'panel.genesis':    'Western Pacific Tropical Cyclone Genesis Potential — Ensemble Overview',
+    'panel.genesis':    'Genesis Potential',
+    'panel.genesis.sub': 'Where the next storm may form — ensemble tracks for the Western Pacific, model by model',
     'note.genesis':     'Circles = ensemble members at each 6-hr step, colored by minimum sea level pressure. Gray lines = individual ensemble tracks (up to 360 h; GEFS 120 h). Data sourced from {source}.',
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
@@ -361,6 +363,7 @@ const I18N = {
     'hero.quiet.title': '目前風平浪靜',
     'hero.quiet.sub':   '目前沒有活躍的熱帶氣旋。生成潛勢圖顯示各系集成員認為下一個系統可能在哪裡形成。',
     'hero.live.sub':    '{count} 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
+    'hero.live.sub1':   '1 個活躍系統 · 綜合 {models} 個模式的系集預報，每 10–15 分鐘更新。',
     'hero.cta.storm':   '查看預報',
     'hero.cta.genesis': '生成潛勢',
     'hero.now':         '現在時間',
@@ -544,7 +547,8 @@ const I18N = {
     'note.ensemble':    '{model} &nbsp;·&nbsp; 彩色線＝系集成員（顏色代表強度） &nbsp;·&nbsp; 深藍線＝系集平均 &nbsp;·&nbsp; 颱風符號＝起始位置',
     'panel.jtwc':       'JTWC 官方預報',
     'note.jtwc':        '資料來源：美國聯合颱風警報中心（JTWC）— 美國海軍與空軍',
-    'panel.genesis':    '西北太平洋熱帶氣旋生成潛勢 — 系集綜覽',
+    'panel.genesis':    '生成潛勢',
+    'panel.genesis.sub': '下一個颱風可能在哪裡生成 — 西北太平洋各模式的系集路徑',
     'note.genesis':     '圓圈＝各系集成員每 6 小時的位置，顏色代表海平面最低氣壓。灰線＝各系集成員的個別路徑（最長 360 小時；GEFS 只到 120 小時）。資料來源：{source}。',
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
@@ -658,15 +662,38 @@ function i18nParams(el) {
     return p;
 }
 
+// 圖說第一句直接露出在「怎麼看這張圖」旁邊，點開才看全文；語言換了要重算
+function foldNotes(scope) {
+    $$('details.note-fold', scope || document).forEach(d => {
+        const sum = d.querySelector('summary'), note = d.querySelector('.map-note');
+        if (!sum || !note) return;
+        const txt = note.textContent.replace(/\s+/g, ' ').trim();
+        const m = txt.match(/^(.{12,}?[.。])(?=\s|$)|^(.+?)(?=\s·\s)/);
+        let lead = (m && (m[1] || m[2])) || txt;
+        if (lead.length > 140) lead = lead.slice(0, 137).replace(/\s+\S*$/, '') + '…';
+        sum.removeAttribute('data-i18n');
+        sum.innerHTML = `<span class="nf-lead">${lead.replace(/</g, '&lt;')}</span> <span class="nf-more">${t('note.how')} ▾</span>`;
+    });
+}
+// 中文介面才載入 Noto Sans TC（字型 CSS 約 120 KB；英文讀者用不到）
+function ensureTcFont() {
+    if (currentLang !== 'zh' || $('#font-tc')) return;
+    const l = document.createElement('link');
+    l.id = 'font-tc'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400..700&display=swap';
+    document.head.appendChild(l);
+}
 function applyLang(lang, save = true) {
     currentLang = (lang === 'zh') ? 'zh' : 'en';
     root.setAttribute('lang', currentLang === 'zh' ? 'zh-Hant' : 'en');
+    ensureTcFont();
     $$('[data-i18n]').forEach(el => {
         const txt = t(el.dataset.i18n, i18nParams(el));
         if (!txt) return;                       // 字典沒這個 key 就保留原文，不要清空
         if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, txt);
         else el.innerHTML = txt;
     });
+    foldNotes();
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
@@ -863,7 +890,7 @@ function updateNav() {
 }
 
 function onViewShown(view) {
-    requestAnimationFrame(updateIndicators);
+    requestAnimationFrame(() => { updateIndicators(); syncHeaderH(); });
     refreshSubnavs();
     scrollSpy();
     Hero.setActive(view.dataset.view === 'overview' && !Globe.ready);
@@ -922,6 +949,7 @@ async function loadFrags(scope) {
             box.innerHTML = await r.text();
             box.dataset.state = 'done';
             i18nIn(box);
+            foldNotes(box);
             requestAnimationFrame(updateIndicators);
         } catch (e) {
             box.dataset.state = 'failed';
@@ -1034,6 +1062,7 @@ function syncModelPick(view) {
 function onStormTab(btn) {
     const view = btn.closest('.view');
     syncModelPick(view);
+    requestAnimationFrame(() => { syncHeaderH(); refreshSubnavs(); scrollSpy(); });
     try { sessionStorage.setItem('tab:' + view.dataset.view, btn.dataset.model); } catch (e) {}
     const anchor = $('.storm-bar-anchor', view), bar = $('.storm-bar', view);
     if (anchor && bar) {
@@ -1483,6 +1512,8 @@ function animateGauge(el) {
 }
 
 // ── 段落導覽（颱風頁）：點擊平滑捲動、捲動時標示目前段落 ─────────────
+// 分頁各有一條小目錄：只看目前顯示的那條
+function activeSubnav(view) { return $$('.subnav', view).find(n => n.offsetParent) || null; }
 function refreshSubnavs() {
     $$('.subnav').forEach(nav => {
         $$('button[data-target]', nav).forEach(b => {
@@ -1497,7 +1528,7 @@ let spyRaf = 0;
 function scrollSpy() {
     spyRaf = 0;
     const view = currentRoute && viewFor(currentRoute);
-    const nav = view && $('.subnav', view);
+    const nav = view && activeSubnav(view);
     if (!nav) return;
     const line = nav.getBoundingClientRect().bottom + 60;   // 段落導覽黏在上方，以它的底緣為準（手機頁首不黏，不能用頁首高度算）
     let active = null;
@@ -1537,7 +1568,11 @@ window.addEventListener('scroll', () => {
 
 // 頁首高度會因換行而變（手機兩列），黏性元素要跟著它的實際高度走
 const header = $('#site-header');
-function syncHeaderH() { if (header) root.style.setProperty('--header-h', header.offsetHeight + 'px'); }
+function syncHeaderH() {
+    if (header) root.style.setProperty('--header-h', header.offsetHeight + 'px');
+    const bar = $$('.storm-bar').find(b => b.offsetParent);
+    if (bar) root.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+}
 if ('ResizeObserver' in window && header) new ResizeObserver(syncHeaderH).observe(header);
 syncHeaderH();
 

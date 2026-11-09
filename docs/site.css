@@ -274,6 +274,10 @@ html[lang^="zh"] .hero-title { letter-spacing: .05em; max-width: none; font-size
 .cat-pill { padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size:.85em; letter-spacing:.04em; }
 .hero-sub { margin-top: 12px; font-size: clamp(.98rem,1.4vw,1.12rem); color: rgba(234,244,252,.74); max-width: 56ch; line-height: 1.65; animation: fadeUp .9s var(--ease-out) .45s both; }
 .hero-cta { display:flex; flex-wrap:wrap; gap:12px; margin-top: 30px; animation: fadeUp .9s var(--ease-out) .55s both; }
+.hero-glance { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; max-width: 64ch; animation: fadeUp .9s var(--ease-out) .4s both; }
+.hero-glance li { font-size: .9rem; color: rgba(234,244,252,.85); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 6px 12px; line-height: 1.35; }
+.hero-glance li b { color: #fff; font-weight: 700; }
+.hero-glance li:last-child:not(:first-child) { flex-basis: 100%; border-radius: 14px; }
 .btn-primary, .btn-ghost {
     display:inline-flex; align-items:center; gap:8px;
     padding: 13px 22px; border-radius: 13px;
@@ -314,6 +318,7 @@ html[lang^="zh"] .kicker { letter-spacing:.06em; }
 .legend-inline { display:flex; align-items:center; gap:7px; font-size:.78em; color: var(--text-3); font-weight:600; }
 .page-head { padding-top: 8px; }
 .page-title { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 850; letter-spacing: -.025em; line-height:1.15; max-width: 28ch; }
+.page-sub { margin-top: 8px; color: var(--text-2); font-size: clamp(.95rem, 1.3vw, 1.08rem); max-width: 60ch; line-height: 1.5; }
 /* 中文標題：行距拉開、字距微開，兩行時不會擠在一起 */
 html[lang^="zh"] .page-title { letter-spacing: .05em; line-height: 1.38; }
 html[lang^="zh"] .section-head h3, html[lang^="zh"] .empty-title,
@@ -480,6 +485,11 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .subnav button:hover { color: var(--text); }
 .subnav button.active { background: var(--btn-bg); color:#fff; box-shadow: 0 4px 14px rgba(var(--accent-rgb),.3); }
 .subnav button[hidden] { display:none; }
+/* 分頁內的小目錄：黏在分頁列（.storm-bar）正下方；分頁列高度（--bar-h）由腳本量，手機上是兩列 */
+.subnav.pane-nav { top: calc(var(--header-h) + 22px + var(--bar-h, 46px) + 6px); z-index: 49; margin: -6px auto 0; padding: 4px; gap: 2px; }
+.subnav.pane-nav button { padding: 6px 12px; font-size: .78em; font-weight: 600; }
+@media (max-width: 900px) { .subnav.pane-nav { top: calc(8px + var(--bar-h, 46px) + 6px); } }
+@media (max-width: 600px) { .subnav.pane-nav { width: 100%; justify-content: flex-start; border-radius: 16px; } .subnav.pane-nav button { padding: 9px 12px; } }
 
 /* ── Panels ─────────────────────────────────────────────────── */
 .panel { background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 22px 24px; min-width:0; transition: background .35s, border .35s, opacity .8s var(--ease-out), transform .8s var(--ease-out); scroll-margin-top: calc(var(--header-h) + 80px); }
@@ -535,6 +545,8 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-chart .sc-tip { display: none; font-size: .76em; color: var(--text-2); margin: 6px 0 0; }
 .score-chart svg.sc-phone { display: none; }
 @media (max-width: 600px) {
+    .seg .model-tab-btn, .run-btn, .speed-btn, .city-toggle { min-height: 40px; }
+    .sc-key { min-height: 36px; }
     .score-chart svg.sc-desk { display: none; }
     .score-chart svg.sc-phone { display: block; }
     .score-chart .sc-legend { font-size: .86em; gap: 6px 12px; }
@@ -1425,6 +1437,9 @@ footer { border-top: 0; padding: 0 24px 16px; margin-top: 24px; }
 .note-fold > summary::before { content: "ⓘ"; font-size: 1.1em; }
 .note-fold > summary:hover, .note-fold[open] > summary { background: var(--surface-2); color: var(--text-2); }
 .note-fold > .map-note { margin-top: 6px; }
+.note-fold > summary .nf-lead { color: var(--text-2); font-weight: 500; }
+.note-fold > summary .nf-more { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.note-fold[open] > summary .nf-lead { display: none; }
 .jtwc-src { margin-top: 10px; font-size: .78em; color: var(--text-3); }
 
 @media (max-width: 900px) {
