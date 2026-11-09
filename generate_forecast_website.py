@@ -763,6 +763,113 @@ def _season_trend_chart(storms: list, det: set, h: int = 72) -> str:
 
 _SEASON_FRAG = False
 
+
+def _phase_block(card_all: dict, det: set) -> str:
+    """本季校驗依情境拆開：轉向前／轉向後（實況由西行轉東行的時刻切）、起報時已是颱風／還不是。
+    每個情境一個分頁，表格與主成績單相同（同質樣本的路徑誤差）。"""
+    ph = (card_all or {}).get('phase') or {}
+    keys = [('pre', 'season.ph.pre', 'Before recurvature'), ('post', 'season.ph.post', 'After recurvature'),
+            ('weak', 'season.ph.weak', 'Init: TS or weaker'), ('typhoon', 'season.ph.typhoon', 'Init: typhoon')]
+    keys = [k for k in keys if ph.get(k[0])]
+    if not keys:
+        return ''
+    track = 'arch-season-phase'
+    tabs = ''.join(f'<button class="model-tab-btn{" active" if i == 0 else ""}" role="tab" aria-selected="{"true" if i == 0 else "false"}" '
+                   f'data-track="{track}" data-model="{k}" data-i18n="{ik}">{txt}</button>' for i, (k, ik, txt) in enumerate(keys))
+    panels = ''.join(f'<div class="model-panel" data-track="{track}" data-model="{k}"{"" if i == 0 else " style=\"display:none;\""}>'
+                     f'{_score_table(ph[k], ARCHIVE_MODEL_ORDER, det, "track")}</div>' for i, (k, _, _) in enumerate(keys))
+    n_rec = len(((card_all or {}).get('phase_n') or {}).get('recurved') or [])
+    return (f'<h4 class="arch-sub" data-i18n="season.phase">By situation</h4>'
+            f'<p class="map-note" data-i18n="season.phase.note" data-i18n-n="{n_rec}">Same homogeneous track error, split by situation: before and after the storm recurved '
+            f'(the moment the observed track turned from westward to eastward; {n_rec} storms recurved so far), and by the storm\'s intensity at the time the forecast was made.</p>'
+            f'<div class="seg model-tabs" role="tablist"><span class="seg-ind"></span>{tabs}</div>{panels}')
+
+
+GENESIS_HIT_KM = 500        # 生成訊號與實際生成點的距離上限
+GENESIS_HIT_H = 48          # 生成訊號時間與實際生成時間的差上限（小時）
+GENESIS_MIN_SHARE = 10      # 至少這麼多 % 的成員才算一個訊號
+GENESIS_FA_SHARE = 20       # 假警報統計只看這麼多 % 以上的訊號
+
+
+def _genesis_verif_block(docs_dir: str) -> str:
+    """生成訊號對照：大系集每一報的未命名群 vs 後來真的生成的颱風（歷史存檔的第一筆實況）。
+    每顆颱風：最早在幾天前就有訊號、訊號最高的成員比例；另算假警報（發出後 7 天內沒有颱風生成的訊號）。"""
+    def _ts(x):
+        t = pd.Timestamp(x)
+        return t.tz_localize('UTC') if t.tzinfo is None else t.tz_convert('UTC')
+    try:
+        with open(os.path.join(docs_dir, 'archive', '_genesis_log.json'), encoding='utf-8') as fh:
+            runs = (json.load(fh) or {}).get('runs') or []
+    except (OSError, ValueError):
+        runs = []
+    if not runs:
+        return (f'<h4 class="arch-sub" data-i18n="season.gen">Genesis signals</h4>'
+                f'<p class="map-note" data-i18n="season.gen.pending">Collecting data: the genesis clusters of the 1000-member ensemble are logged from each run and will be compared with the storms that actually form.</p>')
+    # 實際生成：歷史存檔第一筆實況
+    storms = []
+    adir = os.path.join(docs_dir, 'archive')
+    for fn in sorted(os.listdir(adir)):
+        if fn.endswith('.json') and not fn.startswith('_'):
+            try:
+                with open(os.path.join(adir, fn), encoding='utf-8') as fh:
+                    d = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            if d.get('obs'):
+                o = d['obs'][0]
+                storms.append({'id': d.get('id') or fn[:-5], 'name': d.get('name'), 't': _ts(o[0]), 'lat': o[1], 'lon': o[2] % 360})
+    rows = []
+    for s in storms:
+        best = None
+        for r in runs:
+            init = _ts(r['init'])
+            lead_d = (s['t'] - init).total_seconds() / 86400
+            if lead_d <= 0:
+                continue
+            for c in r.get('clusters') or []:
+                if c.get('named') or r.get('n', 0) <= 0:
+                    continue
+                share = c['members'] * 100 / r['n']
+                if share < GENESIS_MIN_SHARE:
+                    continue
+                if _km(s['lat'], s['lon'], c['lat'], c['lon'] % 360) <= GENESIS_HIT_KM and \
+                        abs((_ts(c['gen_valid']) - s['t']).total_seconds()) / 3600 <= GENESIS_HIT_H:
+                    if best is None or lead_d > best[0]:
+                        best = (lead_d, share, r['init'])
+                    elif abs(lead_d - best[0]) < 1e-9 and share > best[1]:
+                        best = (lead_d, share, r['init'])
+        rows.append((s, best))
+    # 假警報：訊號的生成時間已過了 7 天，附近卻沒有任何颱風生成
+    now = pd.Timestamp.now(tz='UTC')
+    fa = total = 0
+    for r in runs:
+        for c in r.get('clusters') or []:
+            if c.get('named') or r.get('n', 0) <= 0 or c['members'] * 100 / r['n'] < GENESIS_FA_SHARE:
+                continue
+            gv = _ts(c['gen_valid'])
+            if (now - gv).total_seconds() < 7 * 86400:
+                continue
+            total += 1
+            hit = any(_km(s['lat'], s['lon'], c['lat'], c['lon'] % 360) <= GENESIS_HIT_KM
+                      and abs((s['t'] - gv).total_seconds()) / 3600 <= 3 * 24 for s in storms)
+            fa += 0 if hit else 1
+    trs = ''.join(
+        f'<tr><td class="c-name">{_esc(s.get("name") or s["id"])}<span class="eta">{s["id"]}</span></td>'
+        f'<td class="mono">{s["t"]:%m/%d %H}Z</td>'
+        + (f'<td style="background:#2e9e5b;color:#fff;">{b[0]:.1f} d<span class="eta">{b[1]:.0f}% · {b[2][5:13].replace("T", " ")}Z</span></td>'
+           if b else '<td class="c-low">—</td>')
+        + '</tr>' for s, b in rows)
+    table = (f'<div class="city-table-wrap"><table class="city-table gen-table"><thead><tr>'
+             f'<th data-i18n="season.gen.storm">Storm</th><th data-i18n="season.gen.formed">First JTWC fix</th>'
+             f'<th data-i18n="season.gen.lead">Earliest signal<span class="eta" data-i18n="season.gen.lead.sub">days ahead · share · run</span></th>'
+             f'</tr></thead><tbody>{trs}</tbody></table></div>') if rows else ''
+    fa_txt = (f'<p class="map-note" data-i18n="season.gen.fa" data-i18n-fa="{fa}" data-i18n-total="{total}">False alarms: {fa} of {total} signals '
+              f'with at least {GENESIS_FA_SHARE}% of members had no storm form within 500 km and 3 days.</p>' if total else '')
+    return (f'<h4 class="arch-sub" data-i18n="season.gen">Genesis signals</h4>'
+            f'<p class="map-note" data-i18n="season.gen.note">For each storm: the earliest run of the 1000-member ensemble in which an unnamed genesis cluster '
+            f'(at least {GENESIS_MIN_SHARE}% of members) formed within {GENESIS_HIT_KM} km and ±{GENESIS_HIT_H} h of where and when the storm actually appeared.</p>'
+            + table + fa_txt)
+
 # JTWC 還沒命名時用數字英文當名字（THIRTYONE、TWENTY-SEVEN…）；命名事件就是名字從這種變成真名
 _NUMBER_WORDS = re.compile(r'^(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|'
                            r'SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|THIRTY|FORTY)([- ]?(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE))?$', re.I)
@@ -917,6 +1024,75 @@ def _mine_panel(sec_id: str, tracks_json: str) -> str:
                     This is the chance of the center coming near, not of damaging winds: a Cat 3 passing 100 km away is still dangerous, and model intensities run weak
                 </p>
             </div>"""
+
+
+def _intensity_bias_chart(tid: str, models: list, card_all: dict, info: dict) -> str:
+    """強度分頁：各模式的系集平均強度、扣掉該模式本季平均偏差後的修正線，以及 JTWC 官方預報。
+    偏差來自所有颱風同質樣本的強度校驗（＋＝預報太強），各時數之間線性內插、24 小時以內按比例縮小。"""
+    ib = ((card_all or {}).get('int') or {}).get('homog') or {}
+    jt = [(p[3], p[2]) for p in (info.get('jtwc_fc') or []) if p and p[3] is not None and p[2] is not None and 0 < p[3] <= 120]
+    now = info.get('wind')
+    panels, names = [], []
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        name = m.get('ens_name') or m.get('model')
+        mean = (m.get('track_points') or {}).get('mean') or []
+        raw = [(p[3], p[2]) for p in mean if p and p[2] is not None and p[3] is not None and p[3] <= 120]
+        bias_pts = sorted((int(ld), v[2], v[1]) for ld, v in (ib.get(name) or {}).items()
+                          if len(v) >= 3 and v[2] is not None and v[1] >= SCORE_MIN_N)
+        if len(raw) < 3 or len(bias_pts) < 2:
+            continue
+        xs, bs = [b[0] for b in bias_pts], [b[1] for b in bias_pts]
+        def bias_at(h):
+            if h <= xs[0]:
+                return bs[0] * h / xs[0]
+            if h >= xs[-1]:
+                return bs[-1]
+            for (x0, b0), (x1, b1) in zip(zip(xs, bs), zip(xs[1:], bs[1:])):
+                if x0 <= h <= x1:
+                    return b0 + (b1 - b0) * (h - x0) / (x1 - x0)
+            return bs[-1]
+        corr = [(h, k - bias_at(h)) for h, k in raw]
+        W, H, L, Rm, T, B = 900, 300, 52, 16, 12, 34
+        allk = [k for _, k in raw] + [k for _, k in corr] + [k for _, k in jt] + ([now] if now is not None else [])
+        ymax = (int(max(allk) * 1.15 // 10) + 1) * 10
+        x = lambda h: L + h / 120 * (W - L - Rm)
+        y = lambda k: T + (ymax - k) / ymax * (H - T - B)
+        g = []
+        for k in range(0, ymax + 1, 20):
+            g.append(f'<line x1="{L}" x2="{W - Rm}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)"/>'
+                     f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{k}</text>')
+        for h in range(0, 121, 24):
+            g.append(f'<text x="{x(h):.1f}" y="{H - 12}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{h} h</text>')
+        for kt, lbl in ((34, 'TS'), (64, 'Cat1'), (83, 'Cat2'), (96, 'Cat3'), (113, 'Cat4'), (137, 'Cat5')):
+            if kt < ymax:
+                g.append(f'<line x1="{L}" x2="{W - Rm}" y1="{y(kt):.1f}" y2="{y(kt):.1f}" stroke="#9AA6B2" stroke-width=".8" stroke-dasharray="2 5"/>'
+                         f'<text x="{W - Rm - 2}" y="{y(kt) - 3:.1f}" text-anchor="end" font-size="10" style="fill:var(--text-2)">{lbl}</text>')
+        c = SCORE_COLORS.get(name, '#9AA6B2')
+        g.append('<polyline points="' + ' '.join(f'{x(h):.1f},{y(k):.1f}' for h, k in raw) + f'" fill="none" stroke="{c}" stroke-width="2.4" opacity=".75"/>')
+        g.append('<polyline points="' + ' '.join(f'{x(h):.1f},{y(k):.1f}' for h, k in corr) + f'" fill="none" stroke="{c}" stroke-width="3" stroke-dasharray="7 5"/>')
+        for h, k in jt:
+            g.append(f'<circle cx="{x(h):.1f}" cy="{y(k):.1f}" r="4.5" fill="#DC2626" stroke="#fff" stroke-width="1.2"><title>JTWC +{h:.0f} h · {k:.0f} kt</title></circle>')
+        if jt:
+            g.append('<polyline points="' + ' '.join(f'{x(h):.1f},{y(k):.1f}' for h, k in sorted(jt)) + '" fill="none" stroke="#DC2626" stroke-width="1.4" opacity=".7"/>')
+        if now is not None:
+            g.append(f'<circle cx="{x(0):.1f}" cy="{y(now):.1f}" r="4.5" fill="#fff" stroke="#DC2626" stroke-width="1.6"><title>JTWC now · {now:.0f} kt</title></circle>')
+        btxt = ' · '.join(f'{ld} h {b:+.0f} kt (n={n})' for ld, b, n in bias_pts)
+        panels.append(
+            f'<div class="model-panel" data-track="{_esc(tid)}-ibias" data-model="{_esc(name)}"{"" if not panels else " style=\"display:none;\""}>'
+            f'<div class="score-chart"><div class="sc-axis" data-i18n="ibias.y">Max sustained wind (kt) · 0–120 h</div>'
+            f'<svg class="sc-desk" viewBox="0 0 {W} {H}" role="img">{"".join(g)}</svg>'
+            f'<div class="sc-legend"><span><i style="background:{c};opacity:.75"></i><span data-i18n="ibias.raw">Ensemble mean</span></span>'
+            f'<span><i style="background:{c};height:3px;border-top:3px dashed {c};background:none"></i><span data-i18n="ibias.corr">Bias-corrected</span></span>'
+            f'<span><i style="background:#DC2626"></i>JTWC</span></div></div>'
+            f'<p class="map-note ibias-bias"><span data-i18n="ibias.biasline">This model\'s mean intensity bias this season (all storms, homogeneous sample; + too strong):</span> {btxt}</p>'
+            f'</div>')
+        names.append(name)
+    if not panels:
+        return ''
+    tabs = _model_tabs(f'{tid}-ibias', names) if len(names) > 1 else f'<div class="model-label">{_esc(names[0])}</div>'
+    return tabs + ''.join(panels)
 
 
 def _fold_notes_html(html: str) -> str:
@@ -1478,7 +1654,9 @@ def _load_archive(docs_dir: str) -> list[dict]:
                 f'scored against the JTWC warning positions; {n_st} storms so far.</p>'
                 + _season_trend_chart(season.get('storms') or [], det)
                 + f'<h4 class="arch-sub" data-i18n="season.table">All storms · error by lead time</h4>'
-                + _score_block('arch-season', [('allst', season['all'])], ARCHIVE_MODEL_ORDER, det))
+                + _score_block('arch-season', [('allst', season['all'])], ARCHIVE_MODEL_ORDER, det)
+                + _phase_block(season['all'], det)
+                + _genesis_verif_block(docs_dir))
         edir = os.path.join(docs_dir, 'export')
         os.makedirs(edir, exist_ok=True)
         srows = list(_verif_rows('all_storms', season['all']))
@@ -1658,6 +1836,10 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.1.1', '2026-11-06', [
+        ('強度分頁新增「偏差修正後的強度」：系集平均扣掉該模式本季的平均強度偏差，與 JTWC 官方預報並列',
+         'The Intensity tab adds a bias-corrected intensity line: the ensemble mean with the model\'s season-to-date intensity bias removed, alongside the JTWC forecast'),
+        ('歷史頁「本季至今」新增依情境拆開的校驗（轉向前／後、起報時強度）與生成訊號對照（1000 成員系集的生成群 vs 實際生成的颱風）',
+         'The Archive\'s Season panel adds verification by situation (before/after recurvature, intensity at init) and a genesis-signal check (1000-member clusters vs the storms that formed)'),
         ('概況分頁新增「臺灣各縣市」表：各模式中心經過每個縣市 110 公里內的機率，以及中心在附近的時間窗（首次進入～最後離開）',
          'The Summary tab adds a Taiwan-by-county table: each model\'s chance that the center passes within 110 km of every county, and the window when it is nearby (first entry to last exit)'),
         ('新增通知 feed（RSS／JSON Feed，連結在說明頁）：新系統、命名、強度分級變化、預報大幅移動、登陸臺灣機率跳動',
@@ -2595,6 +2777,28 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 'Thin lines = members &nbsp;·&nbsp; Navy line = median &nbsp;·&nbsp; Band = 10–90% '
                 '&nbsp;·&nbsp; RI = intensifying ≥ 30 kt within 24 h &nbsp;·&nbsp; Amber line = deterministic run (AIFS / ECMWF / AIGFS / GFS)',
                 f"{track_id} Intensity Forecast")
+
+        # ── 偏差修正強度線：系集平均 − 該模式本季平均偏差，對照 JTWC 官方預報
+        ibias_html = ""
+        _ib = _intensity_bias_chart(key_prefix, models, _card_m.get('scorecard_all') if _card_m else {}, info)
+        if _ib:
+            sec_id = f"sec-{key_prefix}-ibias"
+            sections.append((sec_id, 'sub.ibias', 'Bias-corrected'))
+            ibias_html = f"""
+            <div class="panel reveal" id="{sec_id}">
+                <div class="panel-header">
+                    <span class="panel-icon">🧪</span>
+                    <span data-i18n="panel.ibias">Bias-corrected intensity</span>{MT_SHOWN}
+                </div>
+                {_ib}
+                <p class="map-note" data-i18n="note.ibias">
+                    Solid line = this model's ensemble-mean maximum wind &nbsp;·&nbsp; Dashed = the same curve with the model's mean intensity bias
+                    from this season's verification removed (all storms, homogeneous sample; the bias at each lead is interpolated, and scaled down toward 0 h)
+                    &nbsp;·&nbsp; Red = the JTWC official forecast &nbsp;·&nbsp; A simple first-order correction: it fixes the systematic weak bias of coarse models,
+                    not their timing or structure errors, and the sample is still small early in the season
+                </p>
+            </div>"""
+            plume_html += ibias_html
 
         # ── 城市侵襲機率表（欄＝各模式＋1000 成員）
         cities_html = ""
@@ -3900,6 +4104,8 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 }
 .lightbox.zoomed .lb-hint { display: none; }
 .frag-state { padding: 18px 0; text-align: center; }
+.ibias-bias { font-size: .8em; }
+.gen-table td.c-low { color: var(--text-2); }
 .tm-time { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; font-size: .86em; color: var(--text-2); }
 .tm-time .tm-hour { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
 .tm-time .tm-hour.idle { opacity: .55; }
@@ -4811,6 +5017,27 @@ const I18N = {
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
     'frag.loading':     'Loading…',
+    'season.phase':     'By situation',
+    'season.phase.note': 'Same homogeneous track error, split by situation: before and after the storm recurved (the moment the observed track turned from westward to eastward; {n} storms recurved so far), and by the storm\'s intensity at the time the forecast was made.',
+    'season.ph.pre':    'Before recurvature',
+    'season.ph.post':   'After recurvature',
+    'season.ph.weak':   'Init: TS or weaker',
+    'season.ph.typhoon': 'Init: typhoon',
+    'season.gen':       'Genesis signals',
+    'season.gen.pending': 'Collecting data: the genesis clusters of the 1000-member ensemble are logged from each run and will be compared with the storms that actually form.',
+    'season.gen.note':  'For each storm: the earliest run of the 1000-member ensemble in which an unnamed genesis cluster (at least 10% of members) formed within 500 km and ±48 h of where and when the storm actually appeared.',
+    'season.gen.storm': 'Storm',
+    'season.gen.formed': 'First JTWC fix',
+    'season.gen.lead':  'Earliest signal',
+    'season.gen.lead.sub': 'days ahead · share · run',
+    'season.gen.fa':    'False alarms: {fa} of {total} signals with at least 20% of members had no storm form within 500 km and 3 days.',
+    'sub.ibias':        'Bias-corrected',
+    'panel.ibias':      'Bias-corrected intensity',
+    'ibias.y':          'Max sustained wind (kt) · 0–120 h',
+    'ibias.raw':        'Ensemble mean',
+    'ibias.corr':       'Bias-corrected',
+    'ibias.biasline':   'This model\'s mean intensity bias this season (all storms, homogeneous sample; + too strong):',
+    'note.ibias':       'Solid line = this model\'s ensemble-mean maximum wind &nbsp;·&nbsp; Dashed = the same curve with the model\'s mean intensity bias from this season\'s verification removed (all storms, homogeneous sample; the bias at each lead is interpolated, and scaled down toward 0 h) &nbsp;·&nbsp; Red = the JTWC official forecast &nbsp;·&nbsp; A simple first-order correction: it fixes the systematic weak bias of coarse models, not their timing or structure errors, and the sample is still small early in the season',
     'sub.tw':           'Taiwan',
     'panel.tw':         'Taiwan by county · when the center may pass nearby',
     'tw.col.county':    'County',
@@ -5105,6 +5332,27 @@ const I18N = {
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
+    'season.phase':     '依情境',
+    'season.phase.note': '同一份同質樣本的路徑誤差，依情境拆開：颱風轉向前／後（實況路徑由西行轉東行的那一刻切，目前 {n} 顆颱風有轉向），以及起報當時颱風的強度。',
+    'season.ph.pre':    '轉向前',
+    'season.ph.post':   '轉向後',
+    'season.ph.weak':   '起報時：熱帶風暴以下',
+    'season.ph.typhoon': '起報時：颱風',
+    'season.gen':       '生成訊號對照',
+    'season.gen.pending': '資料收集中：每一報都會記錄 1000 成員系集的生成群，之後跟真的生成的颱風對照。',
+    'season.gen.note':  '每顆颱風：1000 成員系集最早在哪一報就有未命名的生成群（至少 10% 成員），其生成點與時間落在颱風實際出現位置 500 公里、±48 小時內。',
+    'season.gen.storm': '颱風',
+    'season.gen.formed': 'JTWC 首次定位',
+    'season.gen.lead':  '最早訊號',
+    'season.gen.lead.sub': '提前天數・成員比例・起報',
+    'season.gen.fa':    '假警報：{total} 個成員比例 20% 以上的訊號中，有 {fa} 個在 500 公里、3 天內沒有颱風生成。',
+    'sub.ibias':        '偏差修正',
+    'panel.ibias':      '偏差修正後的強度',
+    'ibias.y':          '最大持續風速（kt）・0–120 小時',
+    'ibias.raw':        '系集平均',
+    'ibias.corr':       '偏差修正',
+    'ibias.biasline':   '這個模式本季的平均強度偏差（所有颱風同質樣本；＋＝預報太強）：',
+    'note.ibias':       '實線＝這個模式的系集平均最大風速 &nbsp;·&nbsp; 虛線＝同一條線扣掉本季校驗得到的平均強度偏差（所有颱風同質樣本；各時數間線性內插、越接近 0 小時修正越小） &nbsp;·&nbsp; 紅色＝JTWC 官方預報 &nbsp;·&nbsp; 這只是一階修正：補的是粗解析度模式系統性偏弱，不是時間或結構的誤差，而且季初樣本仍少',
     'sub.tw':           '臺灣',
     'panel.tw':         '臺灣各縣市・中心可能經過附近的時間',
     'tw.col.county':    '縣市',
