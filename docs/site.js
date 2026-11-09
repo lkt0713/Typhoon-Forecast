@@ -173,6 +173,10 @@ const I18N = {
     'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
     'note.score':       'Track error = mean distance (km) between each forecast position and the JTWC warning position at the same time; the other tabs split it into along-/cross-track parts or check intensity &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst (along-/cross-track: green = closest to 0); ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
     'score.tab.allst.homog': 'All storms · homogeneous',
+    'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
+    'frag.loading':     'Loading…',
+    'sum.verif':        'See Verification →',
+    'frag.failed':      'Could not load this section. Check your connection and tap the tab again.',
     'score.tab.allst.all': 'All storms · all forecasts',
     'score.tab.storm.homog': 'This storm · homogeneous',
     'score.tab.storm.all': 'This storm · all forecasts',
@@ -272,6 +276,7 @@ const I18N = {
     'panel.comparison': 'Multi-Model Comparison',
     'note.comparison':  "Ensemble mean tracks and deterministic runs from every model on one map &nbsp;·&nbsp; Hollow dots = 24-hr steps &nbsp;·&nbsp; Parentheses in the legend give each model's initialization time (day/hour Z)",
     'zoom.hint':        '🔍 Click to enlarge',
+    'lb.hint':          'Pinch or double-tap to zoom · scroll wheel on desktop',
     'panel.anim':       '{model} Track Evolution Animation',
     'panel.anim.generic': 'Track Evolution Animation',
     'note.anim':        'Step through the forecast frame by frame to watch the ensemble tracks unfold over time.',
@@ -423,6 +428,10 @@ const I18N = {
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
     'note.score':       '路徑誤差＝各預報位置與同時間 JTWC 警報位置的平均距離（公里）；其他分頁把它拆成沿／跨路徑，或比較強度 &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差（沿／跨路徑：越接近 0 越綠）；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
     'score.tab.allst.homog': '所有颱風・同質樣本',
+    'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
+    'frag.loading':     '載入中…',
+    'sum.verif':        '看校驗 →',
+    'frag.failed':      '這一區載入失敗，請確認網路後再點一次分頁。',
     'score.tab.allst.all': '所有颱風・全部樣本',
     'score.tab.storm.homog': '這顆颱風・同質樣本',
     'score.tab.storm.all': '這顆颱風・全部樣本',
@@ -522,6 +531,7 @@ const I18N = {
     'panel.comparison': '多模式比較',
     'note.comparison':  '各模式的系集平均路徑與決定性預報同框比較 &nbsp;·&nbsp; 空心圓點＝每 24 小時 &nbsp;·&nbsp; 圖例括號內為各模式的起報時間（日／時 Z）',
     'zoom.hint':        '🔍 點擊放大',
+    'lb.hint':          '兩指或雙擊放大・桌機用滾輪',
     'panel.anim':       '{model} 路徑演變動畫',
     'panel.anim.generic': '路徑演變動畫',
     'note.anim':        '逐格檢視預報，看系集路徑如何隨預報時間展開。',
@@ -898,6 +908,28 @@ function revealTab(btn) {
 }
 
 // ── Model tab switching (WN3-C / WN2-C r2 / WN2-C r1 / GENC for the same storm) ──
+// 點到分頁才載入的區塊（校驗表）：抓片段、套語言、指示塊重量；失敗留提示，再點分頁會重試
+const i18nIn = el => $$('[data-i18n]', el).forEach(x => {
+    const txt = t(x.dataset.i18n, i18nParams(x)); if (!txt) return;
+    if (x.dataset.i18nAttr) x.setAttribute(x.dataset.i18nAttr, txt); else x.innerHTML = txt; });
+async function loadFrags(scope) {
+    for (const box of $$('.lazy-frag[data-src]', scope)) {
+        if (box.dataset.state === 'loading' || box.dataset.state === 'done') continue;
+        box.dataset.state = 'loading';
+        try {
+            const r = await fetch(box.dataset.src, { cache: 'no-cache' });
+            if (!r.ok) throw new Error(r.status);
+            box.innerHTML = await r.text();
+            box.dataset.state = 'done';
+            i18nIn(box);
+            requestAnimationFrame(updateIndicators);
+        } catch (e) {
+            box.dataset.state = 'failed';
+            box.innerHTML = `<p class="map-note frag-state" data-i18n="frag.failed">${t('frag.failed')}</p>`;
+            console.log('[frag]', box.dataset.src, e);
+        }
+    }
+}
 function switchModelTab(trackId, model) {
     $$('.model-panel').filter(el => el.dataset.track === trackId).forEach(el => {
         const isActive = el.dataset.model === model;
@@ -905,6 +937,7 @@ function switchModelTab(trackId, model) {
         // A panel whose image already failed to load stays hidden even if selected —
         // otherwise switching tabs away and back would silently un-hide the broken image.
         el.style.display = (isActive && el.dataset.broken !== 'true') ? '' : 'none';
+        if (isActive && el.classList.contains('tab-pane')) loadFrags(el);
         if (isActive && wasHidden && !reduced()) {
             el.classList.remove('swap-in'); void el.offsetWidth; el.classList.add('swap-in');
         }
@@ -1524,14 +1557,71 @@ if (canHover) {
 // ── Lightbox ──────────────────────────────────────────────────────
 const lightbox = $('#lightbox');
 function zoomImgOf(fig) { return $('img.is-front', fig) || $('img', fig); }
+const LB = { s: 1, x: 0, y: 0, ptrs: new Map(), moved: false, start: null, lastTap: 0 };
+const lbImg = $('#lightbox-img');
+function lbApply() {
+    if (!lbImg) return;
+    if (LB.s <= 1.001) { LB.s = 1; LB.x = LB.y = 0; }
+    lbImg.style.transform = LB.s === 1 ? '' : `translate(${LB.x}px, ${LB.y}px) scale(${LB.s})`;
+    lightbox.classList.toggle('zoomed', LB.s > 1);
+}
+function lbZoomAt(factor, cx, cy) {
+    // 以指標位置為中心縮放：縮放前後那個點留在原地
+    const r = lbImg.getBoundingClientRect();
+    const ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2);
+    const ns = Math.min(6, Math.max(1, LB.s * factor)), k = ns / LB.s;
+    LB.x = ox - (ox - LB.x) * k; LB.y = oy - (oy - LB.y) * k; LB.s = ns;
+    lbApply();
+}
 function openLightbox(src) {
-    $('#lightbox-img').src = src;
+    lbImg.src = src;
+    LB.s = 1; LB.x = LB.y = 0; LB.ptrs.clear(); lbApply();
     lightbox.classList.add('open');
     document.body.classList.add('lb-lock');
 }
 function closeLightbox() {
-    lightbox.classList.remove('open');
+    lightbox.classList.remove('open', 'zoomed');
     document.body.classList.remove('lb-lock');
+}
+if (lbImg) {
+    lbImg.addEventListener('pointerdown', e => {
+        LB.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        LB.moved = false;
+        if (LB.ptrs.size === 1) LB.start = { x: e.clientX, y: e.clientY, ox: LB.x, oy: LB.y };
+        if (LB.ptrs.size === 2) {
+            const [a, b] = [...LB.ptrs.values()];
+            LB.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: LB.s };
+        }
+        lbImg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    lbImg.addEventListener('pointermove', e => {
+        if (!LB.ptrs.has(e.pointerId)) return;
+        LB.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (LB.ptrs.size === 2 && LB.pinch) {
+            const [a, b] = [...LB.ptrs.values()];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+            lbZoomAt((LB.pinch.s * d / LB.pinch.d) / LB.s, cx, cy);
+            LB.moved = true;
+        } else if (LB.ptrs.size === 1 && LB.start && LB.s > 1) {
+            LB.x = LB.start.ox + e.clientX - LB.start.x; LB.y = LB.start.oy + e.clientY - LB.start.y;
+            if (Math.hypot(e.clientX - LB.start.x, e.clientY - LB.start.y) > 6) LB.moved = true;
+            lbApply();
+        }
+    });
+    const up = e => {
+        LB.ptrs.delete(e.pointerId);
+        if (LB.ptrs.size < 2) LB.pinch = null;
+        if (LB.ptrs.size === 1) { const [a] = [...LB.ptrs.values()]; LB.start = { x: a.x, y: a.y, ox: LB.x, oy: LB.y }; }
+        if (LB.ptrs.size === 0 && !LB.moved) {
+            const now = performance.now();
+            if (now - LB.lastTap < 320) { clearTimeout(LB.closeT); lbZoomAt(LB.s > 1 ? 1 / LB.s : 2.5, e.clientX, e.clientY); LB.lastTap = 0; LB.tapZoom = true; }
+            else LB.lastTap = now;
+        }
+    };
+    lbImg.addEventListener('pointerup', up); lbImg.addEventListener('pointercancel', up);
+    lbImg.addEventListener('wheel', e => { e.preventDefault(); lbZoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX, e.clientY); }, { passive: false });
 }
 // 系集路徑圖的歷史期數：同一個 model-panel 裡換圖
 document.addEventListener('click', e => {
@@ -1544,7 +1634,17 @@ document.addEventListener('click', e => {
     if (img) img.src = b.dataset.src;
 });
 document.addEventListener('click', e => {
-    if (lightbox.classList.contains('open')) { closeLightbox(); return; }   // 點任意處關閉
+    if (lightbox.classList.contains('open')) {
+        // 拖曳、兩指縮放或雙擊之後的 click 不算關閉；放大時點圖也不關（點圖外才關）
+        if (LB.moved || LB.tapZoom) { LB.moved = false; LB.tapZoom = false; return; }
+        if (e.target === lbImg) {
+            if (LB.s > 1) return;                       // 放大時點圖不關，點圖外或 ✕ 才關
+            clearTimeout(LB.closeT);                    // 等一下：可能是雙擊的第一下
+            LB.closeT = setTimeout(() => { if (LB.s === 1 && lightbox.classList.contains('open')) closeLightbox(); }, 330);
+            return;
+        }
+        closeLightbox(); return;
+    }
     const fig = e.target.closest('.zoomable');
     if (fig && !fig.classList.contains('broken')) { const img = zoomImgOf(fig); openLightbox(img.currentSrc || img.src); }
 });
@@ -1698,6 +1798,22 @@ document.addEventListener('click', e => {
         ct.setAttribute('aria-expanded', open ? 'true' : 'false');
         const wrap = ct.previousElementSibling;
         if (wrap && wrap.classList.contains('city-table-wrap')) wrap.classList.toggle('compact', !open);
+        return;
+    }
+    const key = e.target.closest('.sc-key');
+    if (key) {
+        const chart = key.closest('.score-chart');
+        const on = !(chart.classList.contains('solo') && key.classList.contains('on'));
+        chart.classList.toggle('solo', on);
+        $$('.sc-key', chart).forEach(k => k.classList.toggle('on', on && k === key));
+        $$('.sc-line', chart).forEach(l => l.classList.toggle('on', on && l.dataset.m === key.dataset.m));
+        return;
+    }
+    const jump = e.target.closest('[data-storm-tab]');
+    if (jump) {
+        const view = jump.closest('.view');
+        const b = view && $(`.storm-tab[data-model="${jump.dataset.stormTab}"]`, view);
+        if (b) { b.click(); b.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); }
         return;
     }
     const tab = e.target.closest('.model-tab-btn');

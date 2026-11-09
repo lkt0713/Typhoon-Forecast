@@ -525,6 +525,22 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .score-chart .sc-axis { font-size: .78em; color: var(--text-2); margin-bottom: 2px; }
 .score-chart .sc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8em; color: var(--text-2); margin-top: 4px; }
 .score-chart .sc-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.score-chart .sc-key { background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; border-radius: 6px; }
+.score-chart .sc-key:hover { color: var(--text); }
+.score-chart.solo .sc-key { opacity: .45; }
+.score-chart.solo .sc-key.on { opacity: 1; color: var(--text); font-weight: 600; }
+.score-chart .sc-line { transition: opacity .25s; }
+.score-chart.solo .sc-line { opacity: .12; }
+.score-chart.solo .sc-line.on { opacity: 1; }
+.score-chart .sc-tip { display: none; font-size: .76em; color: var(--text-2); margin: 6px 0 0; }
+.score-chart svg.sc-phone { display: none; }
+@media (max-width: 600px) {
+    .score-chart svg.sc-desk { display: none; }
+    .score-chart svg.sc-phone { display: block; }
+    .score-chart .sc-legend { font-size: .86em; gap: 6px 12px; }
+    .score-chart .sc-key { padding: 5px 2px; }
+    .score-chart .sc-tip { display: block; }
+}
 .city-table th .eta { display: block; font-size: .78em; font-weight: 500; opacity: .75; }
 /* 決定報：外框＋琥珀字，不用實心色塊，免得跟 60–70% 的橘色機率格混淆 */
 .city-table td.c-det { background: var(--surface-2); color: #E8963A; box-shadow: inset 0 0 0 2px #B45309; }
@@ -702,7 +718,18 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
     max-width: 95vw; max-height: 92vh;
     border-radius: 10px; object-fit: contain;
     box-shadow: 0 30px 80px rgba(0,0,0,.6);
+    touch-action: none; user-select: none; -webkit-user-drag: none; cursor: zoom-in;
+    transform-origin: center center; will-change: transform;
 }
+.lightbox.zoomed img { cursor: grab; }
+.lightbox .lb-close { z-index: 2; }
+.lightbox .lb-hint {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    font-size: .8em; color: rgba(255,255,255,.75); background: rgba(0,0,0,.45);
+    padding: 6px 12px; border-radius: 999px; pointer-events: none; white-space: nowrap;
+}
+.lightbox.zoomed .lb-hint { display: none; }
+.frag-state { padding: 18px 0; text-align: center; }
 .lb-close {
     position: absolute; top: 18px; right: 22px;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
@@ -871,6 +898,9 @@ html[lang^="zh"] .i-zh { display: inline; }
 html[lang^="zh"] .i-en { display: none; }
 .storm-summary { margin-top: 18px; max-width: 54ch; display: grid; gap: 6px; }
 .storm-summary p { font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.55; color: #eaf0f5; font-weight: 400; }
+.storm-summary p.ss-extra { font-size: clamp(.9rem, 1.2vw, 1rem); color: #c9d4df; }
+.storm-summary p.ss-extra strong { color: #eaf0f5; font-weight: 600; }
+.storm-summary .link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--accent, #7fc7ff); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .storm-badges { margin-bottom: 14px; }
 .storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
 
