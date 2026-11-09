@@ -6665,7 +6665,9 @@ window.addEventListener('scroll', () => {
         progRaf = 0;
         const max = document.documentElement.scrollHeight - innerHeight;
         const bar = $('.scroll-progress');
-        if (bar) bar.style.setProperty('--p', max > 0 ? (scrollY / max).toFixed(4) : 0);
+        // iOS 往下拉／往上拉過頭時 scrollY 會小於 0 或大於 max（回彈），比例要夾在 0～1，
+        // 不然 scaleX 變負的（往左畫）或大於 1（往右畫），進度條就跑出頁首的圓角框
+        if (bar) bar.style.setProperty('--p', max > 0 ? Math.min(1, Math.max(0, scrollY / max)).toFixed(4) : 0);
     });
     if (!spyRaf) spyRaf = requestAnimationFrame(scrollSpy);
 }, { passive: true });
