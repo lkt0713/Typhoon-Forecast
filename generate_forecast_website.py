@@ -2322,7 +2322,9 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <div class="run-picks tm-runs" role="group" aria-label="Init"></div>
                     <div class="tm-time">
                         <button type="button" class="pc-btn tm-play" data-i18n="tmap.play" data-i18n-attr="title" title="Play"><span class="ic-play">{ICONS['play']}</span><span class="ic-pause">{ICONS['pause']}</span></button>
-                        <input type="range" class="tm-hour" min="0" max="120" step="6" value="72" aria-label="Forecast hour" disabled>
+                        <button type="button" class="pc-btn tm-step" data-step="-6" data-i18n="pl.prev" data-i18n-attr="title" title="Previous">{ICONS['prev']}</button>
+                        <button type="button" class="pc-btn tm-step" data-step="6" data-i18n="pl.next" data-i18n-attr="title" title="Next">{ICONS['next']}</button>
+                        <input type="range" class="tm-hour" min="0" max="120" step="6" value="72" aria-label="Forecast hour">
                         <span class="tm-hour-val mono"></span>
                         <label><input type="checkbox" class="tm-full" checked> <span data-i18n="tmap.full">Full tracks</span></label>
                     </div>
@@ -3651,7 +3653,7 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 .frag-state { padding: 18px 0; text-align: center; }
 .tm-time { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; font-size: .86em; color: var(--text-2); }
 .tm-time .tm-hour { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
-.tm-time .tm-hour:disabled { opacity: .4; }
+.tm-time .tm-hour.idle { opacity: .55; }
 .tm-time .tm-play .ic-pause, .tm-time .tm-play.playing .ic-play { display: none; }
 .tm-time .tm-play.playing .ic-pause { display: inline; }
 .tm-time .tm-hour-val { min-width: 9em; }
@@ -5773,14 +5775,20 @@ async function initTrackMap(box) {
         const syncHour = () => {
             const mx = maxLead();
             hourIn.max = mx; if (+hourIn.value > mx) hourIn.value = mx;
-            hourIn.disabled = fullBox.checked;
+            hourIn.classList.toggle('idle', fullBox.checked);
             const m = cmpOn() ? shown()[0] : sel.value;
-            hourVal.textContent = fullBox.checked ? '' : `+${hourIn.value} h · ${fmt(m, +hourIn.value)}`;
+            hourVal.textContent = fullBox.checked ? t('tmap.full') : `+${hourIn.value} h · ${fmt(m, +hourIn.value)}`;
         };
         upto = () => fullBox.checked ? null : +hourIn.value;
         const stopPlay = () => { clearInterval(playT); playT = 0; playBtn.classList.remove('playing'); };
         fullBox.onchange = () => { if (fullBox.checked) stopPlay(); syncHour(); draw(false); };
-        hourIn.oninput = () => { syncHour(); draw(false); };
+        hourIn.oninput = () => { fullBox.checked = false; syncHour(); draw(false); };   // 一拉就離開完整路徑模式
+        box.querySelectorAll('.tm-step').forEach(b => b.onclick = () => {
+            stopPlay(); fullBox.checked = false;
+            const mx = maxLead(), v = +hourIn.value + (+b.dataset.step);
+            hourIn.value = Math.max(0, Math.min(mx, v));
+            syncHour(); draw(false);
+        });
         playBtn.onclick = () => {
             if (playT) { stopPlay(); return; }
             fullBox.checked = false; syncHour();
