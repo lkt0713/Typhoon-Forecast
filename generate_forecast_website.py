@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 from datetime import datetime, timedelta, timezone
 
 # 網站版號，顯示在頁首語言切換鈕右邊。改版時只動這裡 —— HTML 由 f-string 取值。
-SITE_VERSION = "7.1.1"
+SITE_VERSION = "7.2.0"
 
 # 與 forecast.py 的 COLOR_MAP 同一組色票（灰→藍→綠→琥珀→橘→紅→紫），
 # 網頁上的字卡顏色才會跟地圖上的點對得起來。改色時兩邊要一起改。
@@ -1835,7 +1835,7 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 新版本加在最前面；第一筆的版本號必須等於 SITE_VERSION（tests/test_site.py 會檢查）。
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
-    ('7.1.1', '2026-11-06', [
+    ('7.2.0', '2026-11-09', [
         ('強度分頁新增「偏差修正後的強度」：系集平均扣掉該模式本季的平均強度偏差，與 JTWC 官方預報並列',
          'The Intensity tab adds a bias-corrected intensity line: the ensemble mean with the model\'s season-to-date intensity bias removed, alongside the JTWC forecast'),
         ('歷史頁「本季至今」新增依情境拆開的校驗（轉向前／後、起報時強度）與生成訊號對照（1000 成員系集的生成群 vs 實際生成的颱風）',
@@ -1866,6 +1866,8 @@ CHANGELOG = [
          'On phones the Verification chart uses a large-type version and tapping a legend entry isolates one model; enlarged images can be pinch-zoomed, dragged and double-tapped'),
         ('校驗分頁改為點到才載入，颱風頁的檔案縮小約七成，手機開啟更快',
          'The Verification tab now loads on demand, cutting the storm page to about a third of its size so it opens faster on phones'),
+    ]),
+    ('7.1.1', '2026-11-06', [
         ('路徑分頁新增 0～120 小時的系集路徑圖，放在完整路徑圖上面，近幾天看得更清楚',
          'The Track tab adds a 0–120 h ensemble track map above the full one, so the next few days are easier to read'),
         ('侵襲分頁新增仿 JTWC 警報圖的暴風圈預報（WeatherNext、ECMWF、NOAA 系集），每 12 小時畫一組 34、50、64 kt 暴風圈',
