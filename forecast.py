@@ -2499,6 +2499,40 @@ def compute_scorecard() -> dict:
             ok = {k for k, ms in cases.items() if ms >= present[(k[0], k[2])]}
         return [r for r in rs if (r[0], r[2], r[3]) in ok]
 
+    # 轉向時間：實況由西行（經度遞減）轉為東行（經度遞增）且之後一直東行的第一個時刻；
+    # 沒有先西後東的颱風沒有轉向，不拆
+    def _recurve_time(o: pd.DataFrame):
+        if len(o) < 4:
+            return None
+        lon = np.unwrap(np.radians(o['lon'].to_numpy() % 360)) * 180 / np.pi
+        dl = np.diff(lon)
+        west_seen = False
+        for i, d in enumerate(dl):
+            if d < -0.05:
+                west_seen = True
+            elif west_seen and d > 0.05 and np.all(dl[i:] > -0.05):
+                return o['t'].iloc[i + 1]
+        return None
+    recurve = {tid: _recurve_time(o) for tid, o in obs.items()}
+
+    def _phase(r):
+        t = recurve.get(r[0])
+        if t is None:
+            return None
+        valid = pd.Timestamp(datetime.strptime(r[2], '%Y%m%d%H'), tz='UTC') + pd.Timedelta(hours=r[3])
+        return 'post' if valid >= t else 'pre'
+
+    def _init_class(r):
+        o = obs.get(r[0])
+        if o is None or 'wind' not in o.columns:
+            return None
+        t0 = pd.Timestamp(datetime.strptime(r[2], '%Y%m%d%H'), tz='UTC')
+        dt = (o['t'] - t0).abs()
+        if dt.empty or dt.min() > pd.Timedelta(hours=VERIF_MATCH_H):
+            return None
+        w = o.loc[dt.idxmin(), 'wind']
+        return None if pd.isna(w) else ('typhoon' if float(w) >= 64 else 'weak')
+
     card = {}
     for scope in sorted({r[0] for r in recs}) + (['_all'] if recs else []):
         rs = recs if scope == '_all' else [r for r in recs if r[0] == scope]
@@ -2509,7 +2543,13 @@ def compute_scorecard() -> dict:
                        'at': {'all': _signed(rx, 5), 'homog': _signed(hx, 5)},
                        'ct': {'all': _signed(rx, 6), 'homog': _signed(hx, 6)},
                        'int': {'all': _intensity(ri), 'homog': _intensity(hi)}}
-        # 官方預報彼此比的同質樣本（成績單的官方區與校驗表的同質分頁用）：至少兩家才有比的意義
+        if scope == '_all':
+            # 分階段（所有颱風合計）：轉向前／後、起報時已是颱風／還不是；各自算同質樣本
+            card[scope]['phase'] = {
+                key: _track(_homog([r for r in rs if fn(r) == key]))
+                for key, fn in (('pre', _phase), ('post', _phase), ('weak', _init_class), ('typhoon', _init_class))}
+            card[scope]['phase_n'] = {'recurved': sorted(t for t, v in recurve.items() if v is not None)}
+        # 官方預報彼此比的同質樣本（成績單的官方區與校驗表的官方列用）：至少兩家才有比的意義
         if len({r[1] for r in rs if r[1] in OFFICIAL_AGENCIES}) >= 2:
             ox = _homog(rx, True)
             card[scope]['off'] = {'track': _track(_homog(rs, True)), 'at': _signed(ox, 5), 'ct': _signed(ox, 6),
@@ -4566,6 +4606,36 @@ def cluster_large_ensemble_tracks(df: pd.DataFrame) -> tuple[list[dict], list[tu
     return clusters, noise
 
 
+GENESIS_LOG = os.path.join(ARCHIVE_DIR, '_genesis_log.json')
+GENESIS_LOG_MAX_RUNS = 400      # 約 100 天（每天 4 報）
+
+
+def log_genesis_clusters(clusters: list, init_dt, n_total: int, model_name: str) -> None:
+    """把這一報大系集的生成訊號（未命名群：中位生成點、時間、成員比例；已命名群只記名稱）
+    追加到 docs/archive/_genesis_log.json，網頁的「生成訊號對照」用來跟後來真的生成的颱風比。
+    同一報重跑只覆蓋，不重複。"""
+    import json
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+    try:
+        with open(GENESIS_LOG, encoding='utf-8') as fh:
+            log = json.load(fh)
+    except (OSError, ValueError):
+        log = {'runs': []}
+    init = pd.Timestamp(init_dt).strftime('%Y-%m-%dT%H:%MZ')
+    entry = {'init': init, 'model': model_name, 'n': int(n_total), 'clusters': []}
+    for c in clusters:
+        gen_valid = (pd.Timestamp(init_dt) + pd.Timedelta(hours=float(c.get('gen_time') or 0))).strftime('%Y-%m-%dT%H:%MZ')
+        entry['clusters'].append({'label': c.get('label'), 'named': bool(c.get('named')), 'members': int(c.get('members') or 0),
+                                  'lat': round(float(c['gen_lat']), 2), 'lon': round(float(c['gen_lon']), 2),
+                                  'gen_h': round(float(c.get('gen_time') or 0)), 'gen_valid': gen_valid})
+    runs = [r for r in log.get('runs', []) if not (r.get('init') == init and r.get('model') == model_name)]
+    runs.append(entry)
+    runs.sort(key=lambda r: r['init'])
+    log['runs'] = runs[-GENESIS_LOG_MAX_RUNS:]
+    with open(GENESIS_LOG, 'w', encoding='utf-8') as fh:
+        json.dump(log, fh, separators=(',', ':'), ensure_ascii=False)
+
+
 def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str = "WN2-C"):
     """繪製 WNC2 1000 成員大系集的路徑聚類圖。"""
     from matplotlib.collections import LineCollection  # type: ignore
@@ -4582,6 +4652,10 @@ def plot_large_ensemble_clusters(csv_path: str, save_path: str, model_name: str 
     clusters, noise = cluster_large_ensemble_tracks(df)
     print(f"[CLUSTER] {len(clusters)} 群（{sum(c['named'] for c in clusters)} 個已命名），"
           f"雜訊 {len(noise)} 條")
+    try:
+        log_genesis_clusters(clusters, init_dt, n_total, model_name)
+    except Exception as e:
+        print(f"[GENESIS-LOG] 生成訊號紀錄失敗，略過: {e}")
 
     if HAS_CARTOPY:
         fig = plt.figure(figsize=(13, 8.6), facecolor='white')
