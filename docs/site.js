@@ -176,6 +176,11 @@ const I18N = {
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
     'frag.loading':     'Loading…',
+    'dl.label':         'Download:',
+    'season.title':     'Season so far',
+    'season.note':      'Every verified forecast this season, all storms together, scored against the JTWC warning positions; {n} storms so far.',
+    'season.chart.y':   '72 h mean track error (km), homogeneous sample, by storm',
+    'season.table':     'All storms · error by lead time',
     'sum.verif':        'See Verification →',
     'frag.failed':      'Could not load this section. Check your connection and tap the tab again.',
     'score.tab.allst.all': 'All storms · all forecasts',
@@ -433,6 +438,11 @@ const I18N = {
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
+    'dl.label':         '下載：',
+    'season.title':     '本季至今',
+    'season.note':      '本季所有颱風的校驗合計，以 JTWC 警報位置為實況；目前 {n} 顆颱風。',
+    'season.chart.y':   '各颱風 72 小時平均路徑誤差（公里，同質樣本）',
+    'season.table':     '所有颱風・各時數誤差',
     'sum.verif':        '看校驗 →',
     'frag.failed':      '這一區載入失敗，請確認網路後再點一次分頁。',
     'score.tab.allst.all': '所有颱風・全部樣本',
@@ -891,6 +901,7 @@ function updateNav() {
 
 function onViewShown(view) {
     requestAnimationFrame(() => { updateIndicators(); syncHeaderH(); });
+    loadFrags(view, b => !b.closest('.tab-pane'));
     refreshSubnavs();
     scrollSpy();
     Hero.setActive(view.dataset.view === 'overview' && !Globe.ready);
@@ -939,8 +950,9 @@ function revealTab(btn) {
 const i18nIn = el => $$('[data-i18n]', el).forEach(x => {
     const txt = t(x.dataset.i18n, i18nParams(x)); if (!txt) return;
     if (x.dataset.i18nAttr) x.setAttribute(x.dataset.i18nAttr, txt); else x.innerHTML = txt; });
-async function loadFrags(scope) {
+async function loadFrags(scope, filter) {
     for (const box of $$('.lazy-frag[data-src]', scope)) {
+        if (filter && !filter(box)) continue;
         if (box.dataset.state === 'loading' || box.dataset.state === 'done') continue;
         box.dataset.state = 'loading';
         try {
@@ -2701,5 +2713,9 @@ window.addEventListener('load', () => {
         if (y !== null) { sessionStorage.removeItem(k); window.scrollTo({ top: +y, behavior: 'instant' }); }
     } catch (e) {}
     updateIndicators();
+    // 離線也能看最後一次更新；圖片第二次開就從快取來
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('sw.js').catch(e => console.log('[sw]', e));
+    }
 });
 })();
