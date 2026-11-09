@@ -3611,6 +3611,7 @@ def update_storm_archive(storms: list, card: dict) -> None:
     det_models = {s.get('det_name') for s in storms if s.get('det_name')}
     trends = _archive_trends(storms)
     fnames = sorted(os.listdir(fdir)) if os.path.isdir(fdir) else []
+    season = []      # 本季校驗總表（歷史頁「本季至今」）：每顆颱風 48／72 小時同質樣本的路徑誤差
     for oname in sorted(os.listdir(odir)):
         if not oname.endswith('.csv'):
             continue
@@ -3677,6 +3678,18 @@ def update_storm_archive(storms: list, card: dict) -> None:
                 json.dump(data, fh, separators=(',', ':'), ensure_ascii=False)
         except OSError as e:
             print(f"[ARCHIVE] 警告: 寫入 {path} 失敗: {e}")
+        hom = (card.get(tid) or {}).get('homog') or {}
+        season.append({'id': tid, 'name': data.get('name'), 'first': data.get('first'), 'last': data.get('last'),
+                       'active': data['active'], 'peak': data.get('peak'),
+                       'h': {str(h): {m: v for m, d in hom.items() if (v := d.get(h) or d.get(str(h)))} for h in (48, 72)}})
+    # 所有颱風合計的成績單＋每顆颱風的誤差：網頁的「本季至今」用
+    try:
+        with open(os.path.join(ARCHIVE_DIR, '_season.json'), 'w', encoding='utf-8') as fh:
+            json.dump({'all': card.get('_all') or {}, 'det': sorted(det_models),
+                       'storms': sorted(season, key=lambda e: e.get('last') or '')},
+                      fh, separators=(',', ':'), ensure_ascii=False)
+    except OSError as e:
+        print(f"[ARCHIVE] 警告: 寫入 _season.json 失敗: {e}")
 
 
 # ── 互動式地圖資料 ───────────────────────────────────────────────────────

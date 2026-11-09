@@ -619,6 +619,151 @@ COMPASS16 = [('north', '北'), ('north-northeast', '北北東'), ('northeast', '
              ('west', '西'), ('west-northwest', '西北西'), ('northwest', '西北'), ('north-northwest', '北北西')]
 
 
+def _csv(path: str, header: list, rows) -> bool:
+    import csv
+    try:
+        with open(path, 'w', newline='', encoding='utf-8') as fh:
+            w = csv.writer(fh)
+            w.writerow(header)
+            w.writerows(rows)
+        return True
+    except OSError:
+        return False
+
+
+def _lon180(lon):
+    lon = float(lon) % 360
+    return lon - 360 if lon > 180 else lon
+
+
+def _dl_row(links: list[tuple[str, str]]) -> str:
+    """下載列：links = [(檔案相對路徑, 顯示文字), ...]。"""
+    if not links:
+        return ''
+    a = ' · '.join(f'<a href="{_esc(p)}" download>{_esc(t)}</a>' for p, t in links)
+    return f'<p class="dl-row"><span data-i18n="dl.label">Download</span> {a}</p>'
+
+
+def _verif_rows(scope: str, card: dict):
+    """成績單 dict → CSV 列（scope, sample, metric, model, lead_h, value, n, abs_error）。"""
+    card = card or {}
+    for sample in ('homog', 'all'):
+        for m, d in (card.get(sample) or {}).items():
+            for ld, v in d.items():
+                yield [scope, sample, 'track_km', m, ld, round(v[0], 1), v[1], '']
+        for k in ('at', 'ct', 'int'):
+            for m, d in ((card.get(k) or {}).get(sample) or {}).items():
+                for ld, v in d.items():
+                    unit = 'kt' if k == 'int' else 'km'
+                    # 強度存 [|e|, n, 偏差]，沿／跨路徑存 [偏差, n, |e|]；統一輸出 value=偏差、abs_error=|e|
+                    bias, ab = (v[2], v[0]) if k == 'int' else (v[0], v[2] if len(v) > 2 else '')
+                    yield [scope, sample, f'{k}_{unit}', m, ld, round(bias, 1) if bias is not None else '', v[1],
+                           round(ab, 1) if ab not in ('', None) else '']
+    off = card.get('off') or {}
+    for m, d in (off.get('track') or {}).items():
+        for ld, v in d.items():
+            yield [scope, 'official', 'track_km', m, ld, round(v[0], 1), v[1], '']
+
+
+def _write_storm_exports(docs_dir: str, tid: str, models: list, card_storm: dict, card_all: dict) -> dict:
+    """颱風頁的下載檔：平均／決定報路徑（CSV、GeoJSON）與校驗表（CSV）。回傳寫成功的 {鍵: 相對路徑}。"""
+    edir = os.path.join(docs_dir, 'export')
+    os.makedirs(edir, exist_ok=True)
+    out = {}
+    rows, feats = [], []
+    for m in models:
+        if not isinstance(m, dict) or not (m.get('track_points') or {}).get('mean'):
+            continue
+        tp = m['track_points']
+        for kind, pts, init, name in (('ensemble_mean', tp.get('mean'), m.get('init_time') or m.get('forecast_map_init'), m.get('ens_name') or m.get('model')),
+                                      ('deterministic', tp.get('det'), tp.get('det_init'), tp.get('det_name'))):
+            if not pts or not init or not name:
+                continue
+            t0 = pd.Timestamp(init)
+            coords = []
+            for la, lo, kt, h in pts:
+                if la is None or lo is None:
+                    continue
+                valid = (t0 + pd.Timedelta(hours=float(h))).strftime('%Y-%m-%dT%H:%MZ')
+                rows.append([name, kind, t0.strftime('%Y-%m-%dT%H:%MZ'), h, valid, la, round(_lon180(lo), 2), kt if kt is not None else ''])
+                coords.append([round(_lon180(lo), 2), la])
+            if len(coords) >= 2:
+                feats.append({'type': 'Feature', 'properties': {'model': name, 'kind': kind, 'init': t0.strftime('%Y-%m-%dT%H:%MZ')},
+                              'geometry': {'type': 'LineString', 'coordinates': coords}})
+    if rows:
+        if _csv(os.path.join(edir, f'{tid}_tracks.csv'), ['model', 'kind', 'init_utc', 'lead_h', 'valid_utc', 'lat', 'lon', 'wind_kt'], rows):
+            out['tracks_csv'] = f'export/{tid}_tracks.csv'
+        try:
+            with open(os.path.join(edir, f'{tid}_tracks.geojson'), 'w', encoding='utf-8') as fh:
+                json.dump({'type': 'FeatureCollection', 'features': feats}, fh, separators=(',', ':'))
+            out['tracks_geojson'] = f'export/{tid}_tracks.geojson'
+        except OSError:
+            pass
+    vrows = list(_verif_rows('this_storm', card_storm)) + list(_verif_rows('all_storms', card_all))
+    if vrows and _csv(os.path.join(edir, f'{tid}_verification.csv'),
+                      ['scope', 'sample', 'metric', 'model', 'lead_h', 'value', 'n', 'abs_error'], vrows):
+        out['verif_csv'] = f'export/{tid}_verification.csv'
+    return out
+
+
+def _spark_svg(winds: list, color: str = 'var(--cat)') -> str:
+    """歷史卡片上的強度小折線（實況最大風速）。"""
+    w = [x for x in winds if x is not None]
+    if len(w) < 2:
+        return ''
+    W, H = 120, 28
+    lo, hi = min(w), max(w)
+    span = max(hi - lo, 10)
+    pts = ' '.join(f'{i / (len(w) - 1) * W:.1f},{H - 2 - (x - lo) / span * (H - 6):.1f}' for i, x in enumerate(w))
+    area = f'0,{H} {pts} {W},{H}'
+    return (f'<svg class="arch-spark" viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">'
+            f'<polygon points="{area}" fill="{color}" opacity=".18"/>'
+            f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="1.8" stroke-linejoin="round"/></svg>')
+
+
+def _season_trend_chart(storms: list, det: set, h: int = 72) -> str:
+    """本季每顆颱風的 72 小時路徑誤差（同質樣本），一個模式一條線；圖例可點（沿用 .score-chart）。"""
+    rows = [s for s in storms if (s.get('h') or {}).get(str(h))]
+    if len(rows) < 2:
+        return ''
+    models = [m for m in ARCHIVE_MODEL_ORDER if any(m in s['h'][str(h)] for s in rows)]
+    models += sorted({m for s in rows for m in s['h'][str(h)]} - set(models) - set(OFFICIAL_MODELS))
+    if not models:
+        return ''
+    W, H, L, Rm, T, B = 900, 300, 52, 44, 12, 40
+    top = max(v[0] for s in rows for m in models if (v := s['h'][str(h)].get(m))) * 1.1 or 1.0
+    step = next(st for st in (25, 50, 100, 200, 500, 1000) if top / st <= 8)
+    ymax = (int(top // step) + 1) * step
+    x = lambda i: L + (i / max(len(rows) - 1, 1)) * (W - L - Rm)
+    y = lambda e: T + (ymax - e) / ymax * (H - T - B)
+    g = []
+    for k in range(0, ymax + 1, step):
+        g.append(f'<line x1="{L}" x2="{W - Rm}" y1="{y(k):.1f}" y2="{y(k):.1f}" style="stroke:var(--border)"/>'
+                 f'<text x="{L - 6}" y="{y(k) + 4:.1f}" text-anchor="end" font-size="11" style="fill:var(--text-2)">{k}</text>')
+    for i, s in enumerate(rows):
+        lbl = (s.get('name') or s['id'])[:10]
+        g.append(f'<text x="{x(i):.1f}" y="{H - 14}" text-anchor="middle" font-size="11" style="fill:var(--text-2)">{_esc(lbl)}</text>')
+    for m in models:
+        c = SCORE_COLORS.get(m, '#9AA6B2')
+        dash = ' stroke-dasharray="6 4"' if m in det else ''
+        pts = [(i, s['h'][str(h)][m]) for i, s in enumerate(rows) if s['h'][str(h)].get(m)]
+        if not pts:
+            continue
+        path = ' '.join(f'{x(i):.1f},{y(v[0]):.1f}' for i, v in pts)
+        dots = ''.join(f'<circle cx="{x(i):.1f}" cy="{y(v[0]):.1f}" r="3.6" fill="{c if v[1] >= SCORE_MIN_N else "none"}" stroke="{c}" stroke-width="1.6">'
+                       f'<title>{_esc(m)} · {_esc(rows[i].get("name") or rows[i]["id"])} · {v[0]:.0f} km · n={v[1]}</title></circle>' for i, v in pts)
+        g.append(f'<g class="sc-line" data-m="{_esc(m)}"><polyline points="{path}" fill="none" stroke="{c}" stroke-width="2.2"{dash}/>{dots}</g>')
+    legend = ''.join(f'<button type="button" class="sc-key" data-m="{_esc(m)}"><i style="background:{SCORE_COLORS.get(m, "#9AA6B2")}'
+                     f'{";opacity:.55" if m in det else ""}"></i>{_esc(m)}</button>' for m in models)
+    return (f'<div class="score-chart"><div class="sc-axis" data-i18n="season.chart.y">{h} h mean track error (km), homogeneous sample, by storm</div>'
+            f'<svg class="sc-desk" viewBox="0 0 {W} {H}" role="img"><g>{"".join(g)}</g></svg>'
+            f'<div class="sc-legend">{legend}</div>'
+            f'<p class="sc-tip" data-i18n="score.legend.tip">Tap a model in the legend to show only that line; tap again to show all.</p></div>')
+
+
+_SEASON_FRAG = False
+
+
 def _fold_notes_html(html: str) -> str:
     """圖說收進「怎麼看這張圖」，需要時再展開。"""
     return re.sub(r'(<p class="map-note"[^>]*data-i18n="note\.[^"]+"[^>]*>.*?</p>)',
@@ -1009,12 +1154,27 @@ def _load_archive(docs_dir: str) -> list[dict]:
             continue
         tid = d.get('id') or fn[:-5]
         card = d.get('card') or {}
+        # 下載檔：實況路徑、每一報的預報、校驗表
+        edir = os.path.join(docs_dir, 'export')
+        os.makedirs(edir, exist_ok=True)
+        dl = []
+        if _csv(os.path.join(edir, f'{tid}_jtwc_track.csv'), ['time_utc', 'lat', 'lon', 'wind_kt'],
+                [[r[0], r[1], round(_lon180(r[2]), 2), r[3] if r[3] is not None else ''] for r in d['obs']]):
+            dl.append((f'export/{tid}_jtwc_track.csv', 'JTWC track CSV'))
+        frows = [[m, init, p[0], p[1], round(_lon180(p[2]), 2), p[3] if len(p) > 3 and p[3] is not None else '']
+                 for m, runs in fc.items() for init, pts in runs.items() for p in pts]
+        if frows and _csv(os.path.join(edir, f'{tid}_forecasts.csv'), ['model', 'init_utc', 'lead_h', 'lat', 'lon', 'wind_kt'], frows):
+            dl.append((f'export/{tid}_forecasts.csv', 'Forecasts CSV'))
+        vrows = list(_verif_rows('this_storm', card))
+        if vrows and _csv(os.path.join(edir, f'{tid}_verification.csv'),
+                          ['scope', 'sample', 'metric', 'model', 'lead_h', 'value', 'n', 'abs_error'], vrows):
+            dl.append((f'export/{tid}_verification.csv', 'Verification CSV'))
         score = ''
         if card:
             score = _score_block(f'arch-{tid}-score', [('storm', card)], ARCHIVE_MODEL_ORDER, SCORE_DET_NAMES | set(d.get('det') or []))
         try:
             with open(os.path.join(adir, f'{tid}_score.html'), 'w', encoding='utf-8') as fh:
-                fh.write(score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>')
+                fh.write((score or '<p class="map-note" data-i18n="arch.noscore">No verified forecasts for this storm yet.</p>') + _dl_row(dl))
         except OSError:
             pass
         # 成績單（颱風結束後 forecast.py 畫的總表）：沒有就寫空片段，網頁那一塊就不顯示
@@ -1054,8 +1214,37 @@ def _load_archive(docs_dir: str) -> list[dict]:
             os.remove(tpath)
         out.append({'id': tid, 'name': d.get('name'), 'first': d.get('first'), 'last': d.get('last'),
                     'peak': d.get('peak'), 'active': bool(d.get('active')),
-                    'n': sum(len(v) for v in fc.values()), 'models': len(fc)})
+                    'n': sum(len(v) for v in fc.values()), 'models': len(fc),
+                    'spark': _spark_svg([r[3] for r in d['obs']])})
     out.sort(key=lambda e: e['last'] or '', reverse=True)
+    # 本季至今：所有颱風合計的成績單＋每顆颱風的 72 小時誤差（forecast.update_storm_archive 寫的 _season.json）
+    global _SEASON_FRAG
+    _SEASON_FRAG = False
+    try:
+        with open(os.path.join(adir, '_season.json'), encoding='utf-8') as fh:
+            season = json.load(fh)
+    except (OSError, ValueError):
+        season = None
+    if season and (season.get('all') or {}).get('homog'):
+        det = SCORE_DET_NAMES | set(season.get('det') or [])
+        n_st = len([s for s in season.get('storms') or [] if (s.get('h') or {}).get('72')])
+        frag = (f'<p class="map-note" data-i18n="season.note" data-i18n-n="{n_st}">Every verified forecast this season, all storms together, '
+                f'scored against the JTWC warning positions; {n_st} storms so far.</p>'
+                + _season_trend_chart(season.get('storms') or [], det)
+                + f'<h4 class="arch-sub" data-i18n="season.table">All storms · error by lead time</h4>'
+                + _score_block('arch-season', [('allst', season['all'])], ARCHIVE_MODEL_ORDER, det))
+        edir = os.path.join(docs_dir, 'export')
+        os.makedirs(edir, exist_ok=True)
+        srows = list(_verif_rows('all_storms', season['all']))
+        if srows and _csv(os.path.join(edir, 'season_verification.csv'),
+                          ['scope', 'sample', 'metric', 'model', 'lead_h', 'value', 'n', 'abs_error'], srows):
+            frag += _dl_row([('export/season_verification.csv', 'Season verification CSV')])
+        try:
+            with open(os.path.join(adir, '_season_score.html'), 'w', encoding='utf-8') as fh:
+                fh.write(frag)
+            _SEASON_FRAG = True
+        except OSError:
+            pass
     return out
 
 
@@ -1153,7 +1342,66 @@ def _write_static_assets(docs_dir: str) -> str:
         if not (os.path.exists(path) and open(path, 'rb').read() == data):   # 沒變就不重寫，git 不會有多餘變動
             with open(path, 'wb') as fh:
                 fh.write(data)
-    return h.hexdigest()[:8]
+    ver = h.hexdigest()[:8]
+    sw = _SW.replace('__VER__', ver).encode('utf-8')
+    path = os.path.join(docs_dir, 'sw.js')
+    if not (os.path.exists(path) and open(path, 'rb').read() == sw):
+        with open(path, 'wb') as fh:
+            fh.write(sw)
+    return ver
+
+
+# Service worker：網頁本身、片段與 JSON 走「先網路、斷線才用快取」（內容每 10 分鐘變，不能給舊的）；
+# 圖片、字型、樣式與腳本走「先快取、背景更新」，快取最多留 400 筆。status.json 不經快取（頁面輪詢用）。
+# 離線時導航回最後一次抓到的 index.html。版本號跟著 site.css／site.js 的雜湊，換版就清掉舊的殼快取。
+_SW = r"""
+const VER = '__VER__';
+const SHELL = 'tc-shell-' + VER;
+const ASSETS = 'tc-assets';
+const MAX_ASSETS = 400;
+const ASSET_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'unpkg.com'];
+self.addEventListener('install', e => {
+    e.waitUntil(caches.open(SHELL).then(c => c.addAll(['./', 'site.css?v=' + VER, 'site.js?v=' + VER]).catch(() => null)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+    e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('tc-shell-') && k !== SHELL).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+async function trim(name, max) {
+    const c = await caches.open(name), keys = await c.keys();
+    for (let i = 0; i < keys.length - max; i++) await c.delete(keys[i]);
+}
+async function networkFirst(req, cacheName) {
+    const c = await caches.open(cacheName);
+    try {
+        const r = await fetch(req);
+        if (r.ok) c.put(req, r.clone());
+        return r;
+    } catch (e) {
+        const hit = await c.match(req, { ignoreSearch: req.mode === 'navigate' });
+        if (hit) return hit;
+        if (req.mode === 'navigate') { const idx = await c.match('./'); if (idx) return idx; }
+        throw e;
+    }
+}
+async function staleWhileRevalidate(req) {
+    const c = await caches.open(ASSETS);
+    const hit = await c.match(req);
+    const fetching = fetch(req).then(r => { if (r.ok || r.type === 'opaque') { c.put(req, r.clone()); trim(ASSETS, MAX_ASSETS); } return r; }).catch(() => null);
+    return hit || (await fetching) || Response.error();
+}
+self.addEventListener('fetch', e => {
+    const req = e.request;
+    if (req.method !== 'GET') return;
+    const url = new URL(req.url);
+    const same = url.origin === self.location.origin;
+    if (same && /status\.json$/.test(url.pathname)) return;                         // 頁面輪詢更新用，不快取
+    if (req.mode === 'navigate') { e.respondWith(networkFirst(req, SHELL)); return; }
+    if (same && /\.(html|json|geojson|csv)$/.test(url.pathname)) { e.respondWith(networkFirst(req, SHELL)); return; }
+    if (same && /\.(css|js)$/.test(url.pathname)) { e.respondWith(networkFirst(req, SHELL)); return; }
+    if (same && /\.(png|webp|jpg|jpeg|gif|svg|woff2?)$/.test(url.pathname)) { e.respondWith(staleWhileRevalidate(req)); return; }
+    if (!same && ASSET_HOSTS.includes(url.hostname)) { e.respondWith(staleWhileRevalidate(req)); return; }
+});
+"""
 
 
 NOTE_OHCTRACK = "Ocean heat content under the forecast center, sampled every 6 h along the latest JTWC forecast track (mean within ±0.5° of the center) &nbsp;·&nbsp; Dashed line = 50 kJ/cm², a common threshold for intensification: above it the warm layer is thick enough that the storm’s own mixing does not cool the surface much &nbsp;·&nbsp; Gray squares = land or water colder than 26 °C &nbsp;·&nbsp; The ocean analysis is one daily snapshot, so this is the ocean the storm will meet if it follows the JTWC track, not a forecast of how the ocean changes"
@@ -1164,6 +1412,12 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.1.1', '2026-11-06', [
+        ('路徑分頁與校驗分頁新增下載：平均路徑 CSV／GeoJSON、校驗表 CSV；歷史頁每顆颱風可下載實況、各報預報與校驗表',
+         'Downloads: ensemble-mean tracks (CSV, GeoJSON) and verification tables (CSV) on storm pages; JTWC track, forecasts and verification per storm in the Archive'),
+        ('歷史頁新增「本季至今」：所有颱風合計的校驗表，以及每顆颱風 72 小時誤差的逐颱風折線；卡片加上強度小折線',
+         'Archive adds "Season so far": the all-storms verification table and a storm-by-storm chart of 72 h error; cards get an intensity sparkline'),
+        ('網站可離線開啟最後一次更新，圖片第二次開啟直接從快取載入',
+         'The site opens offline with its last update, and images load from cache on repeat visits'),
         ('颱風頁每個分頁上方多一條小目錄，點了直接跳到那個區塊；「怎麼看這張圖」先露出第一句',
          'Each storm-page tab gets a mini-index that jumps straight to a section; "How to read this" shows its first sentence inline'),
         ('總覽頁颱風名下方新增一眼看懂列：24 小時強度趨勢、登陸臺灣與沖繩／東京侵襲機率、跟上一報比',
@@ -1962,6 +2216,8 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 f"{track_id} Steering Flow")
         score_html = ""
         _card_m = next((m for m in models if isinstance(m, dict) and 'scorecard' in m), None)
+        _exp = _write_storm_exports(os.path.dirname(output_path) or '.', track_id, models,
+                                    _card_m.get('scorecard') if _card_m else {}, _card_m.get('scorecard_all') if _card_m else {})
         if _card_m is not None:
             sec_id = f"sec-{key_prefix}-score"
             sections.append((sec_id, 'sub.score', 'Verification'))
@@ -1997,7 +2253,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             _fdir = os.path.join(os.path.dirname(output_path) or '.', 'frag')
             os.makedirs(_fdir, exist_ok=True)
             with open(os.path.join(_fdir, f'{track_id}_score.html'), 'w', encoding='utf-8') as fh:
-                fh.write(_fold_notes_html(score_full))
+                fh.write(_fold_notes_html(score_full) + (_dl_row([(_exp['verif_csv'], 'Verification CSV')]) if _exp.get('verif_csv') else ''))
             score_html = (f'<div class="lazy-frag" data-src="frag/{_esc(track_id)}_score.html" data-sec="{sec_id}">'
                           f'<p class="map-note frag-state" data-i18n="frag.loading">Loading…</p></div>')
 
@@ -2095,6 +2351,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             </div>"""
 
         _docs = os.path.dirname(output_path) or '.'
+        _dl_tracks = _dl_row([(p, t) for k, t in (('tracks_csv', 'Tracks CSV'), ('tracks_geojson', 'Tracks GeoJSON')) if (p := _exp.get(k))])
+        # 下載列放在互動地圖那塊的最後；沒有互動地圖就放模式比較圖那塊
+        if _dl_tracks and tmap_html.rstrip().endswith('</div>'):
+            _i = tmap_html.rfind('</div>'); tmap_html = tmap_html[:_i] + _dl_tracks + tmap_html[_i:]
+        elif _dl_tracks and cmp_html.rstrip().endswith('</div>'):
+            _i = cmp_html.rfind('</div>'); cmp_html = cmp_html[:_i] + _dl_tracks + cmp_html[_i:]
         _prefer = [x for m in models if isinstance(m, dict) for x in [m.get('model')] if x]
         extras = [_run_delta(_docs, track_id, _prefer),
                   _consensus(models),
@@ -2281,7 +2543,15 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 f'<span class="arch-meta"><span class="badge-cat" style="background:{CAT_COLOR_MAP[cat]};color:{CAT_TEXT_MAP[cat]}">{cat}</span>'
                 f' <span class="mono">{e["peak"] if e["peak"] is not None else "–"} kt</span>'
                 f' · <span data-i18n="arch.inits" data-i18n-n="{e["n"]}">{e["n"]} forecasts</span></span>'
+                f'{e.get("spark", "")}'
                 f'</button>')
+        season_html = ''
+        if _SEASON_FRAG:
+            season_html = f"""
+            <div class="panel reveal" id="sec-season">
+                <div class="panel-header"><span class="panel-icon">📊</span><span data-i18n="season.title">Season so far</span></div>
+                <div class="lazy-frag" data-src="archive/_season_score.html"><p class="map-note frag-state" data-i18n="frag.loading">Loading…</p></div>
+            </div>"""
         archive_view = f"""
     <section class="view" data-view="archive" data-title-key="nav.archive">
         <div class="page">
@@ -2305,6 +2575,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                 <div class="arch-trend"></div>
                 <div class="arch-score"></div>
             </div>
+            {season_html}
         </div>
     </section>"""
 
@@ -3325,6 +3596,11 @@ kbd { background: var(--surface-3); border: 1px solid var(--border); border-bott
 }
 .lightbox.zoomed .lb-hint { display: none; }
 .frag-state { padding: 18px 0; text-align: center; }
+.dl-row { margin: 10px 0 0; font-size: .82em; color: var(--text-2); }
+.dl-row a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; margin-left: 4px; }
+.arch-spark { display: block; width: 100%; height: 26px; margin-top: 6px; }
+#sec-season { margin-top: 18px; }
+#sec-season .arch-sub { margin: 18px 0 8px; }
 .lb-close {
     position: absolute; top: 18px; right: 22px;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
@@ -4217,6 +4493,11 @@ const I18N = {
     'score.tab.allst.homog': 'All storms · homogeneous',
     'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
     'frag.loading':     'Loading…',
+    'dl.label':         'Download:',
+    'season.title':     'Season so far',
+    'season.note':      'Every verified forecast this season, all storms together, scored against the JTWC warning positions; {n} storms so far.',
+    'season.chart.y':   '72 h mean track error (km), homogeneous sample, by storm',
+    'season.table':     'All storms · error by lead time',
     'sum.verif':        'See Verification →',
     'frag.failed':      'Could not load this section. Check your connection and tap the tab again.',
     'score.tab.allst.all': 'All storms · all forecasts',
@@ -4474,6 +4755,11 @@ const I18N = {
     'score.tab.allst.homog': '所有颱風・同質樣本',
     'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
+    'dl.label':         '下載：',
+    'season.title':     '本季至今',
+    'season.note':      '本季所有颱風的校驗合計，以 JTWC 警報位置為實況；目前 {n} 顆颱風。',
+    'season.chart.y':   '各颱風 72 小時平均路徑誤差（公里，同質樣本）',
+    'season.table':     '所有颱風・各時數誤差',
     'sum.verif':        '看校驗 →',
     'frag.failed':      '這一區載入失敗，請確認網路後再點一次分頁。',
     'score.tab.allst.all': '所有颱風・全部樣本',
@@ -4932,6 +5218,7 @@ function updateNav() {
 
 function onViewShown(view) {
     requestAnimationFrame(() => { updateIndicators(); syncHeaderH(); });
+    loadFrags(view, b => !b.closest('.tab-pane'));
     refreshSubnavs();
     scrollSpy();
     Hero.setActive(view.dataset.view === 'overview' && !Globe.ready);
@@ -4980,8 +5267,9 @@ function revealTab(btn) {
 const i18nIn = el => $$('[data-i18n]', el).forEach(x => {
     const txt = t(x.dataset.i18n, i18nParams(x)); if (!txt) return;
     if (x.dataset.i18nAttr) x.setAttribute(x.dataset.i18nAttr, txt); else x.innerHTML = txt; });
-async function loadFrags(scope) {
+async function loadFrags(scope, filter) {
     for (const box of $$('.lazy-frag[data-src]', scope)) {
+        if (filter && !filter(box)) continue;
         if (box.dataset.state === 'loading' || box.dataset.state === 'done') continue;
         box.dataset.state = 'loading';
         try {
@@ -6742,6 +7030,10 @@ window.addEventListener('load', () => {
         if (y !== null) { sessionStorage.removeItem(k); window.scrollTo({ top: +y, behavior: 'instant' }); }
     } catch (e) {}
     updateIndicators();
+    // 離線也能看最後一次更新；圖片第二次開就從快取來
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('sw.js').catch(e => console.log('[sw]', e));
+    }
 });
 })();
 """
