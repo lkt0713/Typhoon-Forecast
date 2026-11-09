@@ -3733,6 +3733,9 @@ def write_tracks_json(storms: list) -> None:
         for s in group:
             tp = s['track_points']
             fields = {'members': tp['members'], 'mean': tp['mean']}
+            # 城市侵襲機率（只留百分比）也存進每期檔：網頁拿上一期來算「跟上一報比變了什麼」
+            cs = s.get('city_strike') or {}
+            fields['city'] = {k: v.get('p') for k, v in cs.items() if isinstance(v, dict) and v.get('p') is not None}
             if tp.get('det'):
                 det_fields = {'det': tp['det'], 'det_name': tp.get('det_name')}
                 if _run_stamp(tp['det_init']) == _run_stamp(s['init_time']):

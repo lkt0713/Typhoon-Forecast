@@ -56,6 +56,9 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
         p = m.group(1)
         if not os.path.exists(os.path.join(docs, p)):
             problems.append(f'引用了不存在的檔案 {p}')
+    for m in re.finditer(r'class="lazy-frag" data-src="([^"]+)"', html):   # 點到分頁才載入的片段也要存在
+        if not os.path.exists(os.path.join(docs, m.group(1))):
+            problems.append(f'片段不存在 {m.group(1)}')
     for fn in ('site.css', 'site.js', 'status.json', 'robots.txt', 'sitemap.xml', '404.html'):   # 拆出去的樣式／腳本與附屬檔
         if not os.path.exists(os.path.join(docs, fn)):
             problems.append(f'缺 {fn}')
@@ -73,6 +76,8 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
             problems.append(f'{tid} 分頁不對：{tabs}')
         if 'class="storm-summary"' not in v:
             problems.append(f'{tid} 沒有白話摘要')
+        if f'data-src="frag/{tid}_score.html"' not in v and 'score.pending' not in v:
+            problems.append(f'{tid} 校驗分頁沒有片段佔位')
         for pid, want in (('now', PANE_NOW), ('track', PANE_TRACK), ('strike', PANE_STRIKE)):
             m = re.search(rf'class="model-panel tab-pane" data-track="{tid}-tabs" data-model="{pid}"', v)
             if not m:
