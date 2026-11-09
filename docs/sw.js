@@ -1,5 +1,5 @@
 
-const VER = '51b269af';
+const VER = '0f8b2415';
 const SHELL = 'tc-shell-' + VER;
 const ASSETS = 'tc-assets';
 const MAX_ASSETS = 400;

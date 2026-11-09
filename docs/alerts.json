@@ -1,0 +1,31 @@
+{
+ "storms": {
+  "WP312026": {
+   "name": "CEMPAKA",
+   "cat": "Cat2",
+   "wind": 85.0,
+   "first_seen": "2026-11-09T10:35:22Z",
+   "shift_run": "2026110900"
+  }
+ },
+ "events": [
+  {
+   "id": "WP312026-new-2026-11-09T10:35:22Z",
+   "kind": "new",
+   "storm": "WP312026",
+   "time": "2026-11-09T10:35:22Z",
+   "en": "New system: CEMPAKA (WP312026), 85 kt",
+   "zh": "新系統：CEMPAKA（WP312026），85 kt",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
+  {
+   "id": "WP312026-shift-2026-11-09T10:35:22Z",
+   "kind": "shift",
+   "storm": "WP312026",
+   "time": "2026-11-09T10:35:22Z",
+   "en": "CEMPAKA: WN3-C 66 h track shifted 348 km northeast since the previous run",
+   "zh": "CEMPAKA：WN3-C 66 小時路徑比上一報往東北移了 348 公里",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  }
+ ]
+}
