@@ -5,10 +5,19 @@
    "cat": "Cat2",
    "wind": 85.0,
    "first_seen": "2026-11-09T10:35:22Z",
-   "shift_run": "2026110900"
+   "shift_run": "2026110906"
   }
  },
  "events": [
+  {
+   "id": "WP312026-shift-2026-11-09T12:54:01Z",
+   "kind": "shift",
+   "storm": "WP312026",
+   "time": "2026-11-09T12:54:01Z",
+   "en": "CEMPAKA: WN3-C 60 h track shifted 326 km northeast since the previous run",
+   "zh": "CEMPAKA：WN3-C 60 小時路徑比上一報往東北移了 326 公里",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
   {
    "id": "WP312026-new-2026-11-09T10:35:22Z",
    "kind": "new",
