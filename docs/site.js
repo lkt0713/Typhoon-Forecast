@@ -174,7 +174,7 @@ const I18N = {
     'score.pending':    'Collecting data — the first errors appear once a forecast has been out for 24 hours.',
     'note.score':       'Track error = mean distance (km) between each forecast position and the JTWC warning position at the same time; the other tabs split it into along-/cross-track parts or check intensity &nbsp;·&nbsp; Homogeneous = only forecasts every model has for the same storm, init and hour (fair comparison) &nbsp;·&nbsp; Colors compare models per hour: green = best, red = worst (along-/cross-track: green = closest to 0); ★ = best, +x% = behind the best &nbsp;·&nbsp; Faded = fewer than 3 forecasts, not ranked',
     'score.tab.allst.homog': 'All storms · homogeneous',
-    'score.legend.tip': 'Tap a model in the legend to show only that line; tap again to show all.',
+    'score.legend.tip': 'The three most accurate models are highlighted. Tap a model in the legend to show only that line; tap it again to show all.',
     'frag.loading':     'Loading…',
     'season.phase':     'By situation',
     'season.phase.note': 'Same homogeneous track error, split by situation: before and after the storm recurved (the moment the observed track turned from westward to eastward; {n} storms recurved so far), and by the storm\'s intensity at the time the forecast was made.',
@@ -210,6 +210,9 @@ const I18N = {
     'about.alerts.text': 'New systems, naming, intensity-category changes, forecast shifts of 150 km or more and Taiwan landfall chance changes of 10 points or more, as soon as an update notices them.',
     'about.alerts.sub': 'Subscribe:',
     'tmap.full':        'Full tracks',
+    'tmap.opts':        'Map options',
+    'tmap.focus':       'Members of',
+    'tmap.spread':      '{m}: 67% of members within {km} km at +{h} h',
     'tmap.play':        'Play through the forecast hours',
     'sub.mine':         'My location',
     'panel.mine':       'Risk at a location',
@@ -271,6 +274,10 @@ const I18N = {
     'tab.int':          'Intensity',
     'tab.score':        'Verification',
     'mp.label':         'Model',
+    'sp.label':         'Section',
+    'env.ohc':          'Ocean heat content along the JTWC forecast track',
+    'env.shear':        '200–850 hPa wind shear along the AIFS track',
+    'env.steer':        '500 hPa steering flow',
     'mp.fallback':      'No {m} here · showing {y}',
     'note.how':         'How to read this',
     'tmap.fail':        'The map could not load. Reload the page to try again.',
@@ -354,7 +361,8 @@ const I18N = {
     'note.cluster':     'Each line is one of 1000 ensemble members. Named storms are grouped by track ID (tracks the tracker lost and re-detected are rejoined); unnamed tracks are clustered by genesis time and position. Percentages = share of members in which the system lasts at least 12 h; gray = sparse tracks. Data sourced from {source}.',
     'about.kicker':     'About',
     'about.title':      'How to read this site',
-    'about.intro':      'This site gathers AI and physics-based ensemble forecasts for Western Pacific tropical cyclones and redraws them in one common style every 10–15 minutes, next to the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). Each storm page has five tabs: Summary (a 3-hour Himawari-9 infrared satellite loop, the ocean heat content under the storm, the vertical wind shear along the AIFS track, the 500 hPa steering flow, the JTWC forecast, the official forecasts side by side, and Taiwan landfall and city strike probabilities), Track (model comparison, ensemble maps, animation, an interactive map and track trend), Strike (strike probabilities by area, by period and for 34-kt winds), Intensity (intensity forecast) and Verification (track, along-/cross-track and intensity errors). One model menu at the top switches every chart to the same model. The Archive keeps every storm after it is gone, with its real track and how the forecasts did.',
+    'about.intro':      'AI and physics-based ensemble forecasts for Western Pacific tropical cyclones, redrawn in one style every 10–15 minutes beside the official forecasts from JTWC, JMA (Japan) and CWA (Taiwan). One model menu switches every chart to the same model.',
+    'about.tabs':       '<li><b>Top of a storm page</b> — current wind, pressure and movement, Taiwan and Japan risk, what changed since the last run, and an interactive map with a time slider.</li><li><b>Summary</b> — satellite loop, the environment (ocean heat, wind shear, steering flow), official forecasts, and Taiwan landfall, city and county probabilities.</li><li><b>Track</b> — model comparison, ensemble maps, animation and run-to-run trend.</li><li><b>Strike</b> — wind radii, strike probability by area and period, and the risk at your own location.</li><li><b>Intensity</b> — intensity forecast and a bias-corrected line.</li><li><b>Verification</b> — track, along-/cross-track and intensity errors for every model.</li><li><b>Archive</b> — every past storm with its real track, report card, downloads and season-to-date scores.</li>',
     'about.prob':       'Probabilities on this site are the share of ensemble members that forecast an outcome — a measure of how much the models agree, not an official forecast probability. A deterministic run (AIFS-single, ECMWF HRES, AIGFS, GFS) is a single possible scenario.',
     'about.scale':      'Intensity categories',
     'about.reading':    'Reading the maps',
@@ -489,7 +497,7 @@ const I18N = {
     'score.pending':    '資料累積中——預報發出 24 小時後，才會有第一筆可以比對的誤差。',
     'note.score':       '路徑誤差＝各預報位置與同時間 JTWC 警報位置的平均距離（公里）；其他分頁把它拆成沿／跨路徑，或比較強度 &nbsp;·&nbsp; 同質樣本＝同一颱風、同一起報時間、同一時數上所有模式都有的預報，比較才公平 &nbsp;·&nbsp; 顏色是同一時數內各模式相比：綠＝最好、紅＝最差（沿／跨路徑：越接近 0 越綠）；★＝最好，+x%＝比最好多出的誤差 &nbsp;·&nbsp; 淡色＝不到 3 筆，不參與排名',
     'score.tab.allst.homog': '所有颱風・同質樣本',
-    'score.legend.tip': '點圖例裡的模式只看那條線，再點一次全部顯示。',
+    'score.legend.tip': '預設突顯最準的三個模式。點圖例裡的模式只看那條線，再點一次全部顯示。',
     'frag.loading':     '載入中…',
     'season.phase':     '依情境',
     'season.phase.note': '同一份同質樣本的路徑誤差，依情境拆開：颱風轉向前／後（實況路徑由西行轉東行的那一刻切，目前 {n} 顆颱風有轉向），以及起報當時颱風的強度。',
@@ -525,6 +533,9 @@ const I18N = {
     'about.alerts.text': '新系統、命名、強度分級變化、預報路徑移動 150 公里以上、登陸臺灣機率變動 10 個百分點以上，更新一發現就發出。',
     'about.alerts.sub': '訂閱：',
     'tmap.full':        '完整路徑',
+    'tmap.opts':        '地圖選項',
+    'tmap.focus':       '成員顯示',
+    'tmap.spread':      '{m}：+{h} 小時有 67% 成員在 {km} 公里內',
     'tmap.play':        '依預報時數播放',
     'sub.mine':         '我的位置',
     'panel.mine':       '指定地點的風險',
@@ -586,6 +597,10 @@ const I18N = {
     'tab.int':          '強度',
     'tab.score':        '校驗',
     'mp.label':         '模式',
+    'sp.label':         '區塊',
+    'env.ohc':          '沿 JTWC 預報路徑的海洋熱含量',
+    'env.shear':        '沿 AIFS 路徑的 200–850 hPa 垂直風切',
+    'env.steer':        '500 hPa 駛流場',
     'mp.fallback':      '這張圖沒有 {m}，顯示 {y}',
     'note.how':         '怎麼看這張圖',
     'tmap.fail':        '地圖載入失敗，請重新整理頁面再試一次。',
@@ -669,7 +684,8 @@ const I18N = {
     'note.cluster':     '每條線是 1000 個系集成員之一。已命名系統依編號分群（追蹤器跟丟後重新編號的路徑會接回原系統），尚未生成的系統依生成時間與位置聚類；百分比＝該系統延續至少 12 小時的成員比例，灰線＝零星、未成群的路徑。資料來源：{source}。',
     'about.kicker':     '說明',
     'about.title':      '如何閱讀本站',
-    'about.intro':      '本站彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10–15 分鐘以統一的樣式重新繪製，並與 JTWC、日本氣象廳與中央氣象署的官方預報並列。每個颱風頁分成五個分頁：「概況」（最近 3 小時的向日葵 9 號紅外線衛星雲圖動畫、颱風底下的海洋熱含量、沿 AIFS 路徑的垂直風切、500 hPa 駛流場、JTWC 預報、各國官方預報比較、登陸臺灣與城市侵襲機率）、「路徑」（模式比較、系集路徑圖、動畫、互動地圖、預報趨勢）、「侵襲」（區域、分時段與七級風侵襲機率）、「強度」（強度預報）、「校驗」（模式的路徑、沿／跨路徑與強度誤差）。上方的模式選單可以一次把所有圖切到同一個模式。「歷史」頁保留每一顆颱風消散後的實際路徑與各模式的預報表現。',
+    'about.intro':      '彙整 AI 與物理模式對西北太平洋熱帶氣旋的系集預報，每 10–15 分鐘以統一樣式重畫，並與 JTWC、日本氣象廳、中央氣象署的官方預報並列。上方的模式選單可以一次把所有圖切到同一個模式。',
+    'about.tabs':       '<li><b>颱風頁最上面</b>：目前風速、氣壓與移動，臺灣與日本的風險，跟上一報比變了什麼，以及可以拖曳時間的互動地圖。</li><li><b>概況</b>：衛星雲圖動畫、環境（海洋熱含量、垂直風切、駛流場）、各國官方預報，以及登陸臺灣、城市與各縣市機率。</li><li><b>路徑</b>：模式比較、系集路徑圖、動畫與預報趨勢。</li><li><b>侵襲</b>：暴風圈、區域與分時段侵襲機率，以及你所在位置的風險。</li><li><b>強度</b>：強度預報與偏差修正線。</li><li><b>校驗</b>：各模式的路徑、沿／跨路徑與強度誤差。</li><li><b>歷史</b>：每顆颱風的實際路徑、成績單、資料下載與本季至今的成績。</li>',
     'about.prob':       '本站的「機率」是系集成員中有多少比例這樣預報，代表模式之間的一致程度，不是官方的機率預報；決定報（AIFS-single、ECMWF HRES、AIGFS、GFS）只是其中一種可能情境。',
     'about.scale':      '強度分級',
     'about.reading':    '圖面說明',
@@ -810,6 +826,7 @@ function applyLang(lang, save = true) {
         else el.innerHTML = txt;
     });
     foldNotes();
+    refreshSubnavs();                          // 區塊下拉的文字跟著語言換
     root.style.setProperty('--broken-text', JSON.stringify(t('img.broken')));
     const langBtn = $('#lang-btn');
     if (langBtn) langBtn.innerHTML = btnHTML(t('btn.lang'), t('btn.lang.short'));
@@ -1281,8 +1298,17 @@ async function initTrackMap(box) {
         const colorOf = m => TM_CMP_COLORS[m] || palette[m];
         const defaults = ['WN3-C', 'WN2-C r2', 'ECMWF'].filter(m => data.models[m]);
         names.forEach(m => { if (defaults.length < 2 && !defaults.includes(m)) defaults.push(m); });
-        let picks = new Set(defaults);
+        let picks = new Set(box.dataset.all ? names : defaults);
         const cmpOn = () => cmpBtn.getAttribute('aria-pressed') === 'true';
+        box.classList.toggle('tm-cmp', cmpOn());
+        // 「成員顯示」跟著頁面上方的模式選單走
+        const pageSel = box.closest('.view') && $('.model-select', box.closest('.view'));
+        const focusFromPage = () => {
+            const hit = pageSel && names.find(m => modelGroup(m) === modelGroup(pageSel.value));
+            if (!hit || sel.value === hit) return false;
+            sel.value = hit; return true;
+        };
+        focusFromPage();
         const shown = () => names.filter(m => picks.has(m));      // 照模式原本的順序
         const mkChip = (label, onclick) => {
             const b = document.createElement('button');
@@ -1356,8 +1382,23 @@ async function initTrackMap(box) {
             const miss = run ? (cmp ? shown() : [sel.value]).filter(m => !has(m)) : [];
             msg.hidden = !miss.length;
             msg.textContent = miss.length ? `${miss.join('、')} ${fmtAt(run, 0)} ${t('tmap.na')}` : '';
+            // 多模式時成員只畫「成員顯示」選的那個模式（全畫是幾百條線，看不出東西）
+            const focus = sel.value;
+            // 那一刻 67% 成員所在的範圍：以平均位置為圓心、涵蓋 67% 成員的半徑
+            if (h != null && showM.checked && list.includes(focus)) {
+                const fd = cur.models[focus];
+                const at = (fd.members || []).map(r => posAt(unwrap(r), h)).filter(Boolean);
+                if (at.length >= 5) {
+                    const mp0 = (fd.mean || []).length ? posAt(unwrap(fd.mean), h) : null;
+                    const c = mp0 || [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length];
+                    const ds = at.map(p => kmBetween(c[0], c[1], p[0], p[1])).sort((a, b) => a - b);
+                    const r67 = ds[Math.min(ds.length - 1, Math.floor(ds.length * .67))];
+                    L.circle([c[0], c[1]], {radius: r67 * 1000, color: cmp ? colorOf(focus) : '#5BB1FF', weight: 1, opacity: .7, fillOpacity: .08})
+                        .bindTooltip(t('tmap.spread', {m: focus, km: Math.round(r67), h}), {sticky: true}).addTo(layer);
+                }
+            }
             // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
-            if (showM.checked) list.forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
+            if (showM.checked) list.filter(m => !cmp || m === focus).forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
                 const pts = clip(unwrap(raw));
                 if (!pts.length) return;
                 if (h != null) {
@@ -1367,7 +1408,7 @@ async function initTrackMap(box) {
                 }
                 if (cmp) {
                     // 模式一多成員線就淡一點，平均線才看得出來
-                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: list.length > 3 ? .2 : .35})
+                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: .3})
                         .bindTooltip(`${m} #${i + 1}`, {sticky: true}).addTo(layer);
                 } else for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
@@ -1382,8 +1423,16 @@ async function initTrackMap(box) {
             list.forEach(m => {
                 const d = cur.models[m];
                 if (showA.checked && (d.mean || []).length) {
-                    const mp = clip(unwrap(d.mean));
+                    const full = unwrap(d.mean), mp = clip(full);
                     if (mp.length > 1) drawLine(m, d, mp, cmp ? colorOf(m) : '#16324F', false, bounds);
+                    // 選定時數之後的路徑用虛線淡淡畫出來，整條預報還是看得到
+                    if (h != null && mp.length) {
+                        const rest = [[mp[mp.length - 1][0], mp[mp.length - 1][1]], ...full.filter(p => p[3] > h).map(p => [p[0], p[1]])];
+                        if (rest.length > 1) {
+                            L.polyline(rest, {color: cmp ? colorOf(m) : '#16324F', weight: 1.6, opacity: .5, dashArray: '3 6', interactive: false}).addTo(layer);
+                            rest.forEach(p => bounds.push(p));
+                        }
+                    }
                     const q = h != null && mp.length ? mp[mp.length - 1] : null;
                     if (q && q[3] === h) L.circleMarker([q[0], q[1]], {radius: 7, color: '#fff', weight: 2, fillColor: cmp ? colorOf(m) : '#16324F', fillOpacity: 1})
                         .bindTooltip(`${m} ${t('tmap.mean')} · +${h}h · ${fmt(m, h)} · ${q[2] != null ? Math.round(q[2]) : '–'} kt`).addTo(layer);
@@ -1409,8 +1458,7 @@ async function initTrackMap(box) {
                 ? ` · ${md.det_name || 'DET'} ${fmtAt(md.det_init, 0)}` : '');
         };
         const showInit = () => {
-            initVal.textContent = run ? fmtAt(run, 0)
-                : cmpOn() ? shown().map(m => `${m} ${initOf(m)}`).join('　') : initOf(sel.value);
+            initVal.textContent = run ? fmtAt(run, 0) : `${sel.value} ${initOf(sel.value)}`;
         };
         // 起報時間按鈕：「最新」＋各期；選了某期，還沒出報的模式按鈕變灰、按不下去
         const msg = Object.assign(document.createElement('div'), {className: 'tm-msg', hidden: true});
@@ -1456,8 +1504,16 @@ async function initTrackMap(box) {
             const mx = maxLead();
             hourIn.max = mx; if (+hourIn.value > mx) hourIn.value = mx;
             hourIn.classList.toggle('idle', fullBox.checked);
-            const m = cmpOn() ? shown()[0] : sel.value;
+            const m = sel.value;
             hourVal.textContent = fullBox.checked ? t('tmap.full') : `+${hourIn.value} h · ${fmt(m, +hourIn.value)}`;
+            const tk = box.querySelector('.tm-ticks');
+            if (tk && tk.dataset.max !== String(mx)) {
+                tk.dataset.max = mx;
+                const step = mx > 144 ? 48 : 24;
+                let html = '';
+                for (let v = 0; v <= mx; v += step) html += `<span style="left:${(v / mx * 100).toFixed(2)}%">${v ? '+' + v : '0'}</span>`;
+                tk.innerHTML = html;
+            }
         };
         upto = () => fullBox.checked ? null : +hourIn.value;
         const stopPlay = () => { clearInterval(playT); playT = 0; playBtn.classList.remove('playing'); };
@@ -1482,6 +1538,9 @@ async function initTrackMap(box) {
         syncHour();
         showInit();
         sel.onchange = () => { showInit(); syncHour(); draw(false); };
+        if (pageSel) pageSel.addEventListener('change', () => { if (focusFromPage()) { showInit(); syncHour(); draw(false); } });
+        // 地圖卡片的高度跟著旁邊的颱風卡片變（換語言、視窗縮放）：容器大小變了要請 Leaflet 重算
+        if ('ResizeObserver' in window) new ResizeObserver(() => map.invalidateSize()).observe(el);
         cmpBtn.onclick = () => {
             cmpBtn.setAttribute('aria-pressed', !cmpOn());
             box.classList.toggle('tm-cmp', cmpOn());
@@ -1775,7 +1834,29 @@ function animateGauge(el) {
 // ── 段落導覽（颱風頁）：點擊平滑捲動、捲動時標示目前段落 ─────────────
 // 分頁各有一條小目錄：只看目前顯示的那條
 function activeSubnav(view) { return $$('.subnav', view).find(n => n.offsetParent) || null; }
+function paneOf(view) { return $$('.tab-pane', view).find(p => p.style.display !== 'none') || null; }
+// 分頁列裡的「區塊」下拉：選項＝目前分頁的區塊（少於兩個就藏起來）
+function syncSecPick(view) {
+    const wrap = view && $('.sec-pick', view);
+    if (!wrap) return;
+    const pane = paneOf(view), nav = pane && $('.pane-nav', pane), sel = $('select', wrap);
+    const btns = nav ? $$('button[data-target]', nav).filter(b => !b.hidden) : [];
+    wrap.hidden = btns.length < 2;
+    const cur = sel.value;
+    sel.innerHTML = btns.map(b => `<option value="${b.dataset.target}">${b.textContent}</option>`).join('');
+    if (btns.some(b => b.dataset.target === cur)) sel.value = cur;
+}
+document.addEventListener('change', e => {
+    const sel = e.target.closest && e.target.closest('.sec-select');
+    if (!sel) return;
+    const sec = document.getElementById(sel.value);
+    if (!sec) return;
+    const fold = sec.closest('details');
+    if (fold && !fold.open) fold.open = true;
+    sec.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+});
 function refreshSubnavs() {
+    $$('.view.active').forEach(v => requestAnimationFrame(() => syncSecPick(v)));
     $$('.subnav').forEach(nav => {
         $$('button[data-target]', nav).forEach(b => {
             const sec = document.getElementById(b.dataset.target);
@@ -1789,6 +1870,19 @@ let spyRaf = 0;
 function scrollSpy() {
     spyRaf = 0;
     const view = currentRoute && viewFor(currentRoute);
+    const sp = view && $('.sec-pick', view);
+    if (sp && !sp.hidden) {
+        // 颱風頁：捲到哪個區塊，下拉就顯示哪個（使用者正在操作下拉時不動它）
+        const bar = $('.storm-bar', view), sel = $('select', sp);
+        const line = bar.getBoundingClientRect().bottom + 60;
+        let act = null;
+        [...sel.options].forEach(o => {
+            const sec = document.getElementById(o.value);
+            if (sec && sec.offsetParent && sec.getBoundingClientRect().top <= line) act = o.value;
+        });
+        if (document.activeElement !== sel) { if (act) sel.value = act; else sel.selectedIndex = 0; }
+        return;
+    }
     const nav = view && activeSubnav(view);
     if (!nav) return;
     const line = nav.getBoundingClientRect().bottom + 60;   // 段落導覽黏在上方，以它的底緣為準（手機頁首不黏，不能用頁首高度算）
@@ -1811,7 +1905,7 @@ document.addEventListener('click', e => {
 });
 // 展開／收合「背景與校驗」後，區塊位置變了，段落導覽重新標示
 document.addEventListener('toggle', e => {
-    if (e.target.classList && e.target.classList.contains('sec-group')) { refreshSubnavs(); scrollSpy(); }
+    if (e.target.classList && (e.target.classList.contains('sec-group') || e.target.classList.contains('env-tile'))) { refreshSubnavs(); scrollSpy(); updateIndicators(); }
 }, true);
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') refreshSubnavs(); }, true);
 
@@ -2101,7 +2195,9 @@ document.addEventListener('click', e => {
     const key = e.target.closest('.sc-key');
     if (key) {
         const chart = key.closest('.score-chart');
-        const on = !(chart.classList.contains('solo') && key.classList.contains('on'));
+        // 目前只亮這一個、又點它一次 → 全部顯示；其他情況（含預設亮前三名）→ 只看被點的這個
+        const lit = $$('.sc-key.on', chart);
+        const on = !(chart.classList.contains('solo') && lit.length === 1 && lit[0] === key);
         chart.classList.toggle('solo', on);
         $$('.sc-key', chart).forEach(k => k.classList.toggle('on', on && k === key));
         $$('.sc-line', chart).forEach(l => l.classList.toggle('on', on && l.dataset.m === key.dataset.m));
@@ -2318,7 +2414,7 @@ const Globe = (function () {
 
     const D2R = Math.PI / 180;
     const WPAC = [20, 140];                  // 沒有颱風時看西太平洋
-    let route = 'overview', ctl = null;
+    let route = 'overview', ctl = null, globePad = -1;
     api.route = r => { route = r; if (ctl) ctl.kick(); };
 
     function start() {
@@ -2735,9 +2831,21 @@ const Globe = (function () {
                 T.x = mix(mix(K[0][0], K[1][0], e1), K[2][0], e2) * hw;
                 T.y = mix(mix(K[0][1], K[1][1], e1), K[2][1], e2) * hv;
                 T.z = mix(mix(K[0][2], K[1][2], e1), K[2][2], e2);
+                if (portrait && W < 600) {
+                    // 手機直式：地球縮小、放在封面文字上方預留的空間（CSS 用 --globe-pad 留位置），
+                    // 位置直接跟著封面走（含 iOS 往下拉的回彈），不做平滑，文字就不會滑到地球上
+                    const ppu = H / 2 / hv, sc = .56, Rg = 1.1 * ppu * sc;
+                    const pad = Math.round(2 * Rg);
+                    if (pad !== globePad) { globePad = pad; root.style.setProperty('--globe-pad', pad + 'px'); }
+                    const inner = $('.view.active .hero-inner');
+                    const top = inner ? inner.getBoundingClientRect().top : hr.top;
+                    const ys = top + 10 + Rg;
+                    T.x = 0; T.y = (H / 2 - ys) / (ppu * sc); T.z = camZ * (1 - 1 / sc);
+                    T.lock = true;
+                }
                 T.extra += .2 * e1 + .2 * e2;     // 捲動只微轉（合計約 23°），西北太平洋始終朝前
                 T.tiltX = .25 * e2;
-                const dim = (portrait && W < 600) ? .62 : 1;   // 手機直式：地球疊在封面文字底下，淡一些才讀得清
+                const dim = 1;
                 if (dark) T.op = dim * (1 - .3 * e1 - .12 * e2);
                 else {
                     // 淺色主題：只畫在深色的 hero 卡片裡（連圓角一起裁），捲出去就淡掉
@@ -2749,7 +2857,7 @@ const Globe = (function () {
                 const p = reduced() ? 0 : clamp01(scrollY / Math.max(1, docH));
                 T.x = .5 * hw; T.y = .08 * hv; T.z = -1.3;
                 T.extra += .3 * p;
-                T.op = dark ? (route.startsWith('storm/') ? .3 : .22) : 0;
+                T.op = dark ? (route.startsWith('storm/') ? .14 : .22) : 0;
             }
             return T;
         }
@@ -2766,7 +2874,7 @@ const Globe = (function () {
             if (sz.x !== W || sz.y !== H) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); }
 
             const T = targets(W, H);
-            const k = reduced() || (first && route !== 'overview') ? 1 : 1 - Math.pow(.02, dt * 1.6);
+            const k = reduced() || T.lock || (first && route !== 'overview') ? 1 : 1 - Math.pow(.02, dt * 1.6);
             first = false;
             camera.position.z = T.camZ;
             pmx += (mx - pmx) * Math.min(1, dt * 3); pmy += (my - pmy) * Math.min(1, dt * 3);
@@ -2796,7 +2904,8 @@ const Globe = (function () {
                 S.lab.getWorldPosition(labW); anchor.getWorldPosition(labC);
                 labN.subVectors(labW, labC).normalize();
                 const facing = labN.dot(labV.subVectors(camera.position, labW).normalize());
-                S.lab.material.opacity = Math.min(1, Math.max(0, (facing - .02) / .15));
+                // 只有總覽頁顯示颱風名字：其他頁面的地球只是背景，名字會透到卡片後面
+                S.lab.material.opacity = route === 'overview' ? Math.min(1, Math.max(0, (facing - .02) / .15)) : 0;
             }
             const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * SAT_W);
             const c = Math.cos(th), s = Math.sin(th);
