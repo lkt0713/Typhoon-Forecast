@@ -1148,7 +1148,8 @@ def _at_lead(mean: list, h: float):
     for a, b in zip(pts, pts[1:]):
         if a[3] <= h <= b[3]:
             f = 0 if b[3] == a[3] else (h - a[3]) / (b[3] - a[3])
-            return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            dlon = (b[1] - a[1] + 540) % 360 - 180          # 跨換日線時走短的那一邊
+            return (a[0] + (b[0] - a[0]) * f, a[1] + dlon * f)
     return (pts[-1][0], pts[-1][1])
 
 
@@ -6586,7 +6587,8 @@ function mineStats(members, lat, lon) {
         for (let k = 0; k < pts.length - 1; k++) {
             const a = pts[k], b = pts[k + 1], n = Math.max(1, Math.round(b[3] - a[3]));
             for (let s = 0; s <= n; s++) {
-                const f = s / n, d = kmBetween(lat, lon, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f);
+                // 經度差走短的那一邊：路徑跨過換日線（179 → -179）時才不會內插成橫掃整個地球
+                const f = s / n, d = kmBetween(lat, lon, a[0] + (b[0] - a[0]) * f, a[1] + ((b[1] - a[1] + 540) % 360 - 180) * f);
                 if (!best || d < best.d) best = {d, h: a[3] + (b[3] - a[3]) * f, kt: a[2] != null && b[2] != null ? a[2] + (b[2] - a[2]) * f : (a[2] ?? b[2])};
             }
         }

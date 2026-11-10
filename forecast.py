@@ -1408,6 +1408,9 @@ def _densify_track(lons, lats, hours=None, step: float = STRIKE_RES / 2):
     lons, lats = lons[ok], lats[ok]
     if lons.size < 2:
         return lons, lats, hrs
+    # 經度先展開成連續的：用 ±180 表示的路徑跨過換日線時（179 → -179），直接內插會沿著同一緯度
+    # 橫掃整個地球，把途中的城市（東京、首爾、上海…）都算成「侵襲」。展開後 -179 變 181，內插才對
+    lons = np.degrees(np.unwrap(np.radians(lons)))
     seg = np.hypot(np.diff(lons), np.diff(lats))
     n = np.maximum(1, np.ceil(seg / step).astype(int))
 
