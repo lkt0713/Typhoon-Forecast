@@ -1,262 +1,262 @@
 scope,sample,metric,model,lead_h,value,n,abs_error
-all_storms,homog,track_km,AIFS-ENS,24,36.0,97,
-all_storms,homog,track_km,AIFS-ENS,48,69.0,85,
-all_storms,homog,track_km,AIFS-ENS,72,124.0,74,
+all_storms,homog,track_km,AIFS-ENS,24,36.0,98,
+all_storms,homog,track_km,AIFS-ENS,48,69.0,86,
+all_storms,homog,track_km,AIFS-ENS,72,125.0,75,
 all_storms,homog,track_km,AIFS-ENS,96,182.0,60,
 all_storms,homog,track_km,AIFS-ENS,120,232.0,52,
-all_storms,homog,track_km,AIFS-single,24,38.0,97,
-all_storms,homog,track_km,AIFS-single,48,69.0,85,
-all_storms,homog,track_km,AIFS-single,72,133.0,74,
+all_storms,homog,track_km,AIFS-single,24,38.0,98,
+all_storms,homog,track_km,AIFS-single,48,69.0,86,
+all_storms,homog,track_km,AIFS-single,72,132.0,75,
 all_storms,homog,track_km,AIFS-single,96,186.0,60,
 all_storms,homog,track_km,AIFS-single,120,238.0,52,
-all_storms,homog,track_km,AIGEFS,24,53.0,97,
-all_storms,homog,track_km,AIGEFS,48,102.0,85,
-all_storms,homog,track_km,AIGEFS,72,181.0,74,
+all_storms,homog,track_km,AIGEFS,24,53.0,98,
+all_storms,homog,track_km,AIGEFS,48,103.0,86,
+all_storms,homog,track_km,AIGEFS,72,180.0,75,
 all_storms,homog,track_km,AIGEFS,96,243.0,60,
 all_storms,homog,track_km,AIGEFS,120,341.0,52,
-all_storms,homog,track_km,AIGFS,24,57.0,97,
-all_storms,homog,track_km,AIGFS,48,103.0,85,
-all_storms,homog,track_km,AIGFS,72,168.0,74,
+all_storms,homog,track_km,AIGFS,24,57.0,98,
+all_storms,homog,track_km,AIGFS,48,105.0,86,
+all_storms,homog,track_km,AIGFS,72,168.0,75,
 all_storms,homog,track_km,AIGFS,96,204.0,60,
 all_storms,homog,track_km,AIGFS,120,304.0,52,
-all_storms,homog,track_km,ECMWF-ENS,24,40.0,97,
-all_storms,homog,track_km,ECMWF-ENS,48,75.0,85,
-all_storms,homog,track_km,ECMWF-ENS,72,115.0,74,
+all_storms,homog,track_km,ECMWF-ENS,24,40.0,98,
+all_storms,homog,track_km,ECMWF-ENS,48,77.0,86,
+all_storms,homog,track_km,ECMWF-ENS,72,117.0,75,
 all_storms,homog,track_km,ECMWF-ENS,96,172.0,60,
 all_storms,homog,track_km,ECMWF-ENS,120,260.0,52,
-all_storms,homog,track_km,ECMWF HRES,24,42.0,97,
-all_storms,homog,track_km,ECMWF HRES,48,76.0,85,
-all_storms,homog,track_km,ECMWF HRES,72,121.0,74,
+all_storms,homog,track_km,ECMWF HRES,24,42.0,98,
+all_storms,homog,track_km,ECMWF HRES,48,78.0,86,
+all_storms,homog,track_km,ECMWF HRES,72,122.0,75,
 all_storms,homog,track_km,ECMWF HRES,96,165.0,60,
 all_storms,homog,track_km,ECMWF HRES,120,249.0,52,
-all_storms,homog,track_km,GEFS,24,66.0,97,
-all_storms,homog,track_km,GEFS,48,110.0,85,
-all_storms,homog,track_km,GEFS,72,175.0,74,
+all_storms,homog,track_km,GEFS,24,66.0,98,
+all_storms,homog,track_km,GEFS,48,111.0,86,
+all_storms,homog,track_km,GEFS,72,177.0,75,
 all_storms,homog,track_km,GEFS,96,260.0,60,
 all_storms,homog,track_km,GEFS,120,359.0,52,
-all_storms,homog,track_km,GENC,24,43.0,97,
-all_storms,homog,track_km,GENC,48,77.0,85,
-all_storms,homog,track_km,GENC,72,131.0,74,
+all_storms,homog,track_km,GENC,24,44.0,98,
+all_storms,homog,track_km,GENC,48,78.0,86,
+all_storms,homog,track_km,GENC,72,132.0,75,
 all_storms,homog,track_km,GENC,96,177.0,60,
 all_storms,homog,track_km,GENC,120,236.0,52,
-all_storms,homog,track_km,GFS,24,68.0,97,
-all_storms,homog,track_km,GFS,48,108.0,85,
-all_storms,homog,track_km,GFS,72,171.0,74,
+all_storms,homog,track_km,GFS,24,67.0,98,
+all_storms,homog,track_km,GFS,48,110.0,86,
+all_storms,homog,track_km,GFS,72,173.0,75,
 all_storms,homog,track_km,GFS,96,235.0,60,
 all_storms,homog,track_km,GFS,120,337.0,52,
-all_storms,homog,track_km,WN2-C r1,24,29.0,97,
-all_storms,homog,track_km,WN2-C r1,48,60.0,85,
-all_storms,homog,track_km,WN2-C r1,72,99.0,74,
+all_storms,homog,track_km,WN2-C r1,24,29.0,98,
+all_storms,homog,track_km,WN2-C r1,48,60.0,86,
+all_storms,homog,track_km,WN2-C r1,72,99.0,75,
 all_storms,homog,track_km,WN2-C r1,96,172.0,60,
 all_storms,homog,track_km,WN2-C r1,120,251.0,52,
-all_storms,homog,track_km,WN2-C r2,24,29.0,97,
-all_storms,homog,track_km,WN2-C r2,48,63.0,85,
-all_storms,homog,track_km,WN2-C r2,72,98.0,74,
+all_storms,homog,track_km,WN2-C r2,24,29.0,98,
+all_storms,homog,track_km,WN2-C r2,48,63.0,86,
+all_storms,homog,track_km,WN2-C r2,72,98.0,75,
 all_storms,homog,track_km,WN2-C r2,96,162.0,60,
 all_storms,homog,track_km,WN2-C r2,120,224.0,52,
-all_storms,homog,track_km,WN3-C,24,27.0,97,
-all_storms,homog,track_km,WN3-C,48,52.0,85,
-all_storms,homog,track_km,WN3-C,72,87.0,74,
+all_storms,homog,track_km,WN3-C,24,27.0,98,
+all_storms,homog,track_km,WN3-C,48,52.0,86,
+all_storms,homog,track_km,WN3-C,72,87.0,75,
 all_storms,homog,track_km,WN3-C,96,143.0,60,
 all_storms,homog,track_km,WN3-C,120,175.0,52,
-all_storms,homog,at_km,AIFS-ENS,24,-12.0,94,25.0
-all_storms,homog,at_km,AIFS-ENS,48,-19.0,82,42.0
-all_storms,homog,at_km,AIFS-ENS,72,-4.0,71,76.0
+all_storms,homog,at_km,AIFS-ENS,24,-12.0,95,25.0
+all_storms,homog,at_km,AIFS-ENS,48,-20.0,83,43.0
+all_storms,homog,at_km,AIFS-ENS,72,-6.0,72,77.0
 all_storms,homog,at_km,AIFS-ENS,96,5.0,59,113.0
 all_storms,homog,at_km,AIFS-ENS,120,-6.0,51,164.0
-all_storms,homog,at_km,AIFS-single,24,-3.0,94,24.0
-all_storms,homog,at_km,AIFS-single,48,-13.0,82,38.0
-all_storms,homog,at_km,AIFS-single,72,-0.0,71,87.0
+all_storms,homog,at_km,AIFS-single,24,-3.0,95,24.0
+all_storms,homog,at_km,AIFS-single,48,-14.0,83,38.0
+all_storms,homog,at_km,AIFS-single,72,-1.0,72,87.0
 all_storms,homog,at_km,AIFS-single,96,-8.0,59,121.0
 all_storms,homog,at_km,AIFS-single,120,9.0,51,173.0
-all_storms,homog,at_km,AIGEFS,24,-5.0,94,34.0
-all_storms,homog,at_km,AIGEFS,48,2.0,82,72.0
-all_storms,homog,at_km,AIGEFS,72,18.0,71,126.0
+all_storms,homog,at_km,AIGEFS,24,-5.0,95,34.0
+all_storms,homog,at_km,AIGEFS,48,1.0,83,73.0
+all_storms,homog,at_km,AIGEFS,72,17.0,72,125.0
 all_storms,homog,at_km,AIGEFS,96,-49.0,59,175.0
 all_storms,homog,at_km,AIGEFS,120,-57.0,51,259.0
-all_storms,homog,at_km,AIGFS,24,-22.0,94,41.0
-all_storms,homog,at_km,AIGFS,48,-29.0,82,80.0
-all_storms,homog,at_km,AIGFS,72,-17.0,71,131.0
+all_storms,homog,at_km,AIGFS,24,-22.0,95,41.0
+all_storms,homog,at_km,AIGFS,48,-32.0,83,82.0
+all_storms,homog,at_km,AIGFS,72,-19.0,72,132.0
 all_storms,homog,at_km,AIGFS,96,-73.0,59,154.0
 all_storms,homog,at_km,AIGFS,120,-82.0,51,246.0
-all_storms,homog,at_km,ECMWF-ENS,24,-15.0,94,28.0
-all_storms,homog,at_km,ECMWF-ENS,48,-39.0,82,56.0
-all_storms,homog,at_km,ECMWF-ENS,72,-64.0,71,84.0
+all_storms,homog,at_km,ECMWF-ENS,24,-15.0,95,28.0
+all_storms,homog,at_km,ECMWF-ENS,48,-41.0,83,58.0
+all_storms,homog,at_km,ECMWF-ENS,72,-67.0,72,86.0
 all_storms,homog,at_km,ECMWF-ENS,96,-70.0,59,113.0
 all_storms,homog,at_km,ECMWF-ENS,120,-70.0,51,175.0
-all_storms,homog,at_km,ECMWF HRES,24,-14.0,94,29.0
-all_storms,homog,at_km,ECMWF HRES,48,-38.0,82,58.0
-all_storms,homog,at_km,ECMWF HRES,72,-68.0,71,86.0
+all_storms,homog,at_km,ECMWF HRES,24,-14.0,95,30.0
+all_storms,homog,at_km,ECMWF HRES,48,-40.0,83,59.0
+all_storms,homog,at_km,ECMWF HRES,72,-70.0,72,88.0
 all_storms,homog,at_km,ECMWF HRES,96,-52.0,59,94.0
 all_storms,homog,at_km,ECMWF HRES,120,-40.0,51,148.0
-all_storms,homog,at_km,GEFS,24,-26.0,94,42.0
-all_storms,homog,at_km,GEFS,48,-60.0,82,77.0
-all_storms,homog,at_km,GEFS,72,-111.0,71,132.0
+all_storms,homog,at_km,GEFS,24,-26.0,95,42.0
+all_storms,homog,at_km,GEFS,48,-62.0,83,79.0
+all_storms,homog,at_km,GEFS,72,-114.0,72,135.0
 all_storms,homog,at_km,GEFS,96,-144.0,59,198.0
 all_storms,homog,at_km,GEFS,120,-197.0,51,280.0
-all_storms,homog,at_km,GENC,24,-22.0,94,33.0
-all_storms,homog,at_km,GENC,48,-18.0,82,53.0
-all_storms,homog,at_km,GENC,72,-4.0,71,89.0
+all_storms,homog,at_km,GENC,24,-23.0,95,33.0
+all_storms,homog,at_km,GENC,48,-20.0,83,55.0
+all_storms,homog,at_km,GENC,72,-7.0,72,91.0
 all_storms,homog,at_km,GENC,96,-22.0,59,114.0
 all_storms,homog,at_km,GENC,120,-15.0,51,158.0
-all_storms,homog,at_km,GFS,24,-20.0,94,41.0
-all_storms,homog,at_km,GFS,48,-40.0,82,71.0
-all_storms,homog,at_km,GFS,72,-86.0,71,127.0
+all_storms,homog,at_km,GFS,24,-20.0,95,41.0
+all_storms,homog,at_km,GFS,48,-42.0,83,73.0
+all_storms,homog,at_km,GFS,72,-89.0,72,129.0
 all_storms,homog,at_km,GFS,96,-88.0,59,170.0
 all_storms,homog,at_km,GFS,120,-125.0,51,230.0
-all_storms,homog,at_km,WN2-C r1,24,-3.0,94,20.0
-all_storms,homog,at_km,WN2-C r1,48,-12.0,82,34.0
-all_storms,homog,at_km,WN2-C r1,72,-12.0,71,57.0
+all_storms,homog,at_km,WN2-C r1,24,-3.0,95,20.0
+all_storms,homog,at_km,WN2-C r1,48,-13.0,83,35.0
+all_storms,homog,at_km,WN2-C r1,72,-13.0,72,57.0
 all_storms,homog,at_km,WN2-C r1,96,7.0,59,94.0
 all_storms,homog,at_km,WN2-C r1,120,52.0,51,151.0
-all_storms,homog,at_km,WN2-C r2,24,-5.0,94,20.0
-all_storms,homog,at_km,WN2-C r2,48,-18.0,82,37.0
-all_storms,homog,at_km,WN2-C r2,72,-17.0,71,55.0
+all_storms,homog,at_km,WN2-C r2,24,-5.0,95,20.0
+all_storms,homog,at_km,WN2-C r2,48,-19.0,83,37.0
+all_storms,homog,at_km,WN2-C r2,72,-18.0,72,55.0
 all_storms,homog,at_km,WN2-C r2,96,1.0,59,93.0
 all_storms,homog,at_km,WN2-C r2,120,34.0,51,146.0
-all_storms,homog,at_km,WN3-C,24,-2.0,94,18.0
-all_storms,homog,at_km,WN3-C,48,-10.0,82,32.0
-all_storms,homog,at_km,WN3-C,72,-17.0,71,54.0
+all_storms,homog,at_km,WN3-C,24,-2.0,95,18.0
+all_storms,homog,at_km,WN3-C,48,-10.0,83,32.0
+all_storms,homog,at_km,WN3-C,72,-17.0,72,54.0
 all_storms,homog,at_km,WN3-C,96,-12.0,59,90.0
 all_storms,homog,at_km,WN3-C,120,6.0,51,115.0
-all_storms,homog,ct_km,AIFS-ENS,24,4.0,94,23.0
-all_storms,homog,ct_km,AIFS-ENS,48,16.0,82,46.0
-all_storms,homog,ct_km,AIFS-ENS,72,48.0,71,77.0
+all_storms,homog,ct_km,AIFS-ENS,24,4.0,95,23.0
+all_storms,homog,ct_km,AIFS-ENS,48,16.0,83,45.0
+all_storms,homog,ct_km,AIFS-ENS,72,48.0,72,77.0
 all_storms,homog,ct_km,AIFS-ENS,96,60.0,59,108.0
 all_storms,homog,ct_km,AIFS-ENS,120,64.0,51,128.0
-all_storms,homog,ct_km,AIFS-single,24,2.0,94,25.0
-all_storms,homog,ct_km,AIFS-single,48,3.0,82,50.0
-all_storms,homog,ct_km,AIFS-single,72,20.0,71,81.0
+all_storms,homog,ct_km,AIFS-single,24,2.0,95,25.0
+all_storms,homog,ct_km,AIFS-single,48,3.0,83,50.0
+all_storms,homog,ct_km,AIFS-single,72,20.0,72,80.0
 all_storms,homog,ct_km,AIFS-single,96,24.0,59,107.0
 all_storms,homog,ct_km,AIFS-single,120,2.0,51,129.0
-all_storms,homog,ct_km,AIGEFS,24,8.0,94,35.0
-all_storms,homog,ct_km,AIGEFS,48,-4.0,82,53.0
-all_storms,homog,ct_km,AIGEFS,72,-12.0,71,82.0
+all_storms,homog,ct_km,AIGEFS,24,7.0,95,35.0
+all_storms,homog,ct_km,AIGEFS,48,-4.0,83,53.0
+all_storms,homog,ct_km,AIGEFS,72,-13.0,72,82.0
 all_storms,homog,ct_km,AIGEFS,96,-30.0,59,123.0
 all_storms,homog,ct_km,AIGEFS,120,-20.0,51,164.0
-all_storms,homog,ct_km,AIGFS,24,12.0,94,31.0
-all_storms,homog,ct_km,AIGFS,48,13.0,82,45.0
-all_storms,homog,ct_km,AIGFS,72,26.0,71,66.0
+all_storms,homog,ct_km,AIGFS,24,12.0,95,31.0
+all_storms,homog,ct_km,AIGFS,48,13.0,83,45.0
+all_storms,homog,ct_km,AIGFS,72,25.0,72,65.0
 all_storms,homog,ct_km,AIGFS,96,16.0,59,96.0
 all_storms,homog,ct_km,AIGFS,120,12.0,51,133.0
-all_storms,homog,ct_km,ECMWF-ENS,24,-6.0,94,24.0
-all_storms,homog,ct_km,ECMWF-ENS,48,3.0,82,39.0
-all_storms,homog,ct_km,ECMWF-ENS,72,12.0,71,60.0
+all_storms,homog,ct_km,ECMWF-ENS,24,-6.0,95,24.0
+all_storms,homog,ct_km,ECMWF-ENS,48,4.0,83,40.0
+all_storms,homog,ct_km,ECMWF-ENS,72,14.0,72,61.0
 all_storms,homog,ct_km,ECMWF-ENS,96,19.0,59,105.0
 all_storms,homog,ct_km,ECMWF-ENS,120,8.0,51,159.0
-all_storms,homog,ct_km,ECMWF HRES,24,-6.0,94,25.0
-all_storms,homog,ct_km,ECMWF HRES,48,4.0,82,38.0
-all_storms,homog,ct_km,ECMWF HRES,72,15.0,71,61.0
+all_storms,homog,ct_km,ECMWF HRES,24,-5.0,95,25.0
+all_storms,homog,ct_km,ECMWF HRES,48,5.0,83,39.0
+all_storms,homog,ct_km,ECMWF HRES,72,16.0,72,62.0
 all_storms,homog,ct_km,ECMWF HRES,96,18.0,59,113.0
 all_storms,homog,ct_km,ECMWF HRES,120,0.0,51,174.0
-all_storms,homog,ct_km,GEFS,24,17.0,94,42.0
-all_storms,homog,ct_km,GEFS,48,21.0,82,59.0
-all_storms,homog,ct_km,GEFS,72,35.0,71,85.0
+all_storms,homog,ct_km,GEFS,24,17.0,95,42.0
+all_storms,homog,ct_km,GEFS,48,21.0,83,59.0
+all_storms,homog,ct_km,GEFS,72,36.0,72,85.0
 all_storms,homog,ct_km,GEFS,96,46.0,59,129.0
 all_storms,homog,ct_km,GEFS,120,49.0,51,163.0
-all_storms,homog,ct_km,GENC,24,3.0,94,21.0
-all_storms,homog,ct_km,GENC,48,10.0,82,47.0
-all_storms,homog,ct_km,GENC,72,33.0,71,73.0
+all_storms,homog,ct_km,GENC,24,3.0,95,21.0
+all_storms,homog,ct_km,GENC,48,11.0,83,47.0
+all_storms,homog,ct_km,GENC,72,33.0,72,72.0
 all_storms,homog,ct_km,GENC,96,48.0,59,103.0
 all_storms,homog,ct_km,GENC,120,56.0,51,144.0
-all_storms,homog,ct_km,GFS,24,24.0,94,46.0
-all_storms,homog,ct_km,GFS,48,28.0,82,62.0
-all_storms,homog,ct_km,GFS,72,33.0,71,87.0
+all_storms,homog,ct_km,GFS,24,24.0,95,45.0
+all_storms,homog,ct_km,GFS,48,28.0,83,62.0
+all_storms,homog,ct_km,GFS,72,34.0,72,87.0
 all_storms,homog,ct_km,GFS,96,21.0,59,126.0
 all_storms,homog,ct_km,GFS,120,-4.0,51,182.0
-all_storms,homog,ct_km,WN2-C r1,24,-4.0,94,18.0
-all_storms,homog,ct_km,WN2-C r1,48,-5.0,82,41.0
-all_storms,homog,ct_km,WN2-C r1,72,18.0,71,70.0
+all_storms,homog,ct_km,WN2-C r1,24,-4.0,95,18.0
+all_storms,homog,ct_km,WN2-C r1,48,-4.0,83,41.0
+all_storms,homog,ct_km,WN2-C r1,72,18.0,72,69.0
 all_storms,homog,ct_km,WN2-C r1,96,49.0,59,111.0
 all_storms,homog,ct_km,WN2-C r1,120,82.0,51,164.0
-all_storms,homog,ct_km,WN2-C r2,24,-4.0,94,18.0
-all_storms,homog,ct_km,WN2-C r2,48,-4.0,82,41.0
-all_storms,homog,ct_km,WN2-C r2,72,15.0,71,68.0
+all_storms,homog,ct_km,WN2-C r2,24,-4.0,95,17.0
+all_storms,homog,ct_km,WN2-C r2,48,-4.0,83,41.0
+all_storms,homog,ct_km,WN2-C r2,72,16.0,72,67.0
 all_storms,homog,ct_km,WN2-C r2,96,43.0,59,101.0
 all_storms,homog,ct_km,WN2-C r2,120,57.0,51,140.0
-all_storms,homog,ct_km,WN3-C,24,-5.0,94,16.0
-all_storms,homog,ct_km,WN3-C,48,-3.0,82,35.0
-all_storms,homog,ct_km,WN3-C,72,17.0,71,58.0
+all_storms,homog,ct_km,WN3-C,24,-5.0,95,16.0
+all_storms,homog,ct_km,WN3-C,48,-2.0,83,35.0
+all_storms,homog,ct_km,WN3-C,72,18.0,72,58.0
 all_storms,homog,ct_km,WN3-C,96,40.0,59,80.0
 all_storms,homog,ct_km,WN3-C,120,60.0,51,103.0
-all_storms,homog,int_kt,AIFS-ENS,24,-46.9,80,46.9
-all_storms,homog,int_kt,AIFS-ENS,48,-47.0,68,47.0
-all_storms,homog,int_kt,AIFS-ENS,72,-44.8,57,44.8
+all_storms,homog,int_kt,AIFS-ENS,24,-47.0,81,47.0
+all_storms,homog,int_kt,AIFS-ENS,48,-47.1,69,47.1
+all_storms,homog,int_kt,AIFS-ENS,72,-45.0,58,45.0
 all_storms,homog,int_kt,AIFS-ENS,96,-46.0,43,46.0
 all_storms,homog,int_kt,AIFS-ENS,120,-43.7,35,43.7
-all_storms,homog,int_kt,AIFS-single,24,-43.2,80,43.2
-all_storms,homog,int_kt,AIFS-single,48,-43.8,68,43.8
-all_storms,homog,int_kt,AIFS-single,72,-41.7,57,41.7
+all_storms,homog,int_kt,AIFS-single,24,-43.4,81,43.4
+all_storms,homog,int_kt,AIFS-single,48,-43.9,69,43.9
+all_storms,homog,int_kt,AIFS-single,72,-41.9,58,41.9
 all_storms,homog,int_kt,AIFS-single,96,-41.6,43,41.6
 all_storms,homog,int_kt,AIFS-single,120,-37.8,35,37.8
-all_storms,homog,int_kt,AIGEFS,24,-44.8,80,44.8
-all_storms,homog,int_kt,AIGEFS,48,-46.4,68,46.4
-all_storms,homog,int_kt,AIGEFS,72,-45.2,57,45.2
+all_storms,homog,int_kt,AIGEFS,24,-44.9,81,44.9
+all_storms,homog,int_kt,AIGEFS,48,-46.5,69,46.5
+all_storms,homog,int_kt,AIGEFS,72,-45.3,58,45.3
 all_storms,homog,int_kt,AIGEFS,96,-48.6,43,48.6
 all_storms,homog,int_kt,AIGEFS,120,-46.7,35,46.7
-all_storms,homog,int_kt,AIGFS,24,-16.0,80,20.6
-all_storms,homog,int_kt,AIGFS,48,-15.5,68,18.5
-all_storms,homog,int_kt,AIGFS,72,-15.0,57,17.4
+all_storms,homog,int_kt,AIGFS,24,-16.3,81,20.8
+all_storms,homog,int_kt,AIGFS,48,-15.6,69,18.5
+all_storms,homog,int_kt,AIGFS,72,-15.3,58,17.6
 all_storms,homog,int_kt,AIGFS,96,-15.7,43,19.7
 all_storms,homog,int_kt,AIGFS,120,-14.1,35,21.3
-all_storms,homog,int_kt,ECMWF-ENS,24,-18.0,80,18.3
-all_storms,homog,int_kt,ECMWF-ENS,48,-15.1,68,16.9
-all_storms,homog,int_kt,ECMWF-ENS,72,-14.2,57,16.0
+all_storms,homog,int_kt,ECMWF-ENS,24,-18.0,81,18.3
+all_storms,homog,int_kt,ECMWF-ENS,48,-15.3,69,17.0
+all_storms,homog,int_kt,ECMWF-ENS,72,-14.2,58,16.0
 all_storms,homog,int_kt,ECMWF-ENS,96,-12.2,43,17.3
 all_storms,homog,int_kt,ECMWF-ENS,120,-9.0,35,18.6
-all_storms,homog,int_kt,ECMWF HRES,24,-16.0,80,16.7
-all_storms,homog,int_kt,ECMWF HRES,48,-10.4,68,14.0
-all_storms,homog,int_kt,ECMWF HRES,72,-8.3,57,11.8
+all_storms,homog,int_kt,ECMWF HRES,24,-15.9,81,16.7
+all_storms,homog,int_kt,ECMWF HRES,48,-10.5,69,14.0
+all_storms,homog,int_kt,ECMWF HRES,72,-8.4,58,11.8
 all_storms,homog,int_kt,ECMWF HRES,96,-3.8,43,11.1
 all_storms,homog,int_kt,ECMWF HRES,120,1.9,35,13.9
-all_storms,homog,int_kt,GEFS,24,-24.7,80,25.0
-all_storms,homog,int_kt,GEFS,48,-26.6,68,27.6
-all_storms,homog,int_kt,GEFS,72,-26.2,57,26.8
+all_storms,homog,int_kt,GEFS,24,-24.9,81,25.2
+all_storms,homog,int_kt,GEFS,48,-26.9,69,27.8
+all_storms,homog,int_kt,GEFS,72,-26.3,58,26.9
 all_storms,homog,int_kt,GEFS,96,-26.9,43,28.5
 all_storms,homog,int_kt,GEFS,120,-24.6,35,26.9
-all_storms,homog,int_kt,GENC,24,-19.8,80,22.7
-all_storms,homog,int_kt,GENC,48,-18.3,68,22.2
-all_storms,homog,int_kt,GENC,72,-17.5,57,23.1
+all_storms,homog,int_kt,GENC,24,-20.0,81,22.8
+all_storms,homog,int_kt,GENC,48,-18.6,69,22.3
+all_storms,homog,int_kt,GENC,72,-17.7,58,23.2
 all_storms,homog,int_kt,GENC,96,-19.2,43,25.9
 all_storms,homog,int_kt,GENC,120,-18.8,35,27.0
-all_storms,homog,int_kt,GFS,24,-14.8,80,17.8
-all_storms,homog,int_kt,GFS,48,-15.6,68,19.3
-all_storms,homog,int_kt,GFS,72,-14.9,57,19.0
+all_storms,homog,int_kt,GFS,24,-15.0,81,18.0
+all_storms,homog,int_kt,GFS,48,-15.9,69,19.5
+all_storms,homog,int_kt,GFS,72,-15.1,58,19.1
 all_storms,homog,int_kt,GFS,96,-16.4,43,22.0
 all_storms,homog,int_kt,GFS,120,-14.2,35,22.3
-all_storms,homog,int_kt,WN2-C r1,24,0.9,80,8.6
-all_storms,homog,int_kt,WN2-C r1,48,1.3,68,8.8
-all_storms,homog,int_kt,WN2-C r1,72,1.0,57,8.0
+all_storms,homog,int_kt,WN2-C r1,24,0.7,81,8.6
+all_storms,homog,int_kt,WN2-C r1,48,1.1,69,8.9
+all_storms,homog,int_kt,WN2-C r1,72,0.8,58,8.0
 all_storms,homog,int_kt,WN2-C r1,96,4.7,43,9.8
 all_storms,homog,int_kt,WN2-C r1,120,9.0,35,13.8
-all_storms,homog,int_kt,WN2-C r2,24,-0.8,80,8.0
-all_storms,homog,int_kt,WN2-C r2,48,0.2,68,8.4
-all_storms,homog,int_kt,WN2-C r2,72,0.2,57,7.8
+all_storms,homog,int_kt,WN2-C r2,24,-0.9,81,8.1
+all_storms,homog,int_kt,WN2-C r2,48,-0.1,69,8.6
+all_storms,homog,int_kt,WN2-C r2,72,-0.0,58,7.9
 all_storms,homog,int_kt,WN2-C r2,96,3.8,43,9.8
 all_storms,homog,int_kt,WN2-C r2,120,8.2,35,14.8
-all_storms,homog,int_kt,WN3-C,24,0.1,80,9.2
-all_storms,homog,int_kt,WN3-C,48,2.1,68,10.0
-all_storms,homog,int_kt,WN3-C,72,1.7,57,9.0
+all_storms,homog,int_kt,WN3-C,24,-0.1,81,9.2
+all_storms,homog,int_kt,WN3-C,48,1.8,69,10.0
+all_storms,homog,int_kt,WN3-C,72,1.5,58,8.9
 all_storms,homog,int_kt,WN3-C,96,6.4,43,11.6
 all_storms,homog,int_kt,WN3-C,120,11.3,35,16.1
-all_storms,all,track_km,AIFS-ENS,24,37.0,99,
-all_storms,all,track_km,AIFS-ENS,48,68.0,87,
-all_storms,all,track_km,AIFS-ENS,72,124.0,75,
+all_storms,all,track_km,AIFS-ENS,24,37.0,100,
+all_storms,all,track_km,AIFS-ENS,48,69.0,88,
+all_storms,all,track_km,AIFS-ENS,72,124.0,76,
 all_storms,all,track_km,AIFS-ENS,96,181.0,61,
 all_storms,all,track_km,AIFS-ENS,120,237.0,54,
-all_storms,all,track_km,AIFS-single,24,38.0,98,
-all_storms,all,track_km,AIFS-single,48,69.0,86,
-all_storms,all,track_km,AIFS-single,72,133.0,75,
+all_storms,all,track_km,AIFS-single,24,38.0,99,
+all_storms,all,track_km,AIFS-single,48,69.0,87,
+all_storms,all,track_km,AIFS-single,72,132.0,76,
 all_storms,all,track_km,AIFS-single,96,196.0,62,
 all_storms,all,track_km,AIFS-single,120,241.0,54,
-all_storms,all,track_km,AIGEFS,24,54.0,99,
-all_storms,all,track_km,AIGEFS,48,103.0,87,
-all_storms,all,track_km,AIGEFS,72,179.0,75,
+all_storms,all,track_km,AIGEFS,24,54.0,100,
+all_storms,all,track_km,AIGEFS,48,104.0,88,
+all_storms,all,track_km,AIGEFS,72,178.0,76,
 all_storms,all,track_km,AIGEFS,96,247.0,64,
 all_storms,all,track_km,AIGEFS,120,344.0,56,
-all_storms,all,track_km,AIGFS,24,57.0,100,
-all_storms,all,track_km,AIGFS,48,102.0,88,
-all_storms,all,track_km,AIGFS,72,165.0,76,
+all_storms,all,track_km,AIGFS,24,57.0,101,
+all_storms,all,track_km,AIGFS,48,104.0,89,
+all_storms,all,track_km,AIGFS,72,165.0,77,
 all_storms,all,track_km,AIGFS,96,205.0,65,
 all_storms,all,track_km,AIGFS,120,302.0,57,
 all_storms,all,track_km,CWA,24,34.0,40,
@@ -264,29 +264,29 @@ all_storms,all,track_km,CWA,48,55.0,32,
 all_storms,all,track_km,CWA,72,92.0,24,
 all_storms,all,track_km,CWA,96,180.0,17,
 all_storms,all,track_km,CWA,120,249.0,13,
-all_storms,all,track_km,ECMWF-ENS,24,41.0,100,
-all_storms,all,track_km,ECMWF-ENS,48,79.0,88,
-all_storms,all,track_km,ECMWF-ENS,72,118.0,76,
+all_storms,all,track_km,ECMWF-ENS,24,41.0,101,
+all_storms,all,track_km,ECMWF-ENS,48,81.0,89,
+all_storms,all,track_km,ECMWF-ENS,72,119.0,77,
 all_storms,all,track_km,ECMWF-ENS,96,188.0,65,
 all_storms,all,track_km,ECMWF-ENS,120,272.0,55,
-all_storms,all,track_km,ECMWF HRES,24,43.0,100,
-all_storms,all,track_km,ECMWF HRES,48,80.0,88,
-all_storms,all,track_km,ECMWF HRES,72,123.0,76,
+all_storms,all,track_km,ECMWF HRES,24,43.0,101,
+all_storms,all,track_km,ECMWF HRES,48,82.0,89,
+all_storms,all,track_km,ECMWF HRES,72,124.0,77,
 all_storms,all,track_km,ECMWF HRES,96,185.0,65,
 all_storms,all,track_km,ECMWF HRES,120,260.0,55,
-all_storms,all,track_km,GEFS,24,66.0,99,
-all_storms,all,track_km,GEFS,48,110.0,87,
-all_storms,all,track_km,GEFS,72,174.0,75,
+all_storms,all,track_km,GEFS,24,66.0,100,
+all_storms,all,track_km,GEFS,48,112.0,88,
+all_storms,all,track_km,GEFS,72,176.0,76,
 all_storms,all,track_km,GEFS,96,282.0,64,
 all_storms,all,track_km,GEFS,120,399.0,56,
-all_storms,all,track_km,GENC,24,44.0,100,
-all_storms,all,track_km,GENC,48,76.0,88,
-all_storms,all,track_km,GENC,72,129.0,76,
+all_storms,all,track_km,GENC,24,45.0,101,
+all_storms,all,track_km,GENC,48,77.0,89,
+all_storms,all,track_km,GENC,72,130.0,77,
 all_storms,all,track_km,GENC,96,199.0,64,
 all_storms,all,track_km,GENC,120,249.0,56,
-all_storms,all,track_km,GFS,24,67.0,100,
-all_storms,all,track_km,GFS,48,109.0,88,
-all_storms,all,track_km,GFS,72,172.0,76,
+all_storms,all,track_km,GFS,24,67.0,101,
+all_storms,all,track_km,GFS,48,110.0,89,
+all_storms,all,track_km,GFS,72,174.0,77,
 all_storms,all,track_km,GFS,96,263.0,65,
 all_storms,all,track_km,GFS,120,383.0,57,
 all_storms,all,track_km,JMA,24,49.0,41,
@@ -294,44 +294,44 @@ all_storms,all,track_km,JMA,48,67.0,33,
 all_storms,all,track_km,JMA,72,96.0,25,
 all_storms,all,track_km,JMA,96,213.0,17,
 all_storms,all,track_km,JMA,120,293.0,13,
-all_storms,all,track_km,JTWC,24,53.0,46,
-all_storms,all,track_km,JTWC,48,71.0,38,
-all_storms,all,track_km,JTWC,72,109.0,30,
+all_storms,all,track_km,JTWC,24,53.0,47,
+all_storms,all,track_km,JTWC,48,72.0,39,
+all_storms,all,track_km,JTWC,72,110.0,31,
 all_storms,all,track_km,JTWC,96,158.0,23,
 all_storms,all,track_km,JTWC,120,189.0,19,
-all_storms,all,track_km,WN2-C r1,24,30.0,100,
-all_storms,all,track_km,WN2-C r1,48,61.0,88,
-all_storms,all,track_km,WN2-C r1,72,98.0,76,
+all_storms,all,track_km,WN2-C r1,24,30.0,101,
+all_storms,all,track_km,WN2-C r1,48,61.0,89,
+all_storms,all,track_km,WN2-C r1,72,97.0,77,
 all_storms,all,track_km,WN2-C r1,96,179.0,65,
 all_storms,all,track_km,WN2-C r1,120,301.0,57,
-all_storms,all,track_km,WN2-C r2,24,30.0,100,
-all_storms,all,track_km,WN2-C r2,48,64.0,88,
-all_storms,all,track_km,WN2-C r2,72,96.0,76,
+all_storms,all,track_km,WN2-C r2,24,30.0,101,
+all_storms,all,track_km,WN2-C r2,48,64.0,89,
+all_storms,all,track_km,WN2-C r2,72,96.0,77,
 all_storms,all,track_km,WN2-C r2,96,168.0,65,
 all_storms,all,track_km,WN2-C r2,120,260.0,57,
-all_storms,all,track_km,WN3-C,24,29.0,100,
-all_storms,all,track_km,WN3-C,48,52.0,88,
-all_storms,all,track_km,WN3-C,72,87.0,76,
+all_storms,all,track_km,WN3-C,24,28.0,101,
+all_storms,all,track_km,WN3-C,48,52.0,89,
+all_storms,all,track_km,WN3-C,72,87.0,77,
 all_storms,all,track_km,WN3-C,96,144.0,65,
 all_storms,all,track_km,WN3-C,120,214.0,57,
-all_storms,all,at_km,AIFS-ENS,24,-11.0,96,25.0
-all_storms,all,at_km,AIFS-ENS,48,-20.0,84,42.0
-all_storms,all,at_km,AIFS-ENS,72,-6.0,72,76.0
+all_storms,all,at_km,AIFS-ENS,24,-12.0,97,25.0
+all_storms,all,at_km,AIFS-ENS,48,-21.0,85,43.0
+all_storms,all,at_km,AIFS-ENS,72,-8.0,73,77.0
 all_storms,all,at_km,AIFS-ENS,96,3.0,60,112.0
 all_storms,all,at_km,AIFS-ENS,120,8.0,53,171.0
-all_storms,all,at_km,AIFS-single,24,-2.0,95,24.0
-all_storms,all,at_km,AIFS-single,48,-13.0,83,38.0
-all_storms,all,at_km,AIFS-single,72,-2.0,72,88.0
+all_storms,all,at_km,AIFS-single,24,-3.0,96,24.0
+all_storms,all,at_km,AIFS-single,48,-14.0,84,38.0
+all_storms,all,at_km,AIFS-single,72,-3.0,73,87.0
 all_storms,all,at_km,AIFS-single,96,6.0,61,133.0
 all_storms,all,at_km,AIFS-single,120,21.0,53,178.0
-all_storms,all,at_km,AIGEFS,24,-4.0,96,34.0
-all_storms,all,at_km,AIGEFS,48,5.0,84,74.0
-all_storms,all,at_km,AIGEFS,72,17.0,72,125.0
+all_storms,all,at_km,AIGEFS,24,-5.0,97,34.0
+all_storms,all,at_km,AIGEFS,48,4.0,85,74.0
+all_storms,all,at_km,AIGEFS,72,16.0,73,124.0
 all_storms,all,at_km,AIGEFS,96,-32.0,63,180.0
 all_storms,all,at_km,AIGEFS,120,-68.0,55,258.0
-all_storms,all,at_km,AIGFS,24,-20.0,97,41.0
-all_storms,all,at_km,AIGFS,48,-26.0,85,79.0
-all_storms,all,at_km,AIGFS,72,-17.0,73,128.0
+all_storms,all,at_km,AIGFS,24,-21.0,98,41.0
+all_storms,all,at_km,AIGFS,48,-28.0,86,81.0
+all_storms,all,at_km,AIGFS,72,-19.0,74,129.0
 all_storms,all,at_km,AIGFS,96,-53.0,64,156.0
 all_storms,all,at_km,AIGFS,120,-77.0,56,248.0
 all_storms,all,at_km,CWA,24,-12.0,38,22.0
@@ -339,29 +339,29 @@ all_storms,all,at_km,CWA,48,-25.0,30,31.0
 all_storms,all,at_km,CWA,72,-33.0,22,54.0
 all_storms,all,at_km,CWA,96,70.0,16,100.0
 all_storms,all,at_km,CWA,120,113.0,12,150.0
-all_storms,all,at_km,ECMWF-ENS,24,-15.0,97,28.0
-all_storms,all,at_km,ECMWF-ENS,48,-44.0,85,60.0
-all_storms,all,at_km,ECMWF-ENS,72,-67.0,73,86.0
+all_storms,all,at_km,ECMWF-ENS,24,-15.0,98,29.0
+all_storms,all,at_km,ECMWF-ENS,48,-45.0,86,62.0
+all_storms,all,at_km,ECMWF-ENS,72,-70.0,74,88.0
 all_storms,all,at_km,ECMWF-ENS,96,-90.0,64,130.0
 all_storms,all,at_km,ECMWF-ENS,120,-87.0,54,186.0
-all_storms,all,at_km,ECMWF HRES,24,-14.0,97,29.0
-all_storms,all,at_km,ECMWF HRES,48,-43.0,85,62.0
-all_storms,all,at_km,ECMWF HRES,72,-69.0,73,88.0
+all_storms,all,at_km,ECMWF HRES,24,-14.0,98,30.0
+all_storms,all,at_km,ECMWF HRES,48,-45.0,86,64.0
+all_storms,all,at_km,ECMWF HRES,72,-71.0,74,89.0
 all_storms,all,at_km,ECMWF HRES,96,-76.0,64,114.0
 all_storms,all,at_km,ECMWF HRES,120,-55.0,54,158.0
-all_storms,all,at_km,GEFS,24,-26.0,96,43.0
-all_storms,all,at_km,GEFS,48,-62.0,84,79.0
-all_storms,all,at_km,GEFS,72,-111.0,72,132.0
+all_storms,all,at_km,GEFS,24,-26.0,97,43.0
+all_storms,all,at_km,GEFS,48,-63.0,85,80.0
+all_storms,all,at_km,GEFS,72,-113.0,73,134.0
 all_storms,all,at_km,GEFS,96,-172.0,63,223.0
 all_storms,all,at_km,GEFS,120,-247.0,55,324.0
-all_storms,all,at_km,GENC,24,-21.0,97,33.0
-all_storms,all,at_km,GENC,48,-18.0,85,52.0
-all_storms,all,at_km,GENC,72,-5.0,73,88.0
+all_storms,all,at_km,GENC,24,-22.0,98,34.0
+all_storms,all,at_km,GENC,48,-20.0,86,54.0
+all_storms,all,at_km,GENC,72,-8.0,74,89.0
 all_storms,all,at_km,GENC,96,12.0,63,139.0
 all_storms,all,at_km,GENC,120,15.0,55,176.0
-all_storms,all,at_km,GFS,24,-20.0,97,41.0
-all_storms,all,at_km,GFS,48,-41.0,85,72.0
-all_storms,all,at_km,GFS,72,-89.0,73,128.0
+all_storms,all,at_km,GFS,24,-20.0,98,41.0
+all_storms,all,at_km,GFS,48,-43.0,86,73.0
+all_storms,all,at_km,GFS,72,-92.0,74,130.0
 all_storms,all,at_km,GFS,96,-125.0,64,200.0
 all_storms,all,at_km,GFS,120,-185.0,56,280.0
 all_storms,all,at_km,JMA,24,-21.0,40,35.0
@@ -369,44 +369,44 @@ all_storms,all,at_km,JMA,48,-30.0,32,49.0
 all_storms,all,at_km,JMA,72,-23.0,24,69.0
 all_storms,all,at_km,JMA,96,95.0,16,145.0
 all_storms,all,at_km,JMA,120,100.0,12,154.0
-all_storms,all,at_km,JTWC,24,-19.0,45,37.0
-all_storms,all,at_km,JTWC,48,-36.0,37,52.0
-all_storms,all,at_km,JTWC,72,-23.0,29,68.0
+all_storms,all,at_km,JTWC,24,-20.0,46,38.0
+all_storms,all,at_km,JTWC,48,-38.0,38,54.0
+all_storms,all,at_km,JTWC,72,-26.0,30,70.0
 all_storms,all,at_km,JTWC,96,79.0,22,82.0
 all_storms,all,at_km,JTWC,120,67.0,18,90.0
-all_storms,all,at_km,WN2-C r1,24,-3.0,97,20.0
-all_storms,all,at_km,WN2-C r1,48,-14.0,85,36.0
-all_storms,all,at_km,WN2-C r1,72,-12.0,73,56.0
+all_storms,all,at_km,WN2-C r1,24,-3.0,98,20.0
+all_storms,all,at_km,WN2-C r1,48,-15.0,86,36.0
+all_storms,all,at_km,WN2-C r1,72,-13.0,74,56.0
 all_storms,all,at_km,WN2-C r1,96,26.0,64,107.0
 all_storms,all,at_km,WN2-C r1,120,121.0,56,211.0
-all_storms,all,at_km,WN2-C r2,24,-5.0,97,20.0
-all_storms,all,at_km,WN2-C r2,48,-20.0,85,38.0
-all_storms,all,at_km,WN2-C r2,72,-17.0,73,54.0
+all_storms,all,at_km,WN2-C r2,24,-5.0,98,20.0
+all_storms,all,at_km,WN2-C r2,48,-21.0,86,39.0
+all_storms,all,at_km,WN2-C r2,72,-18.0,74,55.0
 all_storms,all,at_km,WN2-C r2,96,19.0,64,104.0
 all_storms,all,at_km,WN2-C r2,120,88.0,56,190.0
-all_storms,all,at_km,WN3-C,24,-2.0,97,19.0
-all_storms,all,at_km,WN3-C,48,-10.0,85,32.0
-all_storms,all,at_km,WN3-C,72,-17.0,73,53.0
+all_storms,all,at_km,WN3-C,24,-2.0,98,19.0
+all_storms,all,at_km,WN3-C,48,-11.0,86,32.0
+all_storms,all,at_km,WN3-C,72,-17.0,74,54.0
 all_storms,all,at_km,WN3-C,96,0.0,64,95.0
 all_storms,all,at_km,WN3-C,120,61.0,56,160.0
-all_storms,all,ct_km,AIFS-ENS,24,3.0,96,24.0
-all_storms,all,ct_km,AIFS-ENS,48,16.0,84,45.0
-all_storms,all,ct_km,AIFS-ENS,72,48.0,72,77.0
+all_storms,all,ct_km,AIFS-ENS,24,3.0,97,24.0
+all_storms,all,ct_km,AIFS-ENS,48,16.0,85,45.0
+all_storms,all,ct_km,AIFS-ENS,72,48.0,73,76.0
 all_storms,all,ct_km,AIFS-ENS,96,60.0,60,107.0
 all_storms,all,ct_km,AIFS-ENS,120,63.0,53,125.0
-all_storms,all,ct_km,AIFS-single,24,1.0,95,26.0
-all_storms,all,ct_km,AIFS-single,48,4.0,83,50.0
-all_storms,all,ct_km,AIFS-single,72,20.0,72,80.0
+all_storms,all,ct_km,AIFS-single,24,1.0,96,25.0
+all_storms,all,ct_km,AIFS-single,48,3.0,84,50.0
+all_storms,all,ct_km,AIFS-single,72,19.0,73,79.0
 all_storms,all,ct_km,AIFS-single,96,26.0,61,106.0
 all_storms,all,ct_km,AIFS-single,120,5.0,53,127.0
-all_storms,all,ct_km,AIGEFS,24,6.0,96,35.0
-all_storms,all,ct_km,AIGEFS,48,-5.0,84,53.0
-all_storms,all,ct_km,AIGEFS,72,-13.0,72,82.0
+all_storms,all,ct_km,AIGEFS,24,6.0,97,35.0
+all_storms,all,ct_km,AIGEFS,48,-5.0,85,52.0
+all_storms,all,ct_km,AIGEFS,72,-14.0,73,82.0
 all_storms,all,ct_km,AIGEFS,96,-35.0,63,123.0
 all_storms,all,ct_km,AIGEFS,120,-39.0,55,172.0
-all_storms,all,ct_km,AIGFS,24,11.0,97,31.0
-all_storms,all,ct_km,AIGFS,48,13.0,85,44.0
-all_storms,all,ct_km,AIGFS,72,26.0,73,65.0
+all_storms,all,ct_km,AIGFS,24,11.0,98,31.0
+all_storms,all,ct_km,AIGFS,48,13.0,86,44.0
+all_storms,all,ct_km,AIGFS,72,25.0,74,64.0
 all_storms,all,ct_km,AIGFS,96,21.0,64,96.0
 all_storms,all,ct_km,AIGFS,120,13.0,56,129.0
 all_storms,all,ct_km,CWA,24,-2.0,38,19.0
@@ -414,29 +414,29 @@ all_storms,all,ct_km,CWA,48,12.0,30,38.0
 all_storms,all,ct_km,CWA,72,42.0,22,54.0
 all_storms,all,ct_km,CWA,96,69.0,16,138.0
 all_storms,all,ct_km,CWA,120,44.0,12,195.0
-all_storms,all,ct_km,ECMWF-ENS,24,-7.0,97,25.0
-all_storms,all,ct_km,ECMWF-ENS,48,3.0,85,40.0
-all_storms,all,ct_km,ECMWF-ENS,72,14.0,73,61.0
+all_storms,all,ct_km,ECMWF-ENS,24,-7.0,98,24.0
+all_storms,all,ct_km,ECMWF-ENS,48,4.0,86,41.0
+all_storms,all,ct_km,ECMWF-ENS,72,16.0,74,62.0
 all_storms,all,ct_km,ECMWF-ENS,96,8.0,64,112.0
 all_storms,all,ct_km,ECMWF-ENS,120,0.0,54,165.0
-all_storms,all,ct_km,ECMWF HRES,24,-6.0,97,26.0
-all_storms,all,ct_km,ECMWF HRES,48,4.0,85,39.0
-all_storms,all,ct_km,ECMWF HRES,72,18.0,73,62.0
+all_storms,all,ct_km,ECMWF HRES,24,-6.0,98,26.0
+all_storms,all,ct_km,ECMWF HRES,48,5.0,86,40.0
+all_storms,all,ct_km,ECMWF HRES,72,19.0,74,63.0
 all_storms,all,ct_km,ECMWF HRES,96,1.0,64,123.0
 all_storms,all,ct_km,ECMWF HRES,120,-11.0,54,181.0
-all_storms,all,ct_km,GEFS,24,17.0,96,42.0
-all_storms,all,ct_km,GEFS,48,20.0,84,58.0
-all_storms,all,ct_km,GEFS,72,36.0,72,84.0
+all_storms,all,ct_km,GEFS,24,16.0,97,42.0
+all_storms,all,ct_km,GEFS,48,20.0,85,58.0
+all_storms,all,ct_km,GEFS,72,36.0,73,85.0
 all_storms,all,ct_km,GEFS,96,33.0,63,130.0
 all_storms,all,ct_km,GEFS,120,34.0,55,163.0
-all_storms,all,ct_km,GENC,24,1.0,97,22.0
-all_storms,all,ct_km,GENC,48,10.0,85,46.0
-all_storms,all,ct_km,GENC,72,32.0,73,72.0
+all_storms,all,ct_km,GENC,24,1.0,98,22.0
+all_storms,all,ct_km,GENC,48,10.0,86,46.0
+all_storms,all,ct_km,GENC,72,32.0,74,71.0
 all_storms,all,ct_km,GENC,96,52.0,63,103.0
 all_storms,all,ct_km,GENC,120,61.0,55,143.0
-all_storms,all,ct_km,GFS,24,23.0,97,45.0
-all_storms,all,ct_km,GFS,48,27.0,85,62.0
-all_storms,all,ct_km,GFS,72,33.0,73,86.0
+all_storms,all,ct_km,GFS,24,23.0,98,44.0
+all_storms,all,ct_km,GFS,48,28.0,86,62.0
+all_storms,all,ct_km,GFS,72,34.0,74,86.0
 all_storms,all,ct_km,GFS,96,10.0,64,132.0
 all_storms,all,ct_km,GFS,120,-10.0,56,181.0
 all_storms,all,ct_km,JMA,24,-3.0,40,27.0
@@ -444,44 +444,44 @@ all_storms,all,ct_km,JMA,48,5.0,32,37.0
 all_storms,all,ct_km,JMA,72,27.0,24,49.0
 all_storms,all,ct_km,JMA,96,15.0,16,155.0
 all_storms,all,ct_km,JMA,120,-81.0,12,232.0
-all_storms,all,ct_km,JTWC,24,11.0,45,33.0
-all_storms,all,ct_km,JTWC,48,26.0,37,42.0
-all_storms,all,ct_km,JTWC,72,66.0,29,72.0
+all_storms,all,ct_km,JTWC,24,10.0,46,32.0
+all_storms,all,ct_km,JTWC,48,27.0,38,42.0
+all_storms,all,ct_km,JTWC,72,64.0,30,70.0
 all_storms,all,ct_km,JTWC,96,67.0,22,122.0
 all_storms,all,ct_km,JTWC,120,13.0,18,155.0
-all_storms,all,ct_km,WN2-C r1,24,-5.0,97,19.0
-all_storms,all,ct_km,WN2-C r1,48,-4.0,85,40.0
-all_storms,all,ct_km,WN2-C r1,72,18.0,73,68.0
+all_storms,all,ct_km,WN2-C r1,24,-5.0,98,18.0
+all_storms,all,ct_km,WN2-C r1,48,-4.0,86,40.0
+all_storms,all,ct_km,WN2-C r1,72,18.0,74,68.0
 all_storms,all,ct_km,WN2-C r1,96,47.0,64,103.0
 all_storms,all,ct_km,WN2-C r1,120,83.0,56,160.0
-all_storms,all,ct_km,WN2-C r2,24,-5.0,97,19.0
-all_storms,all,ct_km,WN2-C r2,48,-4.0,85,40.0
-all_storms,all,ct_km,WN2-C r2,72,15.0,73,66.0
+all_storms,all,ct_km,WN2-C r2,24,-5.0,98,18.0
+all_storms,all,ct_km,WN2-C r2,48,-4.0,86,40.0
+all_storms,all,ct_km,WN2-C r2,72,16.0,74,66.0
 all_storms,all,ct_km,WN2-C r2,96,39.0,64,95.0
 all_storms,all,ct_km,WN2-C r2,120,59.0,56,135.0
-all_storms,all,ct_km,WN3-C,24,-6.0,97,17.0
-all_storms,all,ct_km,WN3-C,48,-3.0,85,34.0
-all_storms,all,ct_km,WN3-C,72,18.0,73,58.0
+all_storms,all,ct_km,WN3-C,24,-6.0,98,17.0
+all_storms,all,ct_km,WN3-C,48,-2.0,86,34.0
+all_storms,all,ct_km,WN3-C,72,18.0,74,58.0
 all_storms,all,ct_km,WN3-C,96,35.0,64,76.0
 all_storms,all,ct_km,WN3-C,120,61.0,56,101.0
-all_storms,all,int_kt,AIFS-ENS,24,-46.6,81,46.6
-all_storms,all,int_kt,AIFS-ENS,48,-46.5,69,46.5
-all_storms,all,int_kt,AIFS-ENS,72,-44.8,57,44.8
+all_storms,all,int_kt,AIFS-ENS,24,-46.7,82,46.7
+all_storms,all,int_kt,AIFS-ENS,48,-46.6,70,46.6
+all_storms,all,int_kt,AIFS-ENS,72,-45.0,58,45.0
 all_storms,all,int_kt,AIFS-ENS,96,-46.0,43,46.0
 all_storms,all,int_kt,AIFS-ENS,120,-42.8,36,42.8
-all_storms,all,int_kt,AIFS-single,24,-43.2,80,43.2
-all_storms,all,int_kt,AIFS-single,48,-43.8,68,43.8
-all_storms,all,int_kt,AIFS-single,72,-41.7,57,41.7
+all_storms,all,int_kt,AIFS-single,24,-43.4,81,43.4
+all_storms,all,int_kt,AIFS-single,48,-43.9,69,43.9
+all_storms,all,int_kt,AIFS-single,72,-41.9,58,41.9
 all_storms,all,int_kt,AIFS-single,96,-40.9,44,40.9
 all_storms,all,int_kt,AIFS-single,120,-36.9,36,36.9
-all_storms,all,int_kt,AIGEFS,24,-44.2,82,44.2
-all_storms,all,int_kt,AIGEFS,48,-45.7,70,45.7
-all_storms,all,int_kt,AIGEFS,72,-45.2,58,45.2
+all_storms,all,int_kt,AIGEFS,24,-44.2,83,44.2
+all_storms,all,int_kt,AIGEFS,48,-45.8,71,45.8
+all_storms,all,int_kt,AIGEFS,72,-45.3,59,45.3
 all_storms,all,int_kt,AIGEFS,96,-45.5,47,45.5
 all_storms,all,int_kt,AIGEFS,120,-44.0,39,44.0
-all_storms,all,int_kt,AIGFS,24,-15.9,82,20.4
-all_storms,all,int_kt,AIGFS,48,-15.3,70,18.1
-all_storms,all,int_kt,AIGFS,72,-14.7,58,17.1
+all_storms,all,int_kt,AIGFS,24,-16.2,83,20.6
+all_storms,all,int_kt,AIGFS,48,-15.4,71,18.2
+all_storms,all,int_kt,AIGFS,72,-15.1,59,17.4
 all_storms,all,int_kt,AIGFS,96,-14.3,47,18.3
 all_storms,all,int_kt,AIGFS,120,-12.9,39,19.8
 all_storms,all,int_kt,CWA,24,3.4,40,7.8
@@ -489,29 +489,29 @@ all_storms,all,int_kt,CWA,48,6.7,32,8.2
 all_storms,all,int_kt,CWA,72,12.0,24,13.9
 all_storms,all,int_kt,CWA,96,19.5,17,19.5
 all_storms,all,int_kt,CWA,120,21.8,13,21.8
-all_storms,all,int_kt,ECMWF-ENS,24,-17.7,82,18.0
-all_storms,all,int_kt,ECMWF-ENS,48,-15.0,70,16.8
-all_storms,all,int_kt,ECMWF-ENS,72,-14.3,58,16.1
+all_storms,all,int_kt,ECMWF-ENS,24,-17.8,83,18.0
+all_storms,all,int_kt,ECMWF-ENS,48,-15.2,71,16.9
+all_storms,all,int_kt,ECMWF-ENS,72,-14.3,59,16.1
 all_storms,all,int_kt,ECMWF-ENS,96,-12.1,47,16.8
 all_storms,all,int_kt,ECMWF-ENS,120,-9.4,37,18.5
-all_storms,all,int_kt,ECMWF HRES,24,-15.9,82,16.6
-all_storms,all,int_kt,ECMWF HRES,48,-10.6,70,14.1
-all_storms,all,int_kt,ECMWF HRES,72,-8.2,58,11.6
+all_storms,all,int_kt,ECMWF HRES,24,-15.9,83,16.6
+all_storms,all,int_kt,ECMWF HRES,48,-10.7,71,14.1
+all_storms,all,int_kt,ECMWF HRES,72,-8.2,59,11.6
 all_storms,all,int_kt,ECMWF HRES,96,-4.7,47,11.4
 all_storms,all,int_kt,ECMWF HRES,120,1.2,37,13.8
-all_storms,all,int_kt,GEFS,24,-24.4,82,24.6
-all_storms,all,int_kt,GEFS,48,-26.3,70,27.2
-all_storms,all,int_kt,GEFS,72,-26.1,58,26.7
+all_storms,all,int_kt,GEFS,24,-24.6,83,24.9
+all_storms,all,int_kt,GEFS,48,-26.5,71,27.4
+all_storms,all,int_kt,GEFS,72,-26.3,59,26.9
 all_storms,all,int_kt,GEFS,96,-25.9,47,27.4
 all_storms,all,int_kt,GEFS,120,-24.0,39,26.1
-all_storms,all,int_kt,GENC,24,-19.3,82,22.2
-all_storms,all,int_kt,GENC,48,-18.0,70,21.7
-all_storms,all,int_kt,GENC,72,-17.4,58,22.9
+all_storms,all,int_kt,GENC,24,-19.5,83,22.3
+all_storms,all,int_kt,GENC,48,-18.2,71,21.9
+all_storms,all,int_kt,GENC,72,-17.6,59,23.0
 all_storms,all,int_kt,GENC,96,-17.7,46,24.6
 all_storms,all,int_kt,GENC,120,-16.6,38,25.6
-all_storms,all,int_kt,GFS,24,-14.6,82,17.5
-all_storms,all,int_kt,GFS,48,-15.3,70,18.9
-all_storms,all,int_kt,GFS,72,-14.8,58,18.8
+all_storms,all,int_kt,GFS,24,-14.8,83,17.7
+all_storms,all,int_kt,GFS,48,-15.5,71,19.0
+all_storms,all,int_kt,GFS,72,-15.0,59,18.9
 all_storms,all,int_kt,GFS,96,-16.4,47,21.5
 all_storms,all,int_kt,GFS,120,-15.7,39,23.1
 all_storms,all,int_kt,JMA,24,2.3,41,6.7
@@ -519,24 +519,24 @@ all_storms,all,int_kt,JMA,48,6.2,33,10.2
 all_storms,all,int_kt,JMA,72,11.0,25,13.4
 all_storms,all,int_kt,JMA,96,19.4,17,19.4
 all_storms,all,int_kt,JMA,120,21.5,13,21.5
-all_storms,all,int_kt,JTWC,24,2.4,40,8.1
-all_storms,all,int_kt,JTWC,48,6.2,32,9.1
-all_storms,all,int_kt,JTWC,72,8.5,24,9.8
+all_storms,all,int_kt,JTWC,24,2.0,41,8.3
+all_storms,all,int_kt,JTWC,48,6.1,33,8.8
+all_storms,all,int_kt,JTWC,72,8.0,25,9.6
 all_storms,all,int_kt,JTWC,96,12.6,17,16.2
 all_storms,all,int_kt,JTWC,120,13.5,13,21.9
-all_storms,all,int_kt,WN2-C r1,24,0.8,82,8.5
-all_storms,all,int_kt,WN2-C r1,48,1.3,70,8.9
-all_storms,all,int_kt,WN2-C r1,72,1.2,58,8.0
+all_storms,all,int_kt,WN2-C r1,24,0.7,83,8.5
+all_storms,all,int_kt,WN2-C r1,48,1.1,71,8.9
+all_storms,all,int_kt,WN2-C r1,72,1.0,59,8.0
 all_storms,all,int_kt,WN2-C r1,96,3.8,47,9.6
 all_storms,all,int_kt,WN2-C r1,120,7.9,39,12.6
-all_storms,all,int_kt,WN2-C r2,24,-0.8,82,7.9
-all_storms,all,int_kt,WN2-C r2,48,0.1,70,8.5
-all_storms,all,int_kt,WN2-C r2,72,0.4,58,7.9
+all_storms,all,int_kt,WN2-C r2,24,-0.9,83,8.0
+all_storms,all,int_kt,WN2-C r2,48,-0.2,71,8.6
+all_storms,all,int_kt,WN2-C r2,72,0.2,59,7.9
 all_storms,all,int_kt,WN2-C r2,96,2.7,47,9.7
 all_storms,all,int_kt,WN2-C r2,120,7.1,39,13.5
-all_storms,all,int_kt,WN3-C,24,0.1,82,9.0
-all_storms,all,int_kt,WN3-C,48,1.8,70,9.9
-all_storms,all,int_kt,WN3-C,72,1.7,58,8.9
+all_storms,all,int_kt,WN3-C,24,-0.1,83,9.1
+all_storms,all,int_kt,WN3-C,48,1.6,71,9.9
+all_storms,all,int_kt,WN3-C,72,1.6,59,8.9
 all_storms,all,int_kt,WN3-C,96,5.1,47,11.3
 all_storms,all,int_kt,WN3-C,120,10.0,39,14.6
 all_storms,official,track_km,CWA,24,34.0,40,
