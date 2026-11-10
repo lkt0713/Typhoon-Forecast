@@ -1907,7 +1907,7 @@ CHANGELOG = [
         ('校驗折線圖預設只突顯最準的三個模式；說明頁開頭改成條列',
          'The verification chart highlights the three most accurate models by default; the About intro is now a short list'),
         ('颱風頁改版：互動地圖移到最上面、颱風卡片旁邊，一進來就看到各模式路徑；時間軸預設停在 +48 小時，之後的路徑用虛線，並畫出 67% 成員所在的範圍',
-         'Storm page redesign: the interactive map now sits at the top beside the storm card with every model\'s track; the slider starts at +48 h, later track is dashed, and a circle shows where 67% of members are'),
+         'Storm page redesign: the interactive map now sits at the top beside the storm card with every model\'s track and members; the slider starts at +48 h, later track is dashed, and a circle per model shows where 67% of its members are'),
         ('風速、氣壓、位置併進颱風卡片，並新增登陸臺灣與沖繩／東京侵襲兩列；手機總覽的地球移到文字上方',
          'Wind, pressure and position move into the storm card, with Taiwan-landfall and Okinawa/Tokyo strike rows; on phones the Overview globe sits above the text'),
         ('強度分頁新增「偏差修正後的強度」：系集平均扣掉該模式本季的平均強度偏差，與 JTWC 官方預報並列',
@@ -2776,7 +2776,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     if isinstance(m, dict) and m.get('tracks_json')), '')
         if _tj and os.path.exists(_tj):
             # 互動地圖放在颱風頁最上面、颱風卡片旁邊（手機排在卡片下面）：一進來就是所有模式的平均路徑，
-            # 預設畫到 +48 小時（之後虛線）、成員點與 67% 範圍只畫「成員顯示」選的那個模式
+            # 預設畫到 +48 小時（之後虛線）；有勾選的模式都畫成員、成員點與 67% 範圍
             sec_id = f"sec-{key_prefix}-tmap"
             tmap_html = f"""
             <div class="panel storm-map reveal" id="{sec_id}">
@@ -2802,7 +2802,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
                     <details class="tm-opts">
                         <summary data-i18n="tmap.opts">Map options</summary>
                         <div class="tm-controls">
-                            <label><span data-i18n="tmap.focus">Members of</span> <select class="tm-model" aria-label="Model"></select></label>
+                            <label class="tm-focus"><span data-i18n="mp.label">Model</span> <select class="tm-model" aria-label="Model"></select></label>
                             <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
                             <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
                             <label class="tm-det-wrap"><input type="checkbox" class="tm-det"> <span data-i18n="tmap.det">Deterministic</span></label>
@@ -4424,7 +4424,7 @@ html[lang^="zh"] .i-en { display: none; }
 .track-map.tm-cmp .tm-stage .tm-chips { position: absolute; z-index: 500; right: 10px; top: 10px; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; padding: 6px; border-radius: 14px; max-height: calc(100% - 20px); overflow: auto; background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--border); }
 .track-map .tm-stage .tm-chip { padding: 4px 10px; font-size: .78em; border-color: transparent; justify-content: flex-start; }
 .track-map .tm-stage .tm-chip[aria-pressed="true"] { border-color: transparent; }
-.track-map.tm-cmp .tm-model { display: inline-block; }
+.track-map.tm-cmp .tm-focus { display: none; }
 .storm-map .tm-time { margin: 12px 2px 0; align-items: flex-start; }
 .storm-map .tm-time .pc-btn { flex: none; }
 .tm-slider { flex: 1 1 160px; min-width: 120px; display: flex; flex-direction: column; gap: 3px; padding-top: 9px; }
@@ -5233,7 +5233,6 @@ const I18N = {
     'about.alerts.sub': 'Subscribe:',
     'tmap.full':        'Full tracks',
     'tmap.opts':        'Map options',
-    'tmap.focus':       'Members of',
     'tmap.spread':      '{m}: 67% of members within {km} km at +{h} h',
     'tmap.play':        'Play through the forecast hours',
     'sub.mine':         'My location',
@@ -5556,7 +5555,6 @@ const I18N = {
     'about.alerts.sub': '訂閱：',
     'tmap.full':        '完整路徑',
     'tmap.opts':        '地圖選項',
-    'tmap.focus':       '成員顯示',
     'tmap.spread':      '{m}：+{h} 小時有 67% 成員在 {km} 公里內',
     'tmap.play':        '依預報時數播放',
     'sub.mine':         '我的位置',
@@ -6404,23 +6402,20 @@ async function initTrackMap(box) {
             const miss = run ? (cmp ? shown() : [sel.value]).filter(m => !has(m)) : [];
             msg.hidden = !miss.length;
             msg.textContent = miss.length ? `${miss.join('、')} ${fmtAt(run, 0)} ${t('tmap.na')}` : '';
-            // 多模式時成員只畫「成員顯示」選的那個模式（全畫是幾百條線，看不出東西）
-            const focus = sel.value;
-            // 那一刻 67% 成員所在的範圍：以平均位置為圓心、涵蓋 67% 成員的半徑
-            if (h != null && showM.checked && list.includes(focus)) {
-                const fd = cur.models[focus];
+            // 那一刻 67% 成員所在的範圍：每個有顯示的模式各畫一個圓，以平均位置為圓心、涵蓋 67% 成員的半徑
+            if (h != null && showM.checked) list.forEach(fm => {
+                const fd = cur.models[fm];
                 const at = (fd.members || []).map(r => posAt(unwrap(r), h)).filter(Boolean);
-                if (at.length >= 5) {
-                    const mp0 = (fd.mean || []).length ? posAt(unwrap(fd.mean), h) : null;
-                    const c = mp0 || [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length];
-                    const ds = at.map(p => kmBetween(c[0], c[1], p[0], p[1])).sort((a, b) => a - b);
-                    const r67 = ds[Math.min(ds.length - 1, Math.floor(ds.length * .67))];
-                    L.circle([c[0], c[1]], {radius: r67 * 1000, color: cmp ? colorOf(focus) : '#5BB1FF', weight: 1, opacity: .7, fillOpacity: .08})
-                        .bindTooltip(t('tmap.spread', {m: focus, km: Math.round(r67), h}), {sticky: true}).addTo(layer);
-                }
-            }
-            // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
-            if (showM.checked) list.filter(m => !cmp || m === focus).forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
+                if (at.length < 5) return;
+                const mp0 = (fd.mean || []).length ? posAt(unwrap(fd.mean), h) : null;
+                const c = mp0 || [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length];
+                const ds = at.map(p => kmBetween(c[0], c[1], p[0], p[1])).sort((a, b) => a - b);
+                const r67 = ds[Math.min(ds.length - 1, Math.floor(ds.length * .67))];
+                L.circle([c[0], c[1]], {radius: r67 * 1000, color: cmp ? colorOf(fm) : '#5BB1FF', weight: 1, opacity: .7, fillOpacity: list.length > 3 ? .04 : .08})
+                    .bindTooltip(t('tmap.spread', {m: fm, km: Math.round(r67), h}), {sticky: true}).addTo(layer);
+            });
+            // 先畫所有成員（有勾選的模式都畫），再畫平均與決定報，粗線才不會被別的模式的成員蓋住
+            if (showM.checked) list.forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
                 const pts = clip(unwrap(raw));
                 if (!pts.length) return;
                 if (h != null) {
@@ -6430,7 +6425,8 @@ async function initTrackMap(box) {
                 }
                 if (cmp) {
                     // 模式一多成員線就淡一點，平均線才看得出來
-                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: .3})
+                    // 模式一多成員線就淡一點，平均線才看得出來
+                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: list.length > 3 ? .2 : .35})
                         .bindTooltip(`${m} #${i + 1}`, {sticky: true}).addTo(layer);
                 } else for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
