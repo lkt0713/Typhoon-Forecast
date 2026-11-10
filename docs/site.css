@@ -965,7 +965,7 @@ html[lang^="zh"] .i-en { display: none; }
 .track-map.tm-cmp .tm-stage .tm-chips { position: absolute; z-index: 500; right: 10px; top: 10px; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; padding: 6px; border-radius: 14px; max-height: calc(100% - 20px); overflow: auto; background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--border); }
 .track-map .tm-stage .tm-chip { padding: 4px 10px; font-size: .78em; border-color: transparent; justify-content: flex-start; }
 .track-map .tm-stage .tm-chip[aria-pressed="true"] { border-color: transparent; }
-.track-map.tm-cmp .tm-model { display: inline-block; }
+.track-map.tm-cmp .tm-focus { display: none; }
 .storm-map .tm-time { margin: 12px 2px 0; align-items: flex-start; }
 .storm-map .tm-time .pc-btn { flex: none; }
 .tm-slider { flex: 1 1 160px; min-width: 120px; display: flex; flex-direction: column; gap: 3px; padding-top: 9px; }
