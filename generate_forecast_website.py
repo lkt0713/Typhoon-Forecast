@@ -1349,7 +1349,39 @@ def _hero_glance(info: dict, models: list, docs_dir: str) -> str:
     return '<ul class="hero-glance">' + ''.join(f'<li>{c}</li>' for c in chips) + '</ul>'
 
 
-def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None) -> str:
+SS_ICONS = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+)
+
+
+def _risk_rows(models: list) -> list[tuple[str, str]]:
+    """颱風卡片的風險列：登陸臺灣、沖繩／東京侵襲。各取系集模式的最高值，寫出是哪個模式、幾個模式 ≥1%；
+    全部 <1% 就寫「各模式都 <1%」。回傳 [(標籤 HTML, 數值 HTML), ...]。"""
+    cs = [(m.get('ens_name') or m.get('model'), m.get('city_strike')) for m in models
+          if isinstance(m, dict) and isinstance(m.get('city_strike'), dict)]
+    places = {'tw_landfall': ('Taiwan landfall', '登陸臺灣'), 'naha': ('Okinawa strike', '沖繩侵襲'),
+              'tokyo': ('Tokyo strike', '東京侵襲')}
+    rows = []
+    for keys, en, zh in ((['tw_landfall'], 'Taiwan landfall', '登陸臺灣'), (['naha', 'tokyo'], 'Okinawa / Tokyo strike', '沖繩／東京侵襲')):
+        vals = [((c.get(k) or {}).get('p'), k, name) for name, c in cs for k in keys]
+        vals = [v for v in vals if v[0] is not None]
+        if not vals:
+            continue
+        n = len({name for _, _, name in vals})
+        p, k, name = max(vals, key=lambda v: v[0])
+        if p < 1:
+            rows.append((_bi(en, zh), _bi('&lt;1% in every model', '各模式都 &lt;1%')))
+        else:
+            hits = len({nm for v, _, nm in vals if v >= 1})
+            rows.append((_bi(*places[k]),
+                         _bi(f'up to {p:.0f}%<small>{_esc(name)} · {hits} of {n} models</small>',
+                             f'最高 {p:.0f}%<small>{_esc(name)} · {n} 個中 {hits} 個</small>')))
+    return rows
+
+
+def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None, risks: list | None = None) -> str:
     """颱風頁頂端的白話摘要：往哪走、會變強還是變弱、臺灣有沒有威脅。缺資料的那句就不寫。
     extra 是另外算好的句子（跟上一報比、模式共識、最準模式），接在後面、字小一點。"""
     import math
@@ -1384,18 +1416,19 @@ def _storm_summary(info: dict, city_cols: list, extra: list[str] | None = None) 
                              f'未來 {tau24:.0f} 小時維持約 {kt24:.0f} kt。'))
     land = [(c[0], (c[1].get('tw_landfall') or {}).get('p') or 0) for c in city_cols
             if not (len(c) > 2 and c[2]) and 'tw_landfall' in c[1]]
-    if land:
+    if land and not risks:      # 有風險列時，登陸臺灣寫在風險列，不重複成一句
         name, top = max(land, key=lambda t: t[1])
         if top < 1:
             lines.append(_bi('Taiwan landfall: under 1% in every model.', '登陸臺灣：各模式機率都低於 1%。'))
         else:
             lines.append(_bi(f'Taiwan landfall: up to {top:.0f}% ({_esc(name)}).',
                              f'登陸臺灣：機率最高 {top:.0f}%（{_esc(name)}）。'))
-    extra = [x for x in (extra or []) if x]
-    if not lines and not extra:
+    extra = [(SS_ICONS[i % len(SS_ICONS)], x) for i, x in enumerate(extra or []) if x]
+    if not lines and not extra and not risks:
         return ''
-    return ('<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines)
-            + ''.join(f'<p class="ss-extra">{x}</p>' for x in extra) + '</div>')
+    risk_html = ('<div class="storm-risk">' + ''.join(f'<div><span>{a}</span><b>{b}</b></div>' for a, b in risks) + '</div>') if risks else ''
+    extra_html = ('<div class="ss-extras">' + ''.join(f'<p class="ss-extra">{ic}<span>{x}</span></p>' for ic, x in extra) + '</div>') if extra else ''
+    return ('<div class="storm-summary">' + ''.join(f'<p>{l}</p>' for l in lines) + risk_html + extra_html + '</div>')
 
 
 TW_COUNTY_NAMES = {
@@ -1849,6 +1882,10 @@ CAVEAT_INTENSITY = "Read the intensities here as a trend, not as a forecast of p
 # 每點是 (中文, English)，寫給使用者看：說「看得到什麼」，不寫檔名與程式細節。
 CHANGELOG = [
     ('7.2.0', '2026-11-09', [
+        ('颱風頁改版：互動地圖移到最上面、颱風卡片旁邊，一進來就看到各模式路徑；時間軸預設停在 +48 小時，之後的路徑用虛線，並畫出 67% 成員所在的範圍',
+         'Storm page redesign: the interactive map now sits at the top beside the storm card with every model\'s track; the slider starts at +48 h, later track is dashed, and a circle shows where 67% of members are'),
+        ('風速、氣壓、位置併進颱風卡片，並新增登陸臺灣與沖繩／東京侵襲兩列；手機總覽的地球移到文字上方',
+         'Wind, pressure and position move into the storm card, with Taiwan-landfall and Okinawa/Tokyo strike rows; on phones the Overview globe sits above the text'),
         ('強度分頁新增「偏差修正後的強度」：系集平均扣掉該模式本季的平均強度偏差，與 JTWC 官方預報並列',
          'The Intensity tab adds a bias-corrected intensity line: the ensemble mean with the model\'s season-to-date intensity bias removed, alongside the JTWC forecast'),
         ('歷史頁「本季至今」新增依情境拆開的校驗（轉向前／後、起報時強度）與生成訊號對照（1000 成員系集的生成群 vs 實際生成的颱風）',
@@ -2390,18 +2427,12 @@ def generate_forecast_html(storms: list[dict], output_path: str,
             switcher = f'<div class="storm-switch reveal">{links}</div>'
 
         kt_txt = f"{info['wind']:.0f}" if info['wind'] is not None else ''
-        stats = [
-            ('stat.time', '⏱', 'Obs time', f'<span class="mono">{_esc(info["time"])}</span>'),
-            ('stat.pos', '📍', 'Position', f'<span class="mono">{_esc(info["pos"])}</span>'),
-        ]
-        if info['pressure'] is not None:
-            stats.append(('stat.pres', '🧭', 'Min pressure',
-                          f'<span data-count="{info["pressure"]:.0f}">{info["pressure"]:.0f}</span><small>hPa</small>'))
-        stats_html = "".join(f"""
-                <div class="stat reveal">
-                    <div class="stat-label"><span aria-hidden="true">{icon}</span> <span data-i18n="{key}">{label}</span></div>
-                    <div class="stat-value">{val}</div>
-                </div>""" for key, icon, label, val in stats)
+        # 現況數字（風速、氣壓、位置、觀測時間）直接放在颱風卡片裡，不另外排一列卡片
+        key_html = ('<div class="storm-key">'
+                    + (f'<span><b>{kt_txt}</b>kt</span>' if kt_txt else '')
+                    + (f'<span><b>{info["pressure"]:.0f}</b>hPa</span>' if info['pressure'] is not None else '')
+                    + f'<span class="sk-meta">{_esc(info["pos"])} · <span data-i18n="stat.time">Obs time</span> {_esc(info["time"])}</span>'
+                    + '</div>')
 
         sections = []   # (目標 id, i18n key, 預設文字)
 
@@ -2720,40 +2751,48 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         _tj = next((m.get('tracks_json') for m in models
                     if isinstance(m, dict) and m.get('tracks_json')), '')
         if _tj and os.path.exists(_tj):
+            # 互動地圖放在颱風頁最上面、颱風卡片旁邊（手機排在卡片下面）：一進來就是所有模式的平均路徑，
+            # 預設畫到 +48 小時（之後虛線）、成員點與 67% 範圍只畫「成員顯示」選的那個模式
             sec_id = f"sec-{key_prefix}-tmap"
-            sections.append((sec_id, 'sub.tmap', 'Map'))
             tmap_html = f"""
-            <div class="panel reveal" id="{sec_id}">
-                <div class="panel-header">
-                    <span class="panel-icon">🧭</span>
-                    <span data-i18n="panel.tmap">Interactive Track Map</span>
-                </div>
-                <div class="track-map" data-src="{_esc(os.path.basename(_tj))}">
-                    <div class="tm-controls">
-                        <button type="button" class="ghost-btn tm-cmp-btn" aria-pressed="false">{ICONS["compare"]}<span data-i18n="tmap.compare">Compare models</span></button>
-                        <select class="tm-model" aria-label="Model"></select>
-                        <span class="tm-chips"></span>
+            <div class="panel storm-map reveal" id="{sec_id}">
+                <div class="track-map tm-cmp" data-src="{_esc(os.path.basename(_tj))}" data-all="1">
+                    <div class="tm-head">
+                        <span data-i18n="panel.tmap">Interactive Track Map</span>
                         <span class="tm-init"><span data-i18n="tmap.init">Init</span> <b class="tm-init-val"></b></span>
-                        <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
-                        <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
-                        <label class="tm-det-wrap"><input type="checkbox" class="tm-det" checked> <span data-i18n="tmap.det">Deterministic</span></label>
                     </div>
-                    <div class="run-picks tm-runs" role="group" aria-label="Init"></div>
+                    <div class="tm-stage">
+                        <div class="tm-map"></div>
+                        <span class="tm-chips"></span>
+                    </div>
                     <div class="tm-time">
                         <button type="button" class="pc-btn tm-play" data-i18n="tmap.play" data-i18n-attr="title" title="Play"><span class="ic-play">{ICONS['play']}</span><span class="ic-pause">{ICONS['pause']}</span></button>
                         <button type="button" class="pc-btn tm-step" data-step="-6" data-i18n="pl.prev" data-i18n-attr="title" title="Previous">{ICONS['prev']}</button>
                         <button type="button" class="pc-btn tm-step" data-step="6" data-i18n="pl.next" data-i18n-attr="title" title="Next">{ICONS['next']}</button>
-                        <input type="range" class="tm-hour" min="0" max="120" step="6" value="72" aria-label="Forecast hour">
+                        <div class="tm-slider">
+                            <input type="range" class="tm-hour" min="0" max="120" step="6" value="48" aria-label="Forecast hour">
+                            <div class="tm-ticks" aria-hidden="true"></div>
+                        </div>
                         <span class="tm-hour-val mono"></span>
-                        <label><input type="checkbox" class="tm-full" checked> <span data-i18n="tmap.full">Full tracks</span></label>
                     </div>
-                    <div class="tm-map"></div>
-                </div>
-                <p class="map-note" data-i18n="note.tmap">
+                    <details class="tm-opts">
+                        <summary data-i18n="tmap.opts">Map options</summary>
+                        <div class="tm-controls">
+                            <label><span data-i18n="tmap.focus">Members of</span> <select class="tm-model" aria-label="Model"></select></label>
+                            <label><input type="checkbox" class="tm-members" checked> <span data-i18n="tmap.members">Members</span></label>
+                            <label><input type="checkbox" class="tm-mean" checked> <span data-i18n="tmap.mean">Mean</span></label>
+                            <label class="tm-det-wrap"><input type="checkbox" class="tm-det"> <span data-i18n="tmap.det">Deterministic</span></label>
+                            <label><input type="checkbox" class="tm-full"> <span data-i18n="tmap.full">Full tracks</span></label>
+                            <button type="button" class="ghost-btn tm-cmp-btn" aria-pressed="true">{ICONS["compare"]}<span data-i18n="tmap.compare">Compare models</span></button>
+                        </div>
+                        <div class="run-picks tm-runs" role="group" aria-label="Init"></div>
+                        <p class="map-note" data-i18n="note.tmap">
                     Drag / scroll to zoom &nbsp;·&nbsp; Hover a line for member, time (UTC) and wind &nbsp;·&nbsp;
                     Member colors = intensity &nbsp;·&nbsp; Compare: pick any models, one color each, dashed = deterministic &nbsp;·&nbsp; Init buttons switch every model to the same run
                     &nbsp;·&nbsp; Untick "Full tracks" to scrub by forecast hour: tracks are drawn up to that hour and a dot marks where every member puts the center then, so the spread of dots is the position uncertainty
-                </p>
+                        </p>
+                    </details>
+                </div>
             </div>"""
 
         mine_html = ""
@@ -2879,13 +2918,13 @@ def generate_forecast_html(storms: list[dict], output_path: str,
         extras = [_run_delta(_docs, track_id, _prefer),
                   _consensus(models),
                   _best_model(_card_m.get('scorecard_all') if _card_m else {}, _card_m.get('scorecard') if _card_m else {})]
-        summary_html = _storm_summary(info, city_cols, extras)
+        summary_html = _storm_summary(info, city_cols, extras, _risk_rows(models))
 
         # ── 依讀者的問題分頁：概況／路徑／侵襲／強度／校驗，每頁單欄排列
         panes = [
             ('now', 'tab.now', 'Summary',
              f"{sat_html}{ohc_html}{shear_html}{steer_html}{jtwc_html}{official_html}{cities_html}{tw_html}"),
-            ('track', 'tab.track', 'Track', f"{cmp_html}{map120_html}{maps_html}{anim_html}{tmap_html}{trend_html}"),
+            ('track', 'tab.track', 'Track', f"{cmp_html}{map120_html}{maps_html}{anim_html}{trend_html}"),
             ('strike', 'tab.strike', 'Strike', f"{radii_html}{strike_html}{extra_html}{mine_html}"),
             ('intensity', 'tab.int', 'Intensity', plume_html),
             ('score', 'tab.score', 'Verification', score_html),
@@ -2936,19 +2975,21 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     <section class="view" data-view="storm/{key_prefix}" data-title="{_esc(_title(info))}">
         <div class="page">
             {switcher}
-            <div class="storm-hero reveal" style="--cat:{info['color']}">
-                <div class="swirl" aria-hidden="true"></div>
-                <div class="storm-hero-main">
-                    <div class="storm-badges">
-                        <span class="badge-cat" style="background:{info['color']};color:{info['text']};"><span data-i18n="catname.{info['cat']}">{info['cat']}</span></span>
-                        <span class="badge-id">{_esc(track_id)}</span>
+            <div class="storm-top{'' if tmap_html else ' no-map'}">
+                <div class="storm-hero reveal" style="--cat:{info['color']}">
+                    <div class="swirl" aria-hidden="true"></div>
+                    <div class="storm-hero-main">
+                        <div class="storm-badges">
+                            <span class="badge-cat" style="background:{info['color']};color:{info['text']};"><span data-i18n="catname.{info['cat']}">{info['cat']}</span></span>
+                            <span class="badge-id">{_esc(track_id)}</span>
+                        </div>
+                        <h2 class="storm-title storm-name">{_esc(_title(info))}</h2>
+                        {key_html}
+                        {summary_html}
                     </div>
-                    <h2 class="storm-title storm-name">{_esc(_title(info))}</h2>
-                    {summary_html}
                 </div>
-                <div class="gauge gauge-lg" data-kt="{kt_txt}" style="--cat:{info['color']}"></div>
+                {tmap_html}
             </div>
-            <div class="stat-grid">{stats_html}</div>
             <div class="storm-bar-anchor"></div>
             {storm_bar}
             {pane_html}
@@ -3891,7 +3932,6 @@ html[lang^="zh"] .stat-label { letter-spacing: .04em; }
 .track-map label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .track-map .tm-chips { display: none; flex-wrap: wrap; gap: 6px; }
 .track-map.tm-cmp .tm-chips { display: inline-flex; }
-.track-map.tm-cmp .tm-model { display: none; }
 .track-map .tm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); font: inherit; font-weight: 600; cursor: pointer; transition: all .2s; }
 .track-map .tm-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
 .track-map .tm-chip:hover { color: var(--text); border-color: var(--text); }
@@ -4311,9 +4351,65 @@ html[lang^="zh"] .i-zh { display: inline; }
 html[lang^="zh"] .i-en { display: none; }
 .storm-summary { margin-top: 18px; max-width: 54ch; display: grid; gap: 6px; }
 .storm-summary p { font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.55; color: #eaf0f5; font-weight: 400; }
-.storm-summary p.ss-extra { font-size: clamp(.9rem, 1.2vw, 1rem); color: #c9d4df; }
-.storm-summary p.ss-extra strong { color: #eaf0f5; font-weight: 600; }
+.storm-summary p.ss-extra { font-size: clamp(.86rem, 1.1vw, .95rem); color: var(--text-2); display: flex; gap: 9px; font-weight: 450; }
+.storm-summary p.ss-extra strong { color: var(--text); font-weight: 650; }
+.storm-summary p.ss-extra svg { flex: none; width: 15px; height: 15px; margin-top: .28em; color: var(--accent); }
 .storm-summary .link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--accent, #7fc7ff); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.storm-summary .ss-extras { display: grid; gap: 9px; margin-top: 14px; }
+.storm-risk { margin-top: 10px; font-size: .92rem; }
+.storm-risk > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 40px; border-top: 1px solid var(--border); }
+.storm-risk > div:last-child { border-bottom: 1px solid var(--border); }
+.storm-risk > div > span { color: var(--text-2); }
+.storm-risk b { text-align: right; font-weight: 650; color: var(--text); }
+.storm-risk b small { font-weight: 500; color: var(--text-2); margin-left: 8px; font-size: .92em; }
+.storm-key { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; color: var(--text-2); font-size: .92rem; }
+.storm-key b { font-size: 1.9em; font-weight: 750; color: var(--text); margin-right: 4px; font-variant-numeric: tabular-nums; }
+.storm-key .sk-meta { flex-basis: 100%; font-variant-numeric: tabular-nums; font-size: .95em; }
+/* 颱風頁最上面：左邊颱風卡片、右邊互動地圖（窄螢幕直排，卡片在上） */
+.storm-top { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: 16px; align-items: stretch; }
+.storm-top.no-map { grid-template-columns: minmax(0, 1fr); }
+.storm-top > .storm-hero { display: flex; flex-direction: column; padding: 28px 28px 24px; }
+.storm-top .storm-hero-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.storm-top .storm-title { font-size: clamp(2.1rem, 3.6vw, 3.1rem); margin: 10px 0 10px; }
+.storm-top .storm-summary { max-width: none; display: flex; flex-direction: column; gap: 5px; flex: 1; margin-top: 14px; }
+.storm-top .storm-summary > p:not(.ss-extra) { font-size: clamp(.98rem, 1.25vw, 1.08rem); }
+.storm-top .storm-summary .ss-extras { margin-top: auto; padding-top: 14px; }
+.storm-map { padding: 14px 14px 10px; display: flex; flex-direction: column; min-width: 0; }
+.storm-map .track-map { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.tm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 2px 4px 10px; font-weight: 700; }
+.tm-head .tm-init { font-size: .8em; font-weight: 500; text-align: right; }
+.tm-stage { position: relative; flex: 1; min-height: 380px; }
+.track-map .tm-stage .tm-map { position: absolute; inset: 0; height: auto; }
+.track-map.tm-cmp .tm-stage .tm-chips { position: absolute; z-index: 500; right: 10px; top: 10px; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; padding: 6px; border-radius: 14px; max-height: calc(100% - 20px); overflow: auto; background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--border); }
+.track-map .tm-stage .tm-chip { padding: 4px 10px; font-size: .78em; border-color: transparent; justify-content: flex-start; }
+.track-map .tm-stage .tm-chip[aria-pressed="true"] { border-color: transparent; }
+.track-map.tm-cmp .tm-model { display: inline-block; }
+.storm-map .tm-time { margin: 12px 2px 0; align-items: flex-start; }
+.storm-map .tm-time .pc-btn { flex: none; }
+.tm-slider { flex: 1 1 160px; min-width: 120px; display: flex; flex-direction: column; gap: 3px; padding-top: 9px; }
+.tm-time .tm-slider .tm-hour { flex: none; min-width: 0; width: 100%; margin: 0; }
+.tm-ticks { position: relative; height: 15px; font-size: .72em; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tm-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+.tm-ticks span:first-child { transform: none; }
+.tm-ticks span:last-child { transform: translateX(-100%); }
+.storm-map .tm-time .tm-hour-val { min-width: 9.5em; text-align: right; padding-top: 7px; font-weight: 650; color: var(--text); }
+.tm-opts { margin-top: 6px; font-size: .9em; }
+.tm-opts > summary { cursor: pointer; color: var(--text-2); font-weight: 600; padding: 8px 4px; border-radius: 8px; }
+.tm-opts > summary:hover { color: var(--text); }
+.tm-opts .tm-controls { margin: 6px 4px 10px; }
+.tm-opts .map-note, .storm-map .dl-row { margin: 8px 4px 4px; }
+@media (max-width: 1000px) {
+    .storm-top { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+    .storm-top > .storm-hero { padding: 22px 20px 20px; }
+    .tm-stage { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    .track-map.tm-cmp .tm-stage .tm-chips { position: static; order: -1; flex-direction: row; max-height: none; overflow-x: auto; padding: 4px; }
+    .track-map .tm-stage .tm-chip { flex: none; min-height: 36px; }
+    .track-map .tm-stage .tm-map { position: relative; inset: auto; height: 340px; }
+    .storm-map .tm-time { flex-wrap: wrap; }
+    .storm-map .tm-time .tm-hour-val { min-width: 0; flex-basis: 100%; text-align: left; padding-top: 0; }
+}
 .storm-badges { margin-bottom: 14px; }
 .storm-badges .badge-cat { font-family: inherit; text-transform: none; letter-spacing: .02em; }
 
@@ -5069,6 +5165,9 @@ const I18N = {
     'about.alerts.text': 'New systems, naming, intensity-category changes, forecast shifts of 150 km or more and Taiwan landfall chance changes of 10 points or more, as soon as an update notices them.',
     'about.alerts.sub': 'Subscribe:',
     'tmap.full':        'Full tracks',
+    'tmap.opts':        'Map options',
+    'tmap.focus':       'Members of',
+    'tmap.spread':      '{m}: 67% of members within {km} km at +{h} h',
     'tmap.play':        'Play through the forecast hours',
     'sub.mine':         'My location',
     'panel.mine':       'Risk at a location',
@@ -5384,6 +5483,9 @@ const I18N = {
     'about.alerts.text': '新系統、命名、強度分級變化、預報路徑移動 150 公里以上、登陸臺灣機率變動 10 個百分點以上，更新一發現就發出。',
     'about.alerts.sub': '訂閱：',
     'tmap.full':        '完整路徑',
+    'tmap.opts':        '地圖選項',
+    'tmap.focus':       '成員顯示',
+    'tmap.spread':      '{m}：+{h} 小時有 67% 成員在 {km} 公里內',
     'tmap.play':        '依預報時數播放',
     'sub.mine':         '我的位置',
     'panel.mine':       '指定地點的風險',
@@ -6140,8 +6242,17 @@ async function initTrackMap(box) {
         const colorOf = m => TM_CMP_COLORS[m] || palette[m];
         const defaults = ['WN3-C', 'WN2-C r2', 'ECMWF'].filter(m => data.models[m]);
         names.forEach(m => { if (defaults.length < 2 && !defaults.includes(m)) defaults.push(m); });
-        let picks = new Set(defaults);
+        let picks = new Set(box.dataset.all ? names : defaults);
         const cmpOn = () => cmpBtn.getAttribute('aria-pressed') === 'true';
+        box.classList.toggle('tm-cmp', cmpOn());
+        // 「成員顯示」跟著頁面上方的模式選單走
+        const pageSel = box.closest('.view') && $('.model-select', box.closest('.view'));
+        const focusFromPage = () => {
+            const hit = pageSel && names.find(m => modelGroup(m) === modelGroup(pageSel.value));
+            if (!hit || sel.value === hit) return false;
+            sel.value = hit; return true;
+        };
+        focusFromPage();
         const shown = () => names.filter(m => picks.has(m));      // 照模式原本的順序
         const mkChip = (label, onclick) => {
             const b = document.createElement('button');
@@ -6215,8 +6326,23 @@ async function initTrackMap(box) {
             const miss = run ? (cmp ? shown() : [sel.value]).filter(m => !has(m)) : [];
             msg.hidden = !miss.length;
             msg.textContent = miss.length ? `${miss.join('、')} ${fmtAt(run, 0)} ${t('tmap.na')}` : '';
+            // 多模式時成員只畫「成員顯示」選的那個模式（全畫是幾百條線，看不出東西）
+            const focus = sel.value;
+            // 那一刻 67% 成員所在的範圍：以平均位置為圓心、涵蓋 67% 成員的半徑
+            if (h != null && showM.checked && list.includes(focus)) {
+                const fd = cur.models[focus];
+                const at = (fd.members || []).map(r => posAt(unwrap(r), h)).filter(Boolean);
+                if (at.length >= 5) {
+                    const mp0 = (fd.mean || []).length ? posAt(unwrap(fd.mean), h) : null;
+                    const c = mp0 || [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length];
+                    const ds = at.map(p => kmBetween(c[0], c[1], p[0], p[1])).sort((a, b) => a - b);
+                    const r67 = ds[Math.min(ds.length - 1, Math.floor(ds.length * .67))];
+                    L.circle([c[0], c[1]], {radius: r67 * 1000, color: cmp ? colorOf(focus) : '#5BB1FF', weight: 1, opacity: .7, fillOpacity: .08})
+                        .bindTooltip(t('tmap.spread', {m: focus, km: Math.round(r67), h}), {sticky: true}).addTo(layer);
+                }
+            }
             // 先畫所有成員，再畫平均與決定報，粗線才不會被別的模式的成員蓋住
-            if (showM.checked) list.forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
+            if (showM.checked) list.filter(m => !cmp || m === focus).forEach(m => (cur.models[m].members || []).forEach((raw, i) => {
                 const pts = clip(unwrap(raw));
                 if (!pts.length) return;
                 if (h != null) {
@@ -6226,7 +6352,7 @@ async function initTrackMap(box) {
                 }
                 if (cmp) {
                     // 模式一多成員線就淡一點，平均線才看得出來
-                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: list.length > 3 ? .2 : .35})
+                    L.polyline(pts.map(p => [p[0], p[1]]), {color: colorOf(m), weight: 1.1, opacity: .3})
                         .bindTooltip(`${m} #${i + 1}`, {sticky: true}).addTo(layer);
                 } else for (let k = 0; k < pts.length - 1; k++) {
                     const a = pts[k], b = pts[k + 1];
@@ -6241,8 +6367,16 @@ async function initTrackMap(box) {
             list.forEach(m => {
                 const d = cur.models[m];
                 if (showA.checked && (d.mean || []).length) {
-                    const mp = clip(unwrap(d.mean));
+                    const full = unwrap(d.mean), mp = clip(full);
                     if (mp.length > 1) drawLine(m, d, mp, cmp ? colorOf(m) : '#16324F', false, bounds);
+                    // 選定時數之後的路徑用虛線淡淡畫出來，整條預報還是看得到
+                    if (h != null && mp.length) {
+                        const rest = [[mp[mp.length - 1][0], mp[mp.length - 1][1]], ...full.filter(p => p[3] > h).map(p => [p[0], p[1]])];
+                        if (rest.length > 1) {
+                            L.polyline(rest, {color: cmp ? colorOf(m) : '#16324F', weight: 1.6, opacity: .5, dashArray: '3 6', interactive: false}).addTo(layer);
+                            rest.forEach(p => bounds.push(p));
+                        }
+                    }
                     const q = h != null && mp.length ? mp[mp.length - 1] : null;
                     if (q && q[3] === h) L.circleMarker([q[0], q[1]], {radius: 7, color: '#fff', weight: 2, fillColor: cmp ? colorOf(m) : '#16324F', fillOpacity: 1})
                         .bindTooltip(`${m} ${t('tmap.mean')} · +${h}h · ${fmt(m, h)} · ${q[2] != null ? Math.round(q[2]) : '–'} kt`).addTo(layer);
@@ -6268,8 +6402,7 @@ async function initTrackMap(box) {
                 ? ` · ${md.det_name || 'DET'} ${fmtAt(md.det_init, 0)}` : '');
         };
         const showInit = () => {
-            initVal.textContent = run ? fmtAt(run, 0)
-                : cmpOn() ? shown().map(m => `${m} ${initOf(m)}`).join('　') : initOf(sel.value);
+            initVal.textContent = run ? fmtAt(run, 0) : `${sel.value} ${initOf(sel.value)}`;
         };
         // 起報時間按鈕：「最新」＋各期；選了某期，還沒出報的模式按鈕變灰、按不下去
         const msg = Object.assign(document.createElement('div'), {className: 'tm-msg', hidden: true});
@@ -6315,8 +6448,16 @@ async function initTrackMap(box) {
             const mx = maxLead();
             hourIn.max = mx; if (+hourIn.value > mx) hourIn.value = mx;
             hourIn.classList.toggle('idle', fullBox.checked);
-            const m = cmpOn() ? shown()[0] : sel.value;
+            const m = sel.value;
             hourVal.textContent = fullBox.checked ? t('tmap.full') : `+${hourIn.value} h · ${fmt(m, +hourIn.value)}`;
+            const tk = box.querySelector('.tm-ticks');
+            if (tk && tk.dataset.max !== String(mx)) {
+                tk.dataset.max = mx;
+                const step = mx > 144 ? 48 : 24;
+                let html = '';
+                for (let v = 0; v <= mx; v += step) html += `<span style="left:${(v / mx * 100).toFixed(2)}%">${v ? '+' + v : '0'}</span>`;
+                tk.innerHTML = html;
+            }
         };
         upto = () => fullBox.checked ? null : +hourIn.value;
         const stopPlay = () => { clearInterval(playT); playT = 0; playBtn.classList.remove('playing'); };
@@ -6341,6 +6482,9 @@ async function initTrackMap(box) {
         syncHour();
         showInit();
         sel.onchange = () => { showInit(); syncHour(); draw(false); };
+        if (pageSel) pageSel.addEventListener('change', () => { if (focusFromPage()) { showInit(); syncHour(); draw(false); } });
+        // 地圖卡片的高度跟著旁邊的颱風卡片變（換語言、視窗縮放）：容器大小變了要請 Leaflet 重算
+        if ('ResizeObserver' in window) new ResizeObserver(() => map.invalidateSize()).observe(el);
         cmpBtn.onclick = () => {
             cmpBtn.setAttribute('aria-pressed', !cmpOn());
             box.classList.toggle('tm-cmp', cmpOn());
@@ -7620,7 +7764,7 @@ const Globe = (function () {
                 const p = reduced() ? 0 : clamp01(scrollY / Math.max(1, docH));
                 T.x = .5 * hw; T.y = .08 * hv; T.z = -1.3;
                 T.extra += .3 * p;
-                T.op = dark ? (route.startsWith('storm/') ? .3 : .22) : 0;
+                T.op = dark ? (route.startsWith('storm/') ? .14 : .22) : 0;
             }
             return T;
         }
@@ -7667,7 +7811,8 @@ const Globe = (function () {
                 S.lab.getWorldPosition(labW); anchor.getWorldPosition(labC);
                 labN.subVectors(labW, labC).normalize();
                 const facing = labN.dot(labV.subVectors(camera.position, labW).normalize());
-                S.lab.material.opacity = Math.min(1, Math.max(0, (facing - .02) / .15));
+                // 只有總覽頁顯示颱風名字：其他頁面的地球只是背景，名字會透到卡片後面
+                S.lab.material.opacity = route === 'overview' ? Math.min(1, Math.max(0, (facing - .02) / .15)) : 0;
             }
             const th = orbit.userData.a = (orbit.userData.a || 0) + (reduced() ? 0 : dt * SAT_W);
             const c = Math.cos(th), s = Math.sin(th);
