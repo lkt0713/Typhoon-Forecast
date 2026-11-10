@@ -89,6 +89,26 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
     return problems
 
 
+def check_dateline() -> list[str]:
+    """路徑跨過換日線（經度 179 → -179）時，城市侵襲機率不能把沿途同緯度的城市算進去。"""
+    import numpy as np
+    problems = []
+    # 兩條都在東京的緯度附近、從 170E 往東跨過換日線，離東京三千公里以上
+    tracks = [(np.array([170.0, 176.0, 179.0, -178.0, -174.0]), np.array([35.2, 35.4, 35.6, 35.7, 35.9]), np.arange(5) * 6.0),
+              (np.array([172.0, 178.5, -177.5]), np.array([37.3, 37.5, 37.7]), np.arange(3) * 6.0)]
+    st = f.city_strike_stats(tracks, '2026-01-01T00:00Z')
+    for city in ('tokyo', 'seoul', 'shanghai', 'taipei'):
+        if (st.get(city) or {}).get('p'):
+            problems.append(f'跨換日線的路徑被算成侵襲 {city}：{st[city]}')
+    tw = f.county_window_stats(tracks, '2026-01-01T00:00Z')
+    if any((v or {}).get('p') for k, v in tw.items() if not k.startswith('_')):
+        problems.append('跨換日線的路徑被算成經過臺灣縣市')
+    xs, _, _ = f._densify_track(tracks[0][0], tracks[0][1], tracks[0][2])
+    if xs.max() - xs.min() > 30:
+        problems.append(f'_densify_track 跨換日線後經度範圍 {xs.min():.0f}～{xs.max():.0f}')
+    return problems
+
+
 def rebuild_from_docs(src_docs: str, out_docs: str) -> list[dict]:
     """用 docs/ 裡現有的產物重建 storms（與自動更新的結果相同），不跑預報、不下載。"""
     live = open(os.path.join(src_docs, 'index.html'), encoding='utf-8').read()
@@ -159,6 +179,7 @@ def main() -> int:
             if marker not in h:
                 bad.append(f'[空站] 缺 {marker}')
         bad += [f'[空站] {p}' for p in check_html(h, empty, [])]
+        bad += [f'[換日線] {p}' for p in check_dateline()]
 
         # 2. 用 docs/ 重建目前的網站
         src = os.path.join(ROOT, 'docs')
