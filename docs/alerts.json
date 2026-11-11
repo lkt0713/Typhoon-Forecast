@@ -1,0 +1,58 @@
+{
+ "storms": {
+  "WP312026": {
+   "name": "CEMPAKA",
+   "cat": "Cat1",
+   "wind": 70.0,
+   "first_seen": "2026-11-09T10:35:22Z",
+   "shift_run": "2026111018"
+  }
+ },
+ "events": [
+  {
+   "id": "WP312026-shift-2026-11-10T20:06:07Z",
+   "kind": "shift",
+   "storm": "WP312026",
+   "time": "2026-11-10T20:06:07Z",
+   "en": "CEMPAKA: WN3-C 30 h track shifted 169 km northeast since the previous run",
+   "zh": "CEMPAKA：WN3-C 30 小時路徑比上一報往東北移了 169 公里",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
+  {
+   "id": "WP312026-intensity-2026-11-10T19:56:33Z",
+   "kind": "intensity",
+   "storm": "WP312026",
+   "time": "2026-11-10T19:56:33Z",
+   "en": "CEMPAKA: now Cat1 (80 kt), was Cat2",
+   "zh": "CEMPAKA：現在是 Cat1（80 kt），原 Cat2",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
+  {
+   "id": "WP312026-shift-2026-11-09T12:54:01Z",
+   "kind": "shift",
+   "storm": "WP312026",
+   "time": "2026-11-09T12:54:01Z",
+   "en": "CEMPAKA: WN3-C 60 h track shifted 326 km northeast since the previous run",
+   "zh": "CEMPAKA：WN3-C 60 小時路徑比上一報往東北移了 326 公里",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
+  {
+   "id": "WP312026-new-2026-11-09T10:35:22Z",
+   "kind": "new",
+   "storm": "WP312026",
+   "time": "2026-11-09T10:35:22Z",
+   "en": "New system: CEMPAKA (WP312026), 85 kt",
+   "zh": "新系統：CEMPAKA（WP312026），85 kt",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
+  {
+   "id": "WP312026-shift-2026-11-09T10:35:22Z",
+   "kind": "shift",
+   "storm": "WP312026",
+   "time": "2026-11-09T10:35:22Z",
+   "en": "CEMPAKA: WN3-C 66 h track shifted 348 km northeast since the previous run",
+   "zh": "CEMPAKA：WN3-C 66 小時路徑比上一報往東北移了 348 公里",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  }
+ ]
+}
