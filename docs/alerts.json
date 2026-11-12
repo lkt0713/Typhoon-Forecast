@@ -1,14 +1,15 @@
 {
- "storms": {
-  "WP312026": {
-   "name": "CEMPAKA",
-   "cat": "Cat1",
-   "wind": 65.0,
-   "first_seen": "2026-11-09T10:35:22Z",
-   "shift_run": "2026111112"
-  }
- },
+ "storms": {},
  "events": [
+  {
+   "id": "WP312026-ended-2026-11-12T01:09:57Z",
+   "kind": "ended",
+   "storm": "WP312026",
+   "time": "2026-11-12T01:09:57Z",
+   "en": "CEMPAKA (WP312026) is no longer being tracked",
+   "zh": "CEMPAKA（WP312026）已結束追蹤",
+   "url": "https://lkt0713.github.io/Typhoon-Forecast/#/storm/WP312026"
+  },
   {
    "id": "WP312026-shift-2026-11-10T20:06:07Z",
    "kind": "shift",
