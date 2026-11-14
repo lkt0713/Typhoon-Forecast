@@ -3058,7 +3058,7 @@ window.addEventListener('load', () => {
         if (y !== null) { sessionStorage.removeItem(k); window.scrollTo({ top: +y, behavior: 'instant' }); }
     } catch (e) {}
     updateIndicators();
-    // 離線也能看最後一次更新；圖片第二次開就從快取來
+    // 離線也能看最後一次更新的文字與資料；圖片不存快取，每次都拿最新的
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         navigator.serviceWorker.register('sw.js').catch(e => console.log('[sw]', e));
     }
