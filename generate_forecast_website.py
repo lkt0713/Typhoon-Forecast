@@ -227,11 +227,29 @@ CITY_COLORS = ['#A9D6F5', '#5E9DDB', '#3B6DB3', '#3F9C55', '#9CC64E',
 CITY_DARK_TEXT = {0, 4, 5, 6}   # 淺色底用深字，其餘用白字
 
 
+_FILE_VER: dict[str, str] = {}
+
+
+def _file_ver(path: str) -> str:
+    """檔案內容雜湊的前 8 碼（檔案不存在回空字串）；用來接在圖片網址後面當 ?v=，圖一變網址就變。"""
+    import hashlib
+    key = os.path.abspath(path)
+    if key not in _FILE_VER:
+        try:
+            with open(key, 'rb') as fh:
+                _FILE_VER[key] = hashlib.md5(fh.read()).hexdigest()[:8]
+        except OSError:
+            _FILE_VER[key] = ''
+    return _FILE_VER[key]
+
+
 def _player(key: str, frames_dir: str, frame_files: list[str], caption: str, alt: str,
             start: int = 0) -> str:
     """逐幀動畫播放器（頁尾腳本的 initPlayer 接手）。key 在整頁要唯一；start 是一開始顯示的幀。"""
     folder = os.path.basename(frames_dir)
     n = len(frame_files)
+    # 每一格的檔名固定（frame_0000.webp…）但內容每次更新都換，網址帶內容雜湊才不會播到舊的
+    frame_files = [f'{f}?v={v}' if (v := _file_ver(os.path.join(frames_dir, f))) else f for f in frame_files]
     return f"""<div class="player" data-anim-key="{_esc(key)}" data-frames-dir="{_esc(folder)}"
                          data-frames='{_esc(json.dumps(frame_files))}' data-start="{start}">
                         <figure class="zoomable skel frame-stage" data-caption="{_esc(caption)}">
@@ -1822,6 +1840,23 @@ Page not found, taking you back to the <a href="{_esc(site)}">forecast site</a>.
 ''')
 
 
+_IMG_REF = re.compile(r"(?:(?<=\")|(?<=')|(?<=&quot;))([A-Za-z0-9_.\-/]+\.(?:png|jpe?g|webp|gif))(?=\"|'|&quot;)")
+
+
+def _version_images(html: str, docs_dir: str) -> str:
+    """把頁面裡每個本站圖片的網址加上 ?v=<內容雜湊>。
+
+    圖檔名稱每次更新都一樣（例如 AIFS_WP…_Forecast_Map.png），GitHub Pages 又叫瀏覽器把檔案留 10 分鐘，
+    所以同名的圖在這 10 分鐘內就算已經換新，瀏覽器還是拿舊的出來。網址帶內容雜湊之後，圖一變網址就變，
+    不必重新整理也一定是新的；沒變的圖網址不變，照樣用瀏覽器手上的，不會重抓。
+    src、data-src 與 <option value> 都會處理（動畫每一格的網址在 _player 裡加）；外站網址與不存在的檔案不動。
+    """
+    def sub(m) -> str:
+        v = _file_ver(os.path.join(docs_dir, m.group(1)))
+        return f'{m.group(1)}?v={v}' if v else m.group(1)
+    return _IMG_REF.sub(sub, html)
+
+
 def _write_static_assets(docs_dir: str) -> str:
     """寫出 site.css／site.js，回傳內容雜湊（8 碼）當網址的版本參數。"""
     import hashlib
@@ -1843,19 +1878,22 @@ def _write_static_assets(docs_dir: str) -> str:
 
 
 # Service worker：網頁本身、片段與 JSON 走「先網路、斷線才用快取」（內容每 10 分鐘變，不能給舊的）；
-# 圖片、字型、樣式與腳本走「先快取、背景更新」，快取最多留 400 筆。status.json 不經快取（頁面輪詢用）。
+# 圖片不存快取，而且每次都向伺服器確認有沒有新版（沒變只回 304，不重新下載）；頁面裡的圖片網址另外帶內容雜湊
+# （見 _version_images），圖一換網址就換，所以連線時看到的一定是最新的圖；
+# 字型與 CDN 函式庫內容不會變，走「先快取、背景更新」。status.json 不經快取（頁面輪詢用）。
 # 離線時導航回最後一次抓到的 index.html。版本號跟著 site.css／site.js 的雜湊，換版就清掉舊的殼快取。
 _SW = r"""
 const VER = '__VER__';
 const SHELL = 'tc-shell-' + VER;
-const ASSETS = 'tc-assets';
-const MAX_ASSETS = 400;
+const ASSETS = 'tc-static';      // 只放字型與 CDN 函式庫
+const MAX_ASSETS = 80;
 const ASSET_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'unpkg.com'];
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(SHELL).then(c => c.addAll(['./', 'site.css?v=' + VER, 'site.js?v=' + VER]).catch(() => null)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-    e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('tc-shell-') && k !== SHELL).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+    // 'tc-assets' 是舊版存圖片的快取，整個清掉
+    e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => (k.startsWith('tc-shell-') && k !== SHELL) || k === 'tc-assets').map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 async function trim(name, max) {
     const c = await caches.open(name), keys = await c.keys();
@@ -1880,6 +1918,10 @@ async function staleWhileRevalidate(req) {
     const fetching = fetch(req).then(r => { if (r.ok || r.type === 'opaque') { c.put(req, r.clone()); trim(ASSETS, MAX_ASSETS); } return r; }).catch(() => null);
     return hit || (await fetching) || Response.error();
 }
+// 圖片：跳過瀏覽器的 HTTP 快取期限，每次都帶條件式請求去確認；連不上（離線）才退回瀏覽器自己手上有的
+function freshImage(req) {
+    return fetch(req, { cache: 'no-cache' }).catch(() => fetch(req));
+}
 self.addEventListener('fetch', e => {
     const req = e.request;
     if (req.method !== 'GET') return;
@@ -1889,7 +1931,8 @@ self.addEventListener('fetch', e => {
     if (req.mode === 'navigate') { e.respondWith(networkFirst(req, SHELL)); return; }
     if (same && /\.(html|json|geojson|csv)$/.test(url.pathname)) { e.respondWith(networkFirst(req, SHELL)); return; }
     if (same && /\.(css|js)$/.test(url.pathname)) { e.respondWith(networkFirst(req, SHELL)); return; }
-    if (same && /\.(png|webp|jpg|jpeg|gif|svg|woff2?)$/.test(url.pathname)) { e.respondWith(staleWhileRevalidate(req)); return; }
+    if (same && /\.(png|webp|jpg|jpeg|gif|svg)$/.test(url.pathname)) { e.respondWith(freshImage(req)); return; }
+    if (same && /\.woff2?$/.test(url.pathname)) { e.respondWith(staleWhileRevalidate(req)); return; }
     if (!same && ASSET_HOSTS.includes(url.hostname)) { e.respondWith(staleWhileRevalidate(req)); return; }
 });
 """
@@ -1927,8 +1970,8 @@ CHANGELOG = [
          'Downloads: ensemble-mean tracks (CSV, GeoJSON) and verification tables (CSV) on storm pages; JTWC track, forecasts and verification per storm in the Archive'),
         ('歷史頁新增「本季至今」：所有颱風合計的校驗表，以及每顆颱風 72 小時誤差的逐颱風折線；卡片加上強度小折線',
          'Archive adds "Season so far": the all-storms verification table and a storm-by-storm chart of 72 h error; cards get an intensity sparkline'),
-        ('網站可離線開啟最後一次更新，圖片第二次開啟直接從快取載入',
-         'The site opens offline with its last update, and images load from cache on repeat visits'),
+        ('網站可離線開啟最後一次更新的文字與資料；圖片不再存快取，圖一更新網址就跟著換，不用重新整理也是最新的',
+         'The site opens offline with the text and data of its last update; images are no longer cached and get a new address whenever they change, so you see the newest ones without refreshing'),
         ('颱風頁每個分頁上方多一條小目錄，點了直接跳到那個區塊；「怎麼看這張圖」先露出第一句',
          'Each storm-page tab gets a mini-index that jumps straight to a section; "How to read this" shows its first sentence inline'),
         ('總覽頁颱風名下方新增一眼看懂列：24 小時強度趨勢、登陸臺灣與沖繩／東京侵襲機率、跟上一報比',
@@ -2202,6 +2245,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
     genesis_map_paths 收 (模式名稱, 圖檔路徑) 的序列；為相容舊呼叫方式，也接受
     純路徑字串，此時退回以檔名判斷模式。
     """
+    _FILE_VER.clear()          # 同一個行程重跑時，圖可能已經換過
 
     now_local = datetime.now().astimezone()
     update_time = now_local.strftime('%Y-%m-%d %H:%M:%S')
@@ -3442,6 +3486,7 @@ def generate_forecast_html(storms: list[dict], output_path: str,
 </body>
 </html>"""
 
+    html_content = _version_images(html_content, os.path.dirname(output_path) or '.')
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
@@ -8078,7 +8123,7 @@ window.addEventListener('load', () => {
         if (y !== null) { sessionStorage.removeItem(k); window.scrollTo({ top: +y, behavior: 'instant' }); }
     } catch (e) {}
     updateIndicators();
-    // 離線也能看最後一次更新；圖片第二次開就從快取來
+    // 離線也能看最後一次更新的文字與資料；圖片不存快取，每次都拿最新的
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         navigator.serviceWorker.register('sw.js').catch(e => console.log('[sw]', e));
     }

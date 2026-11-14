@@ -52,10 +52,13 @@ def check_html(html: str, docs: str, storms: list[dict]) -> list[str]:
     for k in sorted(set(re.findall(r'<[^>]*\sdata-i18n="([^"]+)"', html))):   # 只看標籤，不看腳本註解
         if k not in en and not k.startswith(dynamic):
             problems.append(f'data-i18n="{k}" 不在字典裡')
-    for m in re.finditer(r'(?:src|href)="([^"#?:]+\.(?:png|webp|jpg|gif|json|html))"', html):
+    for m in re.finditer(r'(?:src|href)="([^"#?:]+\.(?:png|webp|jpg|gif|json|html))(?:\?v=[0-9a-f]{8})?"', html):
         p = m.group(1)
         if not os.path.exists(os.path.join(docs, p)):
             problems.append(f'引用了不存在的檔案 {p}')
+    for m in re.finditer(r'(?:src|data-src|value)="([^"#?:]+\.(?:png|webp|jpg|gif))"', html):   # 圖檔同名、內容會換：網址要帶內容雜湊
+        if os.path.exists(os.path.join(docs, m.group(1))):
+            problems.append(f'圖片網址沒有帶 ?v=（會看到舊圖）：{m.group(1)}')
     for m in re.finditer(r'class="lazy-frag" data-src="([^"]+)"', html):   # 點到分頁才載入的片段也要存在
         if not os.path.exists(os.path.join(docs, m.group(1))):
             problems.append(f'片段不存在 {m.group(1)}')
