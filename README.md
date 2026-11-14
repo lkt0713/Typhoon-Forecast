@@ -36,7 +36,7 @@
 
 **通知**：每次更新會記錄新系統、命名、強度分級變化、預報路徑大幅移動（150 公里以上）、登陸臺灣機率變動（10 個百分點以上）等事件，可用 RSS（[`feed.xml`](https://lkt0713.github.io/Typhoon-Forecast/feed.xml)）或 JSON Feed（[`feed.json`](https://lkt0713.github.io/Typhoon-Forecast/feed.json)）訂閱；設定 `NTFY_TOPIC` 後也會推播到 [ntfy](https://ntfy.sh) 的該主題。
 
-網站可以加到手機主畫面當 App 使用，離線時也能開啟最後一次更新的內容；分享到 LINE、Facebook 時會顯示最新預報圖的預覽卡片。介面有中文／英文、深色／淺色主題，時間可切換 UTC 或臺灣時間。
+網站可以加到手機主畫面當 App 使用，離線時也能開啟最後一次更新的文字與資料（圖片不存快取，連線時一律顯示最新的）；分享到 LINE、Facebook 時會顯示最新預報圖的預覽卡片。介面有中文／英文、深色／淺色主題，時間可切換 UTC 或臺灣時間。
 
 ## 資料來源
 
