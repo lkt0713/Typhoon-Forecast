@@ -1,0 +1,2 @@
+model,kind,init_utc,lead_h,valid_utc,lat,lon,wind_kt
+GENC,ensemble_mean,2026-11-11T12:00Z,0,2026-11-11T12:00Z,29.5,153.0,36

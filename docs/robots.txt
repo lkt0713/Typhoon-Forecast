@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /verification/
+
+Sitemap: https://lkt0713.github.io/Typhoon-Forecast/sitemap.xml

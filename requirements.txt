@@ -1,0 +1,16 @@
+# 自動更新（GitHub Actions）用的套件，版本固定在已知可用的組合；
+# 要升級時改這裡並跑一次 CI（.github/workflows/ci.yml 會建站測試）。
+# 2026-10-28 的 Actions 執行紀錄實際安裝的版本：
+pandas==3.1.0
+numpy==2.5.4
+matplotlib==3.11.2
+requests==2.34.2
+scipy==1.18.1
+shapely==2.2.0
+pillow==13.0.0
+cartopy==0.26.0
+pdbufr==0.15.1
+eccodes==2.50.0
+ecmwf-opendata==0.3.35
+netCDF4==1.7.5.1.post1
+copernicusmarine==2.5.0

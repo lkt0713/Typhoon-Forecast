@@ -1,0 +1,40 @@
+name: CI
+
+# 每個 PR（與推到 main 的程式變更）都先編譯、再用 docs/ 現有的圖重建一次網站，
+# 檢查頁面沒有壞掉（翻譯鍵、引用的檔案、分頁結構）。不下載任何資料，約 2 分鐘。
+
+on:
+  pull_request:
+    paths: ['*.py', 'tests/**', 'requirements.txt', '.github/workflows/ci.yml']
+  push:
+    branches: [main]
+    paths: ['*.py', 'tests/**', 'requirements.txt', '.github/workflows/ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile
+        run: python -m py_compile *.py tests/*.py
+
+      - name: Build site from committed products
+        run: python tests/test_site.py
