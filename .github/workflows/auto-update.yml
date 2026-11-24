@@ -165,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment2.outputs.page_url || steps.deployment3.outputs.page_url }}
     # 不取消進行中的部署：部署排隊比 10 分鐘還久時，取消會讓每一輪都被下一輪砍掉、網站永遠更新不了。
     # 進行中的跑完；排隊中的只留最新一輪（GitHub 對同一 group 只保留一個 pending）
     concurrency:
@@ -186,8 +186,32 @@ jobs:
         with:
           path: docs
 
+      # 上傳成功後，GitHub 的 artifact 清單有時要過幾秒才查得到。deploy-pages 緊接著查就會得到
+      # 「Found 0 artifact(s)」而失敗（2026-11-24 連續多輪如此，預報照常更新、網站卻停在一小時前；
+      # 事後用 API 查，那份 artifact 其實在）。所以第一次失敗不算數：等一下再試，最多再兩次。
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait before retrying the deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (retry 1)
+        id: deployment2
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait before the last retry
+        if: steps.deployment2.outcome == 'failure'
+        run: sleep 60
+
+      # 最後一次不加 continue-on-error：三次都失敗才讓這個 job 顯示失敗
+      - name: Deploy to GitHub Pages (retry 2)
+        id: deployment3
+        if: steps.deployment2.outcome == 'failure'
         uses: actions/deploy-pages@v5
 
   # 備援接力：GitHub 的 schedule 常延遲或整輪跳過（本 workflow 加入後連續五輪
